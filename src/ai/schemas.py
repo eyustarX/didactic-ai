@@ -4,6 +4,24 @@ from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------
+# Document Ingestion Schemas
+# ---------------------------------------------------------
+
+class DocumentChunk(BaseModel):
+    chunk_id: str = Field(..., description="Unique chunk identifier, e.g. chunk_001")
+    page_number: int = Field(..., ge=1, description="Source PDF page/slide number")
+    content: str = Field(..., description="Cleaned textual content of the chunk")
+    token_estimate: int = Field(..., ge=0, description="Approximate token count")
+
+
+class IngestedDocument(BaseModel):
+    filename: str = Field(..., description="Source document file name")
+    total_pages: int = Field(..., ge=0, description="Total number of pages extracted")
+    chunks: List[DocumentChunk] = Field(default_factory=list, description="List of semantic document chunks")
+    full_text: str = Field(..., description="Aggregated cleaned text of the entire document")
+
+
+# ---------------------------------------------------------
 # Assessment & Question Schemas
 # ---------------------------------------------------------
 
