@@ -1,0 +1,23 @@
+Set-Content -Path .gitignore -Value @"
+# Virtual Environment (never commit third-party packages to Git)
+venv/
+env/
+ENV/
+
+# Python Cache & Compiled Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Cloud Security & Secrets (Mandatory for Least-Privilege scoring)
+.env
+*.pem
+credentials
+aws_credentials.json
+
+# Local Test Data & Temporary Logs
+data/raw/
+*.log
+"@
