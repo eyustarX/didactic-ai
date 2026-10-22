@@ -217,22 +217,53 @@ class MockLLMProvider(BaseLLMProvider):
         self, assignment_title: str, assignment_instructions: str, rubric: AssessmentRubric, student_submission: str
     ) -> GradingReport:
         cleaned_sub = student_submission.strip()
+        sub_words = set(re.findall(r"\w+", cleaned_sub.lower()))
+        instruct_words = set(re.findall(r"\w+", assignment_instructions.lower()))
+
+        # Extract real excerpt for citation
         sentences = [s.strip() for s in re.split(r"[.!?\n]", cleaned_sub) if s.strip()]
         citation = f"Submission excerpt: '{sentences[0]}'" if sentences else "Empty submission."
+
+        # Extract key concept targets from instructions and criteria
+        instruct_words = set(re.findall(r"\w+", assignment_instructions.lower()))
+        crit_words = set(re.findall(r"\w+", " ".join(c.name + " " + c.description for c in rubric.criteria).lower()))
+        target_words = instruct_words.union(crit_words)
+        stopwords = {"the", "a", "an", "and", "or", "in", "on", "of", "to", "for", "with", "is", "are", "that", "this", "all", "each", "from"}
+        meaningful_targets = [w for w in target_words if len(w) > 3 and w not in stopwords]
+
+        matched = [w for w in meaningful_targets if w in cleaned_sub.lower()]
+        concept_coverage = len(matched) / max(len(meaningful_targets), 1)
 
         evaluations: List[CriterionEvaluation] = []
         total_awarded = 0.0
 
-        for c in rubric.criteria:
-            score = round(c.max_score * 0.85, 2)  # High-pass default for demonstration
+        for idx, c in enumerate(rubric.criteria):
+            if concept_coverage >= 0.45:  # Exemplary (e.g., Alice)
+                ratio = min(1.0, 0.85 + (concept_coverage - 0.45) * 0.35)
+                strengths = [
+                    f"Thoroughly addressed requirements of '{c.name}'.",
+                    f"Demonstrated solid grasp of key principles ({', '.join(matched[:4])})."
+                ]
+                gaps = ["Minor formatting or stylistic refinements recommended."]
+            elif concept_coverage >= 0.22:  # Average (e.g., Bob)
+                ratio = 0.62 + (concept_coverage - 0.22) * 0.4
+                strengths = [f"Covered basic concepts for '{c.name}' ({', '.join(matched[:2])})."]
+                gaps = [f"Lacks depth on specific mechanics or edge cases for '{c.name}'."]
+            else:  # Substandard (e.g., Charlie)
+                ratio = max(0.25, concept_coverage * 1.5)
+                strengths = ["Attempted submission."]
+                gaps = [f"Severe conceptual gaps or erroneous assertions regarding '{c.name}'."]
+
+            score = round(c.max_score * ratio, 2)
             total_awarded += score
+
             evaluations.append(
                 CriterionEvaluation(
                     criterion_name=c.name,
                     score_awarded=score,
                     max_score=c.max_score,
-                    strengths=[f"Thoroughly addressed requirements of '{c.name}'."],
-                    gaps=["Minor formatting or stylistic refinements recommended."],
+                    strengths=strengths,
+                    gaps=gaps,
                     evidence_citation=citation,
                 )
             )
@@ -240,15 +271,25 @@ class MockLLMProvider(BaseLLMProvider):
         max_possible = sum(c.max_score for c in rubric.criteria)
         percentage = round((total_awarded / max_possible) * 100, 1)
 
+        if percentage >= 80.0:
+            summary = f"Exemplary submission for '{assignment_title}'. Technical precision and rubric requirements were thoroughly satisfied."
+            review = ["Continue with advanced concurrency topics (e.g., lock-free data structures)."]
+        elif percentage >= 60.0:
+            summary = f"Satisfactory submission for '{assignment_title}'. Basic requirements were met, but several technical details and edge cases were omitted."
+            review = ["Review Coffman deadlock conditions", "Refine explanation of mutex ownership vs semaphore signaling."]
+        else:
+            summary = f"Substandard submission for '{assignment_title}'. Significant misconceptions and missing criteria detected."
+            review = ["Mandatory review of Chapter 7 lecture notes on concurrency primitives and deadlock conditions."]
+
         return GradingReport(
             submission_id=f"SUB-ASSIGN-{abs(hash(student_submission)) % 10000:04d}",
             student_id="STUDENT-DEMO",
             total_score=round(total_awarded, 2),
             max_possible_score=round(max_possible, 2),
             percentage=percentage,
-            summary_feedback=f"Comprehensive submission for '{assignment_title}'. Criteria expectations were met with clear evidence provided.",
+            summary_feedback=summary,
             evaluations=evaluations,
-            areas_to_review=["Continue refining documentation depth."],
+            areas_to_review=review,
         )
 
 

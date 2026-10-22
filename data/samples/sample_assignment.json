@@ -1,0 +1,8 @@
+{
+  "assignment_id": "CS301-LAB-02",
+  "title": "Concurrency Control and Deadlock Analysis",
+  "course_name": "CS301: Operating Systems",
+  "instructions": "In this assignment, explain the conceptual difference between a mutex lock and a binary semaphore with respect to thread ownership and signaling. Additionally, detail all four Coffman conditions necessary for a system deadlock to arise, and describe at least one strategy to prevent deadlocks in an operating system.",
+  "max_points": 10.0,
+  "reference_answer": "A mutex is a locking mechanism with ownership, where only the thread that acquired the lock can release it. In contrast, a binary semaphore is a signaling mechanism without thread ownership, where any thread or ISR can signal unblocking via wait() and signal() operations. Deadlocks require four Coffman conditions to hold simultaneously: 1) Mutual Exclusion (non-shareable resources), 2) Hold and Wait (holding a resource while waiting for another), 3) No Preemption (resources cannot be forcibly taken), and 4) Circular Wait (a circular chain of waiting processes). Deadlock prevention eliminates at least one of these conditions, such as ordering resources globally to prevent circular wait."
+}
