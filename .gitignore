@@ -1,5 +1,4 @@
-Set-Content -Path .gitignore -Value @"
-# Virtual Environment (never commit third-party packages to Git)
+# Virtual Environment
 venv/
 env/
 ENV/
@@ -20,4 +19,3 @@ aws_credentials.json
 # Local Test Data & Temporary Logs
 data/raw/
 *.log
-"@
