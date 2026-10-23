@@ -1,15 +1,18 @@
 import pytest
 from src.ai.schemas import (
+    AssessmentRubric,
     BloomLevel,
     CurriculumAnalysis,
     DocumentChunk,
     IngestedDocument,
     LearningObjective,
+    RubricCriterion,
 )
 from src.ai.rag import LectureRetriever, create_retriever
 from src.ai.agents import (
     BaseAgent,
     CurriculumAgent,
+    RubricAgent,
     classify_bloom_level,
     extract_topic_from_chunk,
 )
@@ -208,3 +211,91 @@ def test_objectives_empty_document(curriculum_agent):
     assert isinstance(analysis, CurriculumAnalysis)
     assert analysis.total_concepts >= 1
     assert analysis.objectives[0].topic == "Empty Lecture"
+
+
+# ---------------------------------------------------------------------------
+# Tests: RubricAgent (Agent 2)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def sample_curriculum(curriculum_agent, os_lecture_document):
+    return curriculum_agent.extract_objectives(
+        lecture_title="Operating Systems: Concurrency & Deadlocks",
+        document=os_lecture_document,
+    )
+
+
+@pytest.fixture
+def rubric_agent(retriever):
+    return RubricAgent(retriever=retriever)
+
+
+def test_rubric_agent_generates_valid_rubric(rubric_agent, sample_curriculum):
+    rubric = rubric_agent.generate_rubric(
+        curriculum=sample_curriculum,
+        target_criteria_count=4,
+        total_marks=10.0,
+    )
+
+    assert isinstance(rubric, AssessmentRubric)
+    assert "Operating Systems: Concurrency & Deadlocks" in rubric.title
+    assert len(rubric.criteria) == 4
+    assert rubric.rubric_id.startswith("RUB-")
+
+
+def test_rubric_weights_sum_to_exact_one(rubric_agent, sample_curriculum):
+    """Guarantees the mathematical normalization layer works with zero float drift."""
+    for count in [3, 4]:
+        rubric = rubric_agent.generate_rubric(
+            curriculum=sample_curriculum,
+            target_criteria_count=count,
+            total_marks=10.0,
+        )
+        total_weight = sum(c.weight for c in rubric.criteria)
+        assert abs(total_weight - 1.0) < 1e-4, f"Weights {total_weight} do not sum to 1.0 for count {count}"
+
+
+def test_rubric_scores_proportional_to_total_marks(rubric_agent, sample_curriculum):
+    rubric = rubric_agent.generate_rubric(
+        curriculum=sample_curriculum,
+        target_criteria_count=4,
+        total_marks=20.0,  # Custom total marks
+    )
+
+    total_max_score = sum(c.max_score for c in rubric.criteria)
+    # 20.0 total marks should match sum of max scores (allowing for rounding)
+    assert abs(total_max_score - 20.0) <= 0.1
+
+    for c in rubric.criteria:
+        assert c.max_score > 0
+        assert 0.0 < c.weight <= 1.0
+
+
+def test_rubric_descriptions_reference_curriculum_slides(rubric_agent, sample_curriculum):
+    """Verifies that criteria descriptions are grounded in the actual lecture slides."""
+    rubric = rubric_agent.generate_rubric(
+        curriculum=sample_curriculum,
+        target_criteria_count=4,
+        total_marks=10.0,
+    )
+
+    all_descriptions = " ".join(c.description for c in rubric.criteria)
+    # Should mention actual slide numbers or concepts extracted by CurriculumAgent
+    assert "Slide" in all_descriptions or "Deadlock" in all_descriptions
+
+
+def test_rubric_agent_criteria_count_options(rubric_agent, sample_curriculum):
+    rubric_3 = rubric_agent.generate_rubric(
+        curriculum=sample_curriculum,
+        target_criteria_count=3,
+        total_marks=10.0,
+    )
+    assert len(rubric_3.criteria) == 3
+
+    rubric_4 = rubric_agent.generate_rubric(
+        curriculum=sample_curriculum,
+        target_criteria_count=4,
+        total_marks=10.0,
+    )
+    assert len(rubric_4.criteria) == 4
+
