@@ -1,5 +1,5 @@
 # Core Framework & Validation
-fastapi>=0.110.0
+fastapi>=0.115.0,<0.130.0
 uvicorn[standard]>=0.28.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0

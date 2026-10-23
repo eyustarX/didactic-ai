@@ -11,7 +11,17 @@ from src.db.models import Base
 from src.db.session import engine
 from src.services.engine_adapter import ai_engine
 
+# Compatibility patch: prevent AttributeError in prometheus-fastapi-instrumentator with newer FastAPI versions
+try:
+    import fastapi.routing as _fastapi_routing
+    _IncludedRouter = getattr(_fastapi_routing, "_IncludedRouter", None)
+    if _IncludedRouter is not None and not hasattr(_IncludedRouter, "path"):
+        _IncludedRouter.path = property(lambda self: "")
+except Exception:
+    pass
+
 logging.basicConfig(level=logging.INFO)
+
 
 
 @asynccontextmanager
