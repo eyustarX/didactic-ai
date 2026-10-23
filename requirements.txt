@@ -2,7 +2,14 @@
 fastapi>=0.110.0
 uvicorn[standard]>=0.28.0
 pydantic>=2.0.0
+pydantic-settings>=2.0.0
 python-multipart>=0.0.9
+
+# Database & Storage
+sqlalchemy>=2.0.0
+
+# Monitoring & Metrics
+prometheus-fastapi-instrumentator<=7.0.2
 
 # Document Ingestion & Cloud
 pypdf>=4.0.0

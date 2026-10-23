@@ -1,40 +1,46 @@
-"""
-FastAPI application entry point for Didactic AI.
-Configures CORS, middleware, root index, and mounts versioned API routes.
-"""
+import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
-from src.api.routes import router as api_router
-from src.ai.engine import get_engine
+from src.api.routes import router
+from src.core.config import settings
+from src.db.models import Base
+from src.db.session import engine
+from src.services.engine_adapter import ai_engine
 
-app = FastAPI(
-    title="Didactic AI API",
-    version="1.0.0",
-    description="AI-powered academic curriculum analysis, rubric generation, and automated exam grading.",
-)
+logging.basicConfig(level=logging.INFO)
 
-# Enable CORS for frontend applications
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(engine)  # creates the table in Neon if it is missing
+    yield
+
+
+app = FastAPI(title="Didactic AI API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Mount all API routes
-app.include_router(api_router)
+app.include_router(router)
+Instrumentator().instrument(app).expose(app)  # adds GET /metrics for Prometheus
 
 
 @app.get("/", tags=["General"])
-async def root():
-    engine = get_engine()
+def root():
+    try:
+        provider = ai_engine().provider.__class__.__name__
+    except Exception:
+        provider = "unavailable"
     return {
         "name": "Didactic AI API",
         "version": "1.0.0",
         "status": "running",
         "docs_url": "/docs",
-        "active_provider": engine.provider.__class__.__name__,
+        "active_provider": provider,
     }

@@ -61,6 +61,8 @@ class GradeExamRequest(BaseModel):
     question: Question
     rubric: AssessmentRubric
     student_answer: str = Field(..., min_length=1, description="Student's response to the exam question")
+    student_id: Optional[str] = Field(default=None, description="Optional student identifier")
+    course_id: Optional[str] = Field(default=None, description="Optional course identifier")
 
 
 class GradeAssignmentRequest(BaseModel):
@@ -68,3 +70,6 @@ class GradeAssignmentRequest(BaseModel):
     assignment_instructions: str = Field(..., min_length=5, description="Official instructions / prompt")
     rubric: AssessmentRubric
     student_submission: str = Field(..., min_length=1, description="Student's submission text")
+    student_id: Optional[str] = Field(default=None, description="Optional student identifier")
+    course_id: Optional[str] = Field(default=None, description="Optional course identifier")
+

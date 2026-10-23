@@ -1,1 +1,7 @@
-# TODO: Implement core configuration, environment settings, security middleware, and logging utilities.
+"""
+Core configuration and utilities for Didactic AI.
+"""
+
+from src.core.config import settings
+
+__all__ = ["settings"]
