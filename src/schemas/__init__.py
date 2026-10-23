@@ -1,1 +1,21 @@
-# TODO: Define Pydantic request and response schemas for FastAPI endpoints.
+"""
+API Schemas package for Didactic AI.
+"""
+
+from src.schemas.schemas import (
+    HealthResponse,
+    UploadResponse,
+    RubricGenerateRequest,
+    AssessmentGenerateRequest,
+    GradeExamRequest,
+    GradeAssignmentRequest,
+)
+
+__all__ = [
+    "HealthResponse",
+    "UploadResponse",
+    "RubricGenerateRequest",
+    "AssessmentGenerateRequest",
+    "GradeExamRequest",
+    "GradeAssignmentRequest",
+]
