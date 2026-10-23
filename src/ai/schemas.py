@@ -22,6 +22,33 @@ class IngestedDocument(BaseModel):
 
 
 # ---------------------------------------------------------
+# Curriculum & Learning Objective Schemas
+# ---------------------------------------------------------
+
+class BloomLevel(str, Enum):
+    """Bloom's Taxonomy cognitive levels used in curriculum analysis."""
+    REMEMBER = "remember"
+    UNDERSTAND = "understand"
+    APPLY = "apply"
+    ANALYZE = "analyze"
+    EVALUATE = "evaluate"
+    CREATE = "create"
+
+
+class LearningObjective(BaseModel):
+    topic: str = Field(..., description="Specific concept or skill, e.g. 'Coffman Deadlock Conditions'")
+    description: str = Field(..., description="What the student should be able to do, e.g. 'List and explain all four conditions'")
+    bloom_level: BloomLevel = Field(..., description="Bloom's Taxonomy cognitive level required")
+    source_page: int = Field(..., ge=1, description="Slide/page number where this concept is taught (from RAG)")
+
+
+class CurriculumAnalysis(BaseModel):
+    lecture_title: str = Field(..., description="Title of the lecture analyzed")
+    objectives: List[LearningObjective] = Field(..., min_length=1, description="Extracted learning objectives")
+    total_concepts: int = Field(..., ge=1, description="Number of distinct concepts identified")
+
+
+# ---------------------------------------------------------
 # Assessment & Question Schemas
 # ---------------------------------------------------------
 
