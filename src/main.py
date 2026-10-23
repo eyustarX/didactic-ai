@@ -11,14 +11,36 @@ from src.db.models import Base
 from src.db.session import engine
 from src.services.engine_adapter import ai_engine
 
-# Compatibility patch: prevent AttributeError in prometheus-fastapi-instrumentator with newer FastAPI versions
+# Compatibility patch for prometheus-fastapi-instrumentator with newer FastAPI router structures
 try:
-    import fastapi.routing as _fastapi_routing
-    _IncludedRouter = getattr(_fastapi_routing, "_IncludedRouter", None)
-    if _IncludedRouter is not None and not hasattr(_IncludedRouter, "path"):
-        _IncludedRouter.path = property(lambda self: "")
+    import prometheus_fastapi_instrumentator.routing as _pfi_routing
+    from starlette.routing import Match, Mount
+
+    def _safe_get_route_name(scope, routes, route_name=None):
+        for route in routes:
+            match, child_scope = route.matches(scope)
+            if match == Match.FULL:
+                route_name = getattr(route, "path", None)
+                child_scope = {**scope, **child_scope}
+                if isinstance(route, Mount) and getattr(route, "routes", None):
+                    child_route_name = _safe_get_route_name(child_scope, route.routes, route_name)
+                    if child_route_name is None:
+                        route_name = None
+                    else:
+                        route_name += child_route_name
+                elif hasattr(route, "original_router") and hasattr(route.original_router, "routes"):
+                    child_route_name = _safe_get_route_name(child_scope, route.original_router.routes, route_name)
+                    if child_route_name:
+                        route_name = child_route_name
+                return route_name or getattr(route, "path", "") or ""
+            elif match == Match.PARTIAL and route_name is None:
+                route_name = getattr(route, "path", None)
+        return None
+
+    _pfi_routing._get_route_name = _safe_get_route_name
 except Exception:
     pass
+
 
 logging.basicConfig(level=logging.INFO)
 
