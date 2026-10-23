@@ -13,6 +13,7 @@ __pycache__/
 # Cloud Security & Secrets (Mandatory for Least-Privilege scoring)
 .env
 *.pem
+*.db
 credentials
 aws_credentials.json
 
