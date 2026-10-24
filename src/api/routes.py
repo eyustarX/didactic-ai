@@ -117,3 +117,9 @@ def grade_assignment(request: GradeAssignmentRequest, session: Session = Depends
 @router.get("/analytics", tags=["Analytics"])
 def analytics(course_id: str | None = None, session: Session = Depends(get_session)):
     return analytics_service.get_analytics(session, course_id)
+
+
+# Mount Didactic AI routes
+from src.api.didactic_routes import router as didactic_router
+router.include_router(didactic_router)
+router.include_router(didactic_router, prefix="/api")

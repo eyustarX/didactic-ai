@@ -147,22 +147,6 @@ export default function OverviewTab({
             Evaluate answers against rubrics with evidence citations and automated misconception tagging.
           </p>
         </div>
-
-        <div
-          onClick={() => setActiveTab('analytics')}
-          className="cartesia-card cartesia-card-interactive"
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div className="stat-icon">
-              <BarChart3 size={16} />
-            </div>
-            <ArrowRight size={14} style={{ color: 'var(--text-muted)' }} />
-          </div>
-          <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 4 }}>Cohort Analytics</h4>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>
-            Inspect score trends, identify systemic student gaps, and review submissions in Postgres.
-          </p>
-        </div>
       </div>
     </div>
   );

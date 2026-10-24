@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import ExcelJS from 'exceljs';
 import {
   Zap,
   ArrowRight,
@@ -7,6 +8,15 @@ import {
   ShieldCheck,
   LogIn,
   User,
+  FileCheck,
+  GraduationCap,
+  Lock,
+  FileSpreadsheet,
+  CheckCircle2,
+  Sparkles,
+  Layers,
+  FileText,
+  Check,
 } from 'lucide-react';
 
 const GitHubIcon = ({ size = 16, ...props }) => (
@@ -214,6 +224,36 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
           >
             Rubrics
           </a>
+          <a
+            href="#assessment"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('assessment');
+            }}
+            className="landing-link"
+          >
+            Assessment
+          </a>
+          <a
+            href="#grading"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('grading');
+            }}
+            className="landing-link"
+          >
+            Grading
+          </a>
+          <a
+            href="#export"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('export');
+            }}
+            className="landing-link"
+          >
+            Audit & Export
+          </a>
 
           {/* User Sign In / Profile Button */}
           {currentUser ? (
@@ -260,9 +300,8 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
         </h1>
 
         <p className="hero-lead">
-          Didactic AI transforms complex lecture notes into clear, Bloom-indexed learning paths,
-          synthesizes transparent 100% normalized rubrics, and evaluates open-ended student work with
-          verifiable textual evidence citations.
+          Didactic AI transforms lecture notes into comprehensive assessments, synthesizes transparent
+          grading rubrics, and evaluates student answer sheets with objective criteria and decomposed feedback.
         </p>
 
         <div className="hero-actions">
@@ -324,7 +363,6 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
       {/* 4 & 5. Bloom's Taxonomy Section */}
       <section className="section-layout" id="curriculum">
         <div className="section-header reveal-on-scroll">
-          <div className="reveal-label">Section 01 · Cognitive Hierarchy</div>
           <h2 className="section-title">Decompiled Curriculum Mapping</h2>
           <p className="section-desc">
             Every concept from lecture notes is categorized across Bloom's Taxonomy, calibrating cognitive complexity before assessment synthesis.
@@ -416,7 +454,6 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
       {/* 6. Rubrics Table & Three Feedback Items Section */}
       <section className="section-layout" id="rubrics" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="section-header reveal-on-scroll">
-          <div className="reveal-label">Section 02 · Normalized Standard</div>
           <h2 className="section-title">100% Normalized Evaluation Rubrics</h2>
           <p className="section-desc">
             Mathematical criteria weights sum to 100%, paired with decomposed evidence citations.
@@ -478,6 +515,306 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
             <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)' }}>
               Recommended next topic: compare dynamic avoidance via Dijkstra's Banker's Algorithm.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Section 03 · Assessment Synthesis & Question Authoring */}
+      <section className="section-layout" id="assessment" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="section-header reveal-on-scroll">
+          <h2 className="section-title">Automated Assessment Generation</h2>
+          <p className="section-desc">
+            Directly converts extracted lecture concepts into university-level assessment questions, complete with tailored hints, point distributions, and connected rubric criteria.
+          </p>
+        </div>
+
+        <div className="cartesia-card reveal-on-scroll" style={{ padding: 24, marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="badge badge-accent">Midterm Exam</span>
+              <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>Operating Systems: Concurrency & Deadlocks</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span className="badge badge-outline">5 Questions Total</span>
+              <span className="badge badge-accent">50.0 Points Total</span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Sample Question 1 */}
+            <div style={{ background: 'var(--surface)', padding: 16, borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="badge badge-outline">Q1 · Short Answer</span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>Thread Ownership & Mutual Exclusion</span>
+                </div>
+                <span className="badge badge-accent">10.0 pts</span>
+              </div>
+              <p style={{ fontSize: '0.86rem', color: 'var(--text)', marginBottom: 8, lineHeight: 1.5 }}>
+                Critically distinguish between mutex thread ownership and binary semaphore signaling. Explain the mechanisms of priority inversion when using unmanaged mutex locks in real-time operating systems.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-muted)', background: 'var(--bg)', padding: '6px 10px', borderRadius: 4 }}>
+                <Sparkles size={13} style={{ color: 'var(--accent)' }} />
+                <span><strong>Student Hint:</strong> Consider how scheduler priority inheritance protocols break unbounded blocking chains.</span>
+              </div>
+            </div>
+
+            {/* Sample Question 2 */}
+            <div style={{ background: 'var(--surface)', padding: 16, borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="badge badge-outline">Q2 · Systems Analysis</span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>Coffman Deadlock Conditions</span>
+                </div>
+                <span className="badge badge-accent">10.0 pts</span>
+              </div>
+              <p style={{ fontSize: '0.86rem', color: 'var(--text)', marginBottom: 8, lineHeight: 1.5 }}>
+                Enumerate all four Coffman deadlock conditions. Propose a concrete operating system resource hierarchy protocol that strictly prevents circular wait without severe throughput degradation.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-muted)', background: 'var(--bg)', padding: '6px 10px', borderRadius: 4 }}>
+                <Sparkles size={13} style={{ color: 'var(--accent)' }} />
+                <span><strong>Student Hint:</strong> Focus on total ordering of resource identifiers to eliminate circular wait conditions.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Section 04 · Decomposed Whole-Assessment PDF Grading */}
+      <section className="section-layout" id="grading" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="section-header reveal-on-scroll">
+          <h2 className="section-title">Whole-Assessment PDF Grading</h2>
+          <p className="section-desc">
+            Upload the student's complete answer sheet as a single PDF. Didactic AI segments each answer, matches it to the corresponding question, and evaluates against rubric criteria with side-by-side verification.
+          </p>
+        </div>
+
+        {/* Side-by-Side Match Card */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 20 }}>
+          {/* Left: Student Answer PDF Segment */}
+          <div className="cartesia-card reveal-on-scroll">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Quote size={15} style={{ color: 'var(--accent)' }} />
+                <h4 style={{ fontSize: '0.92rem', fontWeight: 600 }}>Matched Answer from Student PDF</h4>
+              </div>
+              <span className="badge badge-outline">Alice Johnson · Q1</span>
+            </div>
+
+            <div style={{ background: 'var(--bg)', padding: 14, borderRadius: 6, border: '1px solid var(--border-subtle)', fontFamily: 'var(--font-mono)', fontSize: '0.82rem', lineHeight: 1.6, color: 'var(--text)', marginBottom: 12 }}>
+              "A mutex requires explicit thread ownership: only the thread that acquired the mutex lock is legally permitted to release it. In contrast, a semaphore maintains an integer counter without ownership semantics. Priority inversion occurs when a high-priority thread blocks waiting for a lock held by a low-priority thread, which is preempted by medium-priority tasks..."
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+              <CheckCircle2 size={13} style={{ color: 'var(--accent)' }} />
+              <span>Matched from Page 1 of uploaded submission PDF (SHA-256 verified)</span>
+            </div>
+          </div>
+
+          {/* Right: Rubric Evaluation & Score Breakdown */}
+          <div className="cartesia-card reveal-on-scroll">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <GraduationCap size={16} style={{ color: 'var(--accent)' }} />
+                <h4 style={{ fontSize: '0.92rem', fontWeight: 600 }}>Criterion-Level Evaluation</h4>
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent)' }}>
+                9.5 / 10.0 pts
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border-subtle)', fontSize: '0.82rem' }}>
+                <span>Mutex vs. semaphore thread ownership distinction</span>
+                <span style={{ fontWeight: 600, color: 'var(--accent)' }}>4.5 / 5.0</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border-subtle)', fontSize: '0.82rem' }}>
+                <span>Priority inversion mechanics & protocol description</span>
+                <span style={{ fontWeight: 600, color: 'var(--accent)' }}>5.0 / 5.0</span>
+              </div>
+            </div>
+
+            <div style={{ background: 'var(--surface)', padding: '10px 12px', borderRadius: 4, border: '1px solid var(--border-subtle)', fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+              <strong style={{ color: 'var(--text)' }}>Feedback: </strong>
+              Accurate articulation of thread ownership constraints. Thorough description of unbounded priority inversion with appropriate mention of priority inheritance protocols.
+            </div>
+          </div>
+        </div>
+
+        {/* Server Immutability Lock Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+          <Lock size={15} style={{ color: '#eab308' }} />
+          <span><strong>Academic Integrity Guarantee:</strong> Once the first student answer is graded, the assessment questions and rubrics are server-locked to guarantee consistent, immutable standards across the entire cohort.</span>
+        </div>
+      </section>
+
+      {/* Section 05 · Total Score Confirmation & Excel Export */}
+      <section className="section-layout" id="export" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="section-header reveal-on-scroll">
+          <h2 className="section-title">Instructor Confirmation & Excel Export</h2>
+          <p className="section-desc">
+            Lecturers maintain total oversight: inspect headline scores, override individual marks where necessary, confirm final totals, and export clean, audit-ready spreadsheets.
+          </p>
+        </div>
+
+        <div className="cartesia-card reveal-on-scroll" style={{ padding: 24 }}>
+          {/* Header & Export Button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <span className="badge badge-accent" style={{ marginBottom: 4 }}>Confirmed Grading Record</span>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>CS-301 · Final Assessment Gradebook</h3>
+            </div>
+
+            <button
+              onClick={async () => {
+                const workbook = new ExcelJS.Workbook();
+                const worksheet = workbook.addWorksheet('CS-301 Gradebook');
+                worksheet.columns = [
+                  { header: 'Student ID', key: 'id', width: 16 },
+                  { header: 'Student Name', key: 'name', width: 24 },
+                  { header: 'Questions', key: 'questions', width: 14 },
+                  { header: 'AI Score', key: 'ai_score', width: 14 },
+                  { header: 'Final Score', key: 'final_score', width: 14 },
+                  { header: 'Max Score', key: 'max_score', width: 12 },
+                  { header: 'Percentage', key: 'percentage', width: 14 },
+                  { header: 'Tier', key: 'tier', width: 10 },
+                  { header: 'Status', key: 'status', width: 14 },
+                ];
+                const sampleRoster = [
+                  { id: 'STU-2026-081', name: 'Alice Johnson', questions: '5 / 5', ai_score: 46.5, final_score: 46.5, max_score: 50.0, percentage: '93.0%', tier: 'A', status: 'CONFIRMED' },
+                  { id: 'STU-2026-082', name: 'Marcus Chen', questions: '5 / 5', ai_score: 44.5, final_score: 44.5, max_score: 50.0, percentage: '89.0%', tier: 'A-', status: 'CONFIRMED' },
+                  { id: 'STU-2026-083', name: 'Sophia Rodriguez', questions: '5 / 5', ai_score: 45.5, final_score: 45.5, max_score: 50.0, percentage: '91.0%', tier: 'A', status: 'CONFIRMED' },
+                  { id: 'STU-2026-084', name: 'David Kim', questions: '5 / 5', ai_score: 39.5, final_score: 39.5, max_score: 50.0, percentage: '79.0%', tier: 'B', status: 'CONFIRMED' },
+                  { id: 'STU-2026-085', name: 'Fatima Al-Mansoor', questions: '5 / 5', ai_score: 48.0, final_score: 48.0, max_score: 50.0, percentage: '96.0%', tier: 'A+', status: 'CONFIRMED' },
+                  { id: 'STU-2026-086', name: "Liam O'Connor", questions: '5 / 5', ai_score: 41.0, final_score: 41.0, max_score: 50.0, percentage: '82.0%', tier: 'B+', status: 'CONFIRMED' },
+                  { id: 'STU-2026-087', name: 'Maya Patel', questions: '5 / 5', ai_score: 44.0, final_score: 44.0, max_score: 50.0, percentage: '88.0%', tier: 'B+', status: 'CONFIRMED' },
+                  { id: 'STU-2026-088', name: 'Lucas Vance', questions: '5 / 5', ai_score: 37.5, final_score: 37.5, max_score: 50.0, percentage: '75.0%', tier: 'C+', status: 'CONFIRMED' },
+                ];
+                sampleRoster.forEach(row => worksheet.addRow(row));
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'CS-301_Final_Assessment_Gradebook.xlsx';
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="btn btn-secondary btn-sm"
+            >
+              <FileSpreadsheet size={14} />
+              <span>Export Audit Sheet (.xlsx)</span>
+            </button>
+          </div>
+
+          {/* Cohort Stats Pills */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 18 }}>
+            <div style={{ background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Class Size</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)' }}>8 Students</div>
+            </div>
+            <div style={{ background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Cohort Average</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent)' }}>86.6% (43.3 / 50)</div>
+            </div>
+            <div style={{ background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Highest Mark</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)' }}>96.0% (Fatima A.)</div>
+            </div>
+            <div style={{ background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Audit Status</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)' }}>100% Confirmed</div>
+            </div>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="rubric-table" style={{ fontSize: '0.84rem' }}>
+              <thead>
+                <tr>
+                  <th>Student ID</th>
+                  <th>Student Name</th>
+                  <th>Questions</th>
+                  <th>AI Score</th>
+                  <th>Final Total</th>
+                  <th>Tier</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="gradebook-row">
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-081</td>
+                  <td style={{ fontWeight: 600 }}>Alice Johnson</td>
+                  <td>5 / 5</td>
+                  <td>46.5 / 50.0</td>
+                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>46.5 / 50.0 (93.0%)</td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>Grade A</span></td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>CONFIRMED</span></td>
+                </tr>
+                <tr className="gradebook-row">
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-082</td>
+                  <td style={{ fontWeight: 600 }}>Marcus Chen</td>
+                  <td>5 / 5</td>
+                  <td>44.5 / 50.0</td>
+                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>44.5 / 50.0 (89.0%)</td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>Grade A-</span></td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>CONFIRMED</span></td>
+                </tr>
+                <tr className="gradebook-row">
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-083</td>
+                  <td style={{ fontWeight: 600 }}>Sophia Rodriguez</td>
+                  <td>5 / 5</td>
+                  <td>45.5 / 50.0</td>
+                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>45.5 / 50.0 (91.0%)</td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>Grade A</span></td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>CONFIRMED</span></td>
+                </tr>
+                <tr className="gradebook-row">
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-084</td>
+                  <td style={{ fontWeight: 600 }}>David Kim</td>
+                  <td>5 / 5</td>
+                  <td>39.5 / 50.0</td>
+                  <td style={{ fontWeight: 700, color: 'var(--text)' }}>39.5 / 50.0 (79.0%)</td>
+                  <td><span className="badge badge-outline" style={{ fontSize: '0.68rem' }}>Grade B</span></td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>CONFIRMED</span></td>
+                </tr>
+                <tr className="gradebook-row">
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-085</td>
+                  <td style={{ fontWeight: 600 }}>Fatima Al-Mansoor</td>
+                  <td>5 / 5</td>
+                  <td>48.0 / 50.0</td>
+                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>48.0 / 50.0 (96.0%)</td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>Grade A+</span></td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>CONFIRMED</span></td>
+                </tr>
+                <tr className="gradebook-row">
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-086</td>
+                  <td style={{ fontWeight: 600 }}>Liam O'Connor</td>
+                  <td>5 / 5</td>
+                  <td>41.0 / 50.0</td>
+                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>41.0 / 50.0 (82.0%)</td>
+                  <td><span className="badge badge-outline" style={{ fontSize: '0.68rem' }}>Grade B+</span></td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>CONFIRMED</span></td>
+                </tr>
+                <tr className="gradebook-row">
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-087</td>
+                  <td style={{ fontWeight: 600 }}>Maya Patel</td>
+                  <td>5 / 5</td>
+                  <td>44.0 / 50.0</td>
+                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>44.0 / 50.0 (88.0%)</td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>Grade B+</span></td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>CONFIRMED</span></td>
+                </tr>
+                <tr className="gradebook-row">
+                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-088</td>
+                  <td style={{ fontWeight: 600 }}>Lucas Vance</td>
+                  <td>5 / 5</td>
+                  <td>37.5 / 50.0</td>
+                  <td style={{ fontWeight: 700, color: 'var(--text)' }}>37.5 / 50.0 (75.0%)</td>
+                  <td><span className="badge badge-outline" style={{ fontSize: '0.68rem' }}>Grade C+</span></td>
+                  <td><span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>CONFIRMED</span></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>

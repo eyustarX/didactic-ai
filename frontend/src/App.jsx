@@ -5,11 +5,10 @@ import AuthModal from './components/AuthModal';
 import LandingPage from './pages/LandingPage';
 import OverviewTab from './pages/OverviewTab';
 import CurriculumTab from './pages/CurriculumTab';
-import RubricsTab from './pages/RubricsTab';
 import AssessmentTab from './pages/AssessmentTab';
 import GradingTab from './pages/GradingTab';
 import AnalyticsTab from './pages/AnalyticsTab';
-import { fetchAnalytics } from './services/api';
+import { fetchAnalytics, fetchLectureNotes, fetchLectureNoteDetail, fetchAssessment } from './services/api';
 import { SAMPLE_LECTURE_TITLE, SAMPLE_LECTURE_CONTENT } from './data/sampleData';
 
 export default function App() {
@@ -24,17 +23,38 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   // Shared workflow state
+  const [activeNoteId, setActiveNoteId] = useState(null);
   const [lectureTitle, setLectureTitle] = useState(SAMPLE_LECTURE_TITLE);
   const [lectureContent, setLectureContent] = useState(SAMPLE_LECTURE_CONTENT);
-  const [rubric, setRubric] = useState(null);
   const [assessment, setAssessment] = useState(null);
-  const [selectedQuestion, setSelectedQuestion] = useState(null);
+  const [rubric, setRubric] = useState(null);
 
   // Analytics state
   const [analyticsData, setAnalyticsData] = useState(null);
 
   useEffect(() => {
     fetchAnalytics().then((a) => setAnalyticsData(a)).catch(() => {});
+
+    // Automatically load initial lecture note & assessment if available
+    fetchLectureNotes(currentUser?.id)
+      .then(async (notes) => {
+        if (notes && notes.length > 0) {
+          const firstNote = notes[0];
+          setActiveNoteId(firstNote.id);
+          if (firstNote.name) setLectureTitle(firstNote.name);
+          try {
+            const detail = await fetchLectureNoteDetail(firstNote.id, currentUser?.id);
+            if (detail?.assessments && detail.assessments.length > 0) {
+              const firstAssId = detail.assessments[0].id;
+              const fullAss = await fetchAssessment(firstAssId, currentUser?.id);
+              if (fullAss) setAssessment(fullAss);
+            }
+          } catch (e) {
+            console.error('Failed to auto-load initial assessment:', e);
+          }
+        }
+      })
+      .catch(() => {});
 
     const handleResize = () => {
       if (window.innerWidth <= 860) {
@@ -43,7 +63,7 @@ export default function App() {
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [currentUser?.id]);
 
   const handleGradingComplete = () => {
     fetchAnalytics().then((a) => setAnalyticsData(a)).catch(() => {});
@@ -108,35 +128,30 @@ export default function App() {
               setLectureTitle={setLectureTitle}
               lectureContent={lectureContent}
               setLectureContent={setLectureContent}
+              activeNoteId={activeNoteId}
+              setActiveNoteId={setActiveNoteId}
               setActiveTab={setActiveTab}
+              currentUser={currentUser}
             />
           )}
 
-          {activeTab === 'rubrics' && (
-            <RubricsTab
-              lectureTitle={lectureTitle}
-              lectureContent={lectureContent}
-              rubric={rubric}
-              setRubric={setRubric}
-              setActiveTab={setActiveTab}
-            />
-          )}
 
           {activeTab === 'assessment' && (
             <AssessmentTab
+              activeNoteId={activeNoteId}
               lectureTitle={lectureTitle}
               lectureContent={lectureContent}
               assessment={assessment}
               setAssessment={setAssessment}
-              setSelectedQuestion={setSelectedQuestion}
               setActiveTab={setActiveTab}
+              currentUser={currentUser}
             />
           )}
 
           {activeTab === 'grading' && (
             <GradingTab
-              selectedQuestion={selectedQuestion}
-              rubric={rubric}
+              assessment={assessment}
+              setAssessment={setAssessment}
               currentUser={currentUser}
               onGradingComplete={handleGradingComplete}
             />

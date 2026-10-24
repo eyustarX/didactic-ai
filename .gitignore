@@ -12,11 +12,6 @@ __pycache__/
 
 # Cloud Security & Secrets (Mandatory for Least-Privilege scoring)
 .env
-.env.*
-**/.env
-**/.env.*
-!.env.example
-!**/.env.example
 *.pem
 *.db
 credentials

@@ -15,11 +15,9 @@ import {
 const NAV_ITEMS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'curriculum', label: 'Curriculum & Ingest', icon: FileText },
-  { id: 'rubrics', label: 'Rubrics Studio', icon: Award },
-  { id: 'assessment', label: 'Assessment Gen', icon: FileCheck },
-  { id: 'grading', label: 'Decomposed Grading', icon: GraduationCap },
-  { id: 'analytics', label: 'Cohort Analytics', icon: BarChart3 },
-];
+  { id: 'assessment', label: 'Assessment', icon: FileCheck },
+  { id: 'grading', label: 'Grading', icon: GraduationCap },
+ ];
 
 export default function Sidebar({
   activeTab,
