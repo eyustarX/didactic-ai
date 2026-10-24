@@ -1,0 +1,36 @@
+# TODO: Configure multi-container orchestration for Didactic AI local development and testing
+version: "3.8"
+
+services:
+  # TODO: Configure FastAPI backend container service
+  backend:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+    ports:
+      - "8000:8000"
+    # TODO: Mount environment variables and storage volumes
+
+  # TODO: Configure Prometheus metrics collection service
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  # TODO: Configure Grafana visualization dashboard service
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+
+  # TODO: Configure optional MinIO object storage service for PDF slide and document storage
+  # minio:
+  #   image: minio/minio:latest
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
+  #   command: server /data --console-address ":9001"

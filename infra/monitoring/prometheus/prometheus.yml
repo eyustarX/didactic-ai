@@ -1,0 +1,9 @@
+# TODO: Configure Prometheus scrape targets, application metrics, and alert rules.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # TODO: Configure FastAPI backend metrics scrape endpoint
+  - job_name: "didactic-ai-backend"
+    static_configs:
+      - targets: ["backend:8000"]

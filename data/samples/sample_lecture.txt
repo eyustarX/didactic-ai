@@ -1,0 +1,31 @@
+# Computer Science 301: Operating Systems & Systems Programming
+## Lecture 07: Concurrency, Synchronization, and Deadlocks
+
+### 1. The Critical Section Problem
+When multiple threads or processes execute concurrently, concurrent access to shared data may result in data inconsistency. Maintaining data consistency requires mechanisms to ensure the orderly execution of cooperating processes. A critical section is a piece of code that accesses a shared resource (such as data structures or device registers) that must not be concurrently accessed by more than one thread of execution.
+
+Any valid solution to the critical section problem must satisfy three requirements:
+1. Mutual Exclusion: If process Pi is executing in its critical section, then no other processes can be executing in their critical sections.
+2. Progress: If no process is executing in its critical section and some processes wish to enter, only those processes not in their remainder sections can participate in deciding who will enter next.
+3. Bounded Waiting: There must be a bound on the number of times other processes are allowed to enter their critical sections after a process has made a request to enter.
+
+### 2. Synchronization Primitives: Mutex vs. Binary Semaphore
+- Mutex (Mutual Exclusion Lock): A locking mechanism used to synchronize access to a resource. It is owned by the thread that acquires it. Only the thread that locked the mutex can unlock it.
+- Semaphore: A signaling mechanism introduced by Edsger Dijkstra. A semaphore S is an integer variable that, apart from initialization, is accessed only through two standard atomic operations: wait() (historically known as P) and signal() (historically known as V).
+  - wait(S): Decrements the semaphore value. If the value becomes negative, the calling process is blocked.
+  - signal(S): Increments the semaphore value. If there are blocked processes, one is unblocked.
+- Key Difference: A mutex has the concept of ownership (only the lock holder can release it), whereas a semaphore does not have ownership (one thread can wait on an event while an interrupt handler or another thread signals it).
+
+### 3. Deadlock Dynamics and the Four Coffman Conditions
+A deadlock occurs when a set of concurrent processes are permanently blocked because each process is holding a resource and waiting for another resource held by another process in the same set.
+
+A system deadlock can arise if and only if the following four Coffman conditions hold simultaneously:
+1. Mutual Exclusion: At least one resource must be held in a non-shareable mode (only one process can use the resource at any given time).
+2. Hold and Wait: A process must be currently holding at least one resource and simultaneously waiting to acquire additional resources that are currently being held by other processes.
+3. No Preemption: Resources cannot be forcibly taken away from a process; a resource can be released only voluntarily by the process holding it after that process has completed its task.
+4. Circular Wait: A closed chain of processes must exist, such that each process holds one or more resources needed by the next process in the chain (P0 waits for P1, P1 waits for P2, ..., Pn waits for P0).
+
+### 4. Deadlock Handling Strategies
+1. Deadlock Prevention: Eliminates deadlock by designing system resource allocation protocols so that at least one of the four Coffman conditions cannot hold (e.g., imposing total resource ordering to eliminate circular wait).
+2. Deadlock Avoidance: Uses dynamic runtime state inspection (e.g., Dijkstra's Banker's Algorithm) to ensure that the system never enters an unsafe state.
+3. Deadlock Detection and Recovery: Allows the system to enter a deadlocked state, periodically runs detection algorithms (e.g., cycle detection in resource-allocation graphs), and recovers by aborting processes or preempting resources.

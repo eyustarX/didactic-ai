@@ -1,5 +1,4 @@
-Set-Content -Path .gitignore -Value @"
-# Virtual Environment (never commit third-party packages to Git)
+# Virtual Environment
 venv/
 env/
 ENV/
@@ -14,10 +13,10 @@ __pycache__/
 # Cloud Security & Secrets (Mandatory for Least-Privilege scoring)
 .env
 *.pem
+*.db
 credentials
 aws_credentials.json
 
 # Local Test Data & Temporary Logs
 data/raw/
 *.log
-"@
