@@ -4,12 +4,16 @@ from src.ai.schemas import (
     BloomLevel,
     CurriculumAnalysis,
     DocumentChunk,
+    GeneratedAssessment,
     IngestedDocument,
     LearningObjective,
+    Question,
+    QuestionType,
     RubricCriterion,
 )
 from src.ai.rag import LectureRetriever, create_retriever
 from src.ai.agents import (
+    AssessmentAgent,
     BaseAgent,
     CurriculumAgent,
     RubricAgent,
@@ -298,4 +302,100 @@ def test_rubric_agent_criteria_count_options(rubric_agent, sample_curriculum):
         total_marks=10.0,
     )
     assert len(rubric_4.criteria) == 4
+
+
+# ---------------------------------------------------------------------------
+# Tests: AssessmentAgent (Agent 3)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def assessment_agent(retriever):
+    return AssessmentAgent(retriever=retriever)
+
+
+def test_assessment_agent_generates_valid_assessment(assessment_agent, sample_curriculum):
+    assessment = assessment_agent.generate_assessment(
+        curriculum=sample_curriculum,
+        question_count=3,
+        total_points=10.0,
+    )
+
+    assert isinstance(assessment, GeneratedAssessment)
+    assert len(assessment.questions) == 3
+    assert "Operating Systems" in assessment.title
+    assert assessment.course_name is not None
+
+
+def test_assessment_questions_have_answer_keys(assessment_agent, sample_curriculum):
+    assessment = assessment_agent.generate_assessment(
+        curriculum=sample_curriculum,
+        question_count=4,
+        total_points=20.0,
+    )
+
+    for q in assessment.questions:
+        assert isinstance(q, Question)
+        assert len(q.prompt) > 10
+        assert len(q.reference_answer) > 10
+        assert len(q.learning_objective) > 0
+        assert q.max_points > 0
+
+
+def test_assessment_points_sum_to_total(assessment_agent, sample_curriculum):
+    """Guarantees the point normalization layer works across question configurations."""
+    for total in [10.0, 25.0, 100.0]:
+        assessment = assessment_agent.generate_assessment(
+            curriculum=sample_curriculum,
+            question_count=4,
+            total_points=total,
+        )
+        calculated_sum = sum(q.max_points for q in assessment.questions)
+        assert abs(calculated_sum - total) < 0.05, f"Points sum {calculated_sum} != {total}"
+        assert abs(assessment.total_points - total) < 0.05
+
+
+def test_assessment_multiple_choice_has_options(assessment_agent, sample_curriculum):
+    assessment = assessment_agent.generate_assessment(
+        curriculum=sample_curriculum,
+        question_count=3,
+        total_points=10.0,
+    )
+
+    mcq_questions = [q for q in assessment.questions if q.question_type == QuestionType.MULTIPLE_CHOICE]
+    assert len(mcq_questions) >= 1
+
+    for mcq in mcq_questions:
+        assert mcq.options is not None
+        assert len(mcq.options) == 4
+        # Reference answer must be one of the choices
+        assert mcq.reference_answer in mcq.options
+
+
+def test_assessment_rag_grounding(assessment_agent, sample_curriculum):
+    """Verifies that questions and answer keys cite actual slide content."""
+    assessment = assessment_agent.generate_assessment(
+        curriculum=sample_curriculum,
+        question_count=3,
+        total_points=10.0,
+    )
+
+    # Learning objectives should include slide references
+    for q in assessment.questions:
+        assert "Slide" in q.learning_objective
+
+    # Combined text of prompts and answer keys should contain actual topics from lecture
+    combined_text = " ".join(q.prompt + " " + q.reference_answer for q in assessment.questions)
+    assert any(term in combined_text.lower() for term in ["mutex", "semaphore", "deadlock", "coffman", "critical section"])
+
+
+def test_assessment_custom_question_counts(assessment_agent, sample_curriculum):
+    for count in [2, 5]:
+        assessment = assessment_agent.generate_assessment(
+            curriculum=sample_curriculum,
+            question_count=count,
+            total_points=15.0,
+        )
+        assert len(assessment.questions) == count
+        assert len(assessment.questions) == count
+
 

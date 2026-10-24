@@ -23,8 +23,11 @@ from src.ai.schemas import (
     BloomLevel,
     CurriculumAnalysis,
     DocumentChunk,
+    GeneratedAssessment,
     IngestedDocument,
     LearningObjective,
+    Question,
+    QuestionType,
     RubricCriterion,
 )
 
@@ -347,3 +350,178 @@ class RubricAgent(BaseAgent):
             title=f"Standardized Rubric: {curriculum.lecture_title}",
             criteria=normalized_criteria,
         )
+
+
+# ---------------------------------------------------------------------------
+# Agent 3: AssessmentAgent (The Exam Crafter)
+# ---------------------------------------------------------------------------
+
+class AssessmentAgent(BaseAgent):
+    """
+    Agent 3: The Exam Crafter.
+
+    Generates structured assessments (quizzes, midterms, assignments)
+    directly anchored to lecture slide chunks via RAG.
+
+    Key Principles:
+      1. RAG-Anchored Answer Keys: Every question has an authoritative
+         reference_answer derived directly from the lecture notes.
+      2. Bloom's Taxonomy Alignment: Maps cognitive depth (Remember, Understand,
+         Apply, Analyze) to appropriate question types.
+      3. Point Normalization: Sum of all question points strictly equals total_points.
+    """
+
+    def generate_assessment(
+        self,
+        curriculum: CurriculumAnalysis,
+        rubric: Optional[AssessmentRubric] = None,
+        question_count: int = 3,
+        total_points: float = 10.0,
+        source_document: str = "lecture_slides.pdf",
+    ) -> GeneratedAssessment:
+        """
+        Synthesizes a complete GeneratedAssessment from curriculum objectives and RAG.
+
+        Args:
+            curriculum: The CurriculumAnalysis produced by CurriculumAgent.
+            rubric: Optional AssessmentRubric to align questions with criteria.
+            question_count: Number of questions to generate (default: 3).
+            total_points: Total points for the assessment (default: 10.0).
+            source_document: Name of the source slide deck.
+
+        Returns:
+            GeneratedAssessment: Validated Pydantic assessment model with answer keys.
+        """
+        objectives = curriculum.objectives
+        if not objectives:
+            raise ValueError("CurriculumAnalysis has no learning objectives to generate questions from.")
+
+        raw_questions = []
+
+        for idx in range(question_count):
+            q_id = f"Q{idx + 1}"
+            obj = objectives[idx % len(objectives)]
+
+            # Query RAG retriever for authoritative slide context
+            slide_content = ""
+            source_page = obj.source_page
+            if self.retriever and self.retriever.is_indexed:
+                results = self.retriever.retrieve(obj.topic, top_k=1)
+                if results:
+                    slide_content = results[0].chunk.content
+                    source_page = results[0].chunk.page_number
+
+            if not slide_content:
+                slide_content = obj.description
+
+            # Determine Question Type based on Bloom's Taxonomy
+            if obj.bloom_level in (BloomLevel.REMEMBER, BloomLevel.UNDERSTAND):
+                if idx % 2 == 0:
+                    q_type = QuestionType.MULTIPLE_CHOICE
+                else:
+                    q_type = QuestionType.SHORT_ANSWER
+            elif obj.bloom_level == BloomLevel.APPLY:
+                q_type = QuestionType.SHORT_ANSWER
+            else:  # ANALYZE, EVALUATE, CREATE
+                q_type = QuestionType.ESSAY
+
+            # Craft Question Prompt, Options, Reference Answer, and Base Points
+            if q_type == QuestionType.MULTIPLE_CHOICE:
+                prompt, options, ref_answer = self._craft_multiple_choice(obj, slide_content, source_page)
+                base_weight = 2.0
+            elif q_type == QuestionType.SHORT_ANSWER:
+                prompt, options, ref_answer = self._craft_short_answer(obj, slide_content, source_page)
+                base_weight = 3.0
+            elif q_type == QuestionType.CODE_ANALYSIS:
+                prompt, options, ref_answer = self._craft_code_analysis(obj, slide_content, source_page)
+                base_weight = 4.0
+            else:  # ESSAY
+                prompt, options, ref_answer = self._craft_essay(obj, slide_content, source_page)
+                base_weight = 5.0
+
+            raw_questions.append({
+                "id": q_id,
+                "question_type": q_type,
+                "prompt": prompt,
+                "options": options,
+                "reference_answer": ref_answer,
+                "learning_objective": f"{obj.topic} (Slide {source_page}, Bloom: {obj.bloom_level.value})",
+                "base_weight": base_weight,
+            })
+
+        # --- Point Normalization Layer ---
+        total_base = sum(q["base_weight"] for q in raw_questions)
+        questions: List[Question] = []
+        running_pts_sum = 0.0
+
+        for idx, rq in enumerate(raw_questions):
+            if idx == len(raw_questions) - 1:
+                # Last item absorbs tiny rounding difference so sum equals total_points exactly
+                points = round(total_points - running_pts_sum, 2)
+            else:
+                points = round((rq["base_weight"] / total_base) * total_points, 2)
+                running_pts_sum += points
+
+            questions.append(
+                Question(
+                    id=rq["id"],
+                    question_type=rq["question_type"],
+                    prompt=rq["prompt"],
+                    options=rq["options"],
+                    reference_answer=rq["reference_answer"],
+                    max_points=max(0.5, points),
+                    learning_objective=rq["learning_objective"],
+                )
+            )
+
+        calculated_total = round(sum(q.max_points for q in questions), 2)
+
+        return GeneratedAssessment(
+            title=f"Assessment: {curriculum.lecture_title}",
+            course_name="Computer Science & Systems Programming",
+            source_document=source_document,
+            questions=questions,
+            total_points=calculated_total,
+        )
+
+    def _craft_multiple_choice(self, obj: LearningObjective, slide_content: str, page: int):
+        first_line = [l.strip() for l in slide_content.splitlines() if len(l.strip()) > 15]
+        fact = first_line[0] if first_line else f"Core principle of {obj.topic}"
+
+        prompt = f"Which of the following statements accurately characterizes '{obj.topic}' as discussed on Slide {page}?"
+        correct = f"It correctly enforces: {fact}"
+        distractors = [
+            "It completely disables all concurrency and locks memory hardware-wide.",
+            "It replaces the need for operating system kernel synchronization primitives.",
+            "It guarantees zero execution latency by bypassing cache consistency protocols.",
+        ]
+        options = [correct] + distractors
+        return prompt, options, correct
+
+    def _craft_short_answer(self, obj: LearningObjective, slide_content: str, page: int):
+        prompt = f"Explain the fundamental mechanism and key operational rules of '{obj.topic}' based on the lecture material (Slide {page})."
+        sentences = [s.strip() for s in re.split(r"[.!?\n]", slide_content) if len(s.strip()) > 20]
+        ref = ". ".join(sentences[:2]) + "." if sentences else f"Core explanation of {obj.topic}."
+        return prompt, None, ref
+
+    def _craft_essay(self, obj: LearningObjective, slide_content: str, page: int):
+        prompt = (
+            f"Critically analyze '{obj.topic}'. Discuss its core principles, potential trade-offs, "
+            f"and failure modes or prevention strategies as covered on Slide {page}."
+        )
+        sentences = [s.strip() for s in re.split(r"[.!?\n]", slide_content) if len(s.strip()) > 20]
+        ref = (
+            f"Comprehensive analysis of {obj.topic}: "
+            + (". ".join(sentences[:3]) + "." if sentences else "Covers detailed mechanics and edge cases.")
+        )
+        return prompt, None, ref
+
+    def _craft_code_analysis(self, obj: LearningObjective, slide_content: str, page: int):
+        prompt = (
+            f"Analyze the implementation mechanics of '{obj.topic}'. "
+            f"What synchronization constraints and invariant conditions must be maintained in code?"
+        )
+        sentences = [s.strip() for s in re.split(r"[.!?\n]", slide_content) if len(s.strip()) > 20]
+        ref = ". ".join(sentences[:2]) + "." if sentences else f"Implementation constraints for {obj.topic}."
+        return prompt, None, ref
+
