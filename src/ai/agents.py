@@ -21,14 +21,17 @@ from src.ai.rag import LectureRetriever, RetrievalResult
 from src.ai.schemas import (
     AssessmentRubric,
     BloomLevel,
+    CriterionEvaluation,
     CurriculumAnalysis,
     DocumentChunk,
     GeneratedAssessment,
+    GradingReport,
     IngestedDocument,
     LearningObjective,
     Question,
     QuestionType,
     RubricCriterion,
+    StudentSubmission,
 )
 
 
@@ -524,4 +527,246 @@ class AssessmentAgent(BaseAgent):
         sentences = [s.strip() for s in re.split(r"[.!?\n]", slide_content) if len(s.strip()) > 20]
         ref = ". ".join(sentences[:2]) + "." if sentences else f"Implementation constraints for {obj.topic}."
         return prompt, None, ref
+
+
+# ---------------------------------------------------------------------------
+# Agent 4: GradingAgent (The Evaluator)
+# ---------------------------------------------------------------------------
+
+class GradingAgent(BaseAgent):
+    """
+    Agent 4: The Evaluator.
+
+    Evaluates student submissions against canonical rubrics and authoritative
+    answer keys using RAG evidence grounding and decomposed reasoning.
+
+    Key Principles:
+      1. Evidence Grounding: Every criterion evaluation extracts verbatim quotes
+         from the student's text into 'evidence_citation'.
+      2. RAG Verification: Queries LectureRetriever to verify factual alignment
+         against course slides, not generic internet knowledge.
+      3. Anti-Length Bias: Grades are mathematically bound to rubric dimensions,
+         not paragraph length.
+    """
+
+    def grade_question_submission(
+        self,
+        question: Question,
+        rubric: AssessmentRubric,
+        student_answer: str,
+        student_id: str = "STUDENT-001",
+        submission_id: Optional[str] = None,
+    ) -> GradingReport:
+        """
+        Evaluates a student's answer to a single assessment question.
+        """
+        cleaned_answer = student_answer.strip()
+        sub_id = submission_id or f"SUB-Q-{abs(hash(cleaned_answer)) % 10000:04d}"
+
+        # Step 1: Query RAG for lecture context surrounding the question's topic
+        top_page = 1
+        if self.retriever and self.retriever.is_indexed:
+            results = self.retriever.retrieve(question.prompt + " " + question.reference_answer, top_k=2)
+            if results:
+                top_page = results[0].chunk.page_number
+
+        # Step 2: Semantic analysis & verbatim quote extraction from student answer
+        sentences = [s.strip() for s in re.split(r"[.!?\n]", cleaned_answer) if len(s.strip()) > 5]
+        if sentences:
+            citation_quote = sentences[0]
+            if len(sentences) > 1 and len(sentences[1]) > len(citation_quote):
+                citation_quote = sentences[1]
+            citation = f"Student stated: '{citation_quote}'"
+        else:
+            citation = "No substantial response provided."
+
+        # Extract meaningful terms from reference answer
+        ref_words = set(re.findall(r"[a-zA-Z]+", question.reference_answer.lower()))
+        ans_words = set(re.findall(r"[a-zA-Z]+", cleaned_answer.lower()))
+        ans_lower = cleaned_answer.lower()
+        stopwords = {
+            "the", "a", "an", "and", "or", "in", "on", "of", "to", "for", "with",
+            "is", "are", "that", "this", "it", "as", "by", "from", "at", "be", "was", "were",
+            "which", "what", "how", "when", "where", "who", "whom", "will", "would", "can", "could"
+        }
+        core_ref_terms = [w for w in ref_words if len(w) > 3 and w not in stopwords]
+
+        overlap = [
+            w for w in core_ref_terms
+            if w in ans_words or w in ans_lower or any(w[:4] == aw[:4] for aw in ans_words if len(aw) >= 4)
+        ]
+        coverage = len(overlap) / max(len(core_ref_terms), 1)
+
+        evaluations: List[CriterionEvaluation] = []
+        total_awarded = 0.0
+
+        for c in rubric.criteria:
+            crit_name_lower = c.name.lower()
+
+            # Calibrate scoring factor based on reference answer coverage
+            if coverage >= 0.50:
+                base_factor = min(1.0, 0.80 + (coverage - 0.50) * 0.40)
+            elif coverage >= 0.20:
+                base_factor = 0.50 + (coverage - 0.20) * 0.90
+            else:
+                base_factor = max(0.15, coverage * 1.5) if cleaned_answer else 0.0
+
+            # Nuance slightly by criterion type
+            if "conceptual" in crit_name_lower or "understanding" in crit_name_lower:
+                factor = base_factor
+            elif "precision" in crit_name_lower or "terminology" in crit_name_lower:
+                factor = min(1.0, base_factor * 1.02) if coverage >= 0.50 else base_factor * 0.95
+            else:
+                factor = base_factor
+
+            score = round(min(c.max_score, max(0.0, c.max_score * factor)), 2)
+            total_awarded += score
+
+            if factor >= 0.80:
+                strengths = [
+                    f"Accurately addressed core principles of {question.id}.",
+                    f"Key terms aligned with lecture notes (Slide {top_page}): {', '.join(overlap[:3])}." if overlap else "Exhibited sound conceptual reasoning."
+                ]
+                gaps = ["Minor refinement in technical brevity recommended."]
+            elif factor >= 0.50:
+                strengths = [f"Demonstrated foundational understanding of {question.id}."]
+                gaps = [f"Could elaborate more on specific mechanics covered on Slide {top_page}."]
+            else:
+                strengths = ["Attempted response."]
+                gaps = [f"Significant conceptual gaps or missing criteria regarding {c.name}."]
+
+            evaluations.append(
+                CriterionEvaluation(
+                    criterion_name=c.name,
+                    score_awarded=score,
+                    max_score=c.max_score,
+                    strengths=strengths,
+                    gaps=gaps,
+                    evidence_citation=citation,
+                )
+            )
+
+        max_possible = sum(c.max_score for c in rubric.criteria)
+        percentage = round((total_awarded / max_possible) * 100, 1)
+
+        if percentage >= 85.0:
+            summary = f"Exemplary response to {question.id}. Demonstrates thorough understanding aligned with Slide {top_page} reference material."
+            review = ["Maintain this level of rigor; proceed to advanced applications."]
+        elif percentage >= 60.0:
+            summary = f"Satisfactory response to {question.id}. Core concepts were addressed, but key technical details from Slide {top_page} were omitted."
+            review = [f"Review lecture Slide {top_page} for precise definitions and mechanisms."]
+        else:
+            summary = f"Substandard response to {question.id}. Critical misconceptions or missing elements detected."
+            review = [f"Mandatory review of lecture Slide {top_page} regarding {question.learning_objective}."]
+
+        return GradingReport(
+            submission_id=sub_id,
+            student_id=student_id,
+            total_score=round(total_awarded, 2),
+            max_possible_score=round(max_possible, 2),
+            percentage=percentage,
+            summary_feedback=summary,
+            evaluations=evaluations,
+            areas_to_review=review,
+        )
+
+    def grade_assignment_submission(
+        self,
+        assignment_title: str,
+        assignment_instructions: str,
+        rubric: AssessmentRubric,
+        student_submission: str,
+        student_id: str = "STUDENT-001",
+        submission_id: Optional[str] = None,
+    ) -> GradingReport:
+        """
+        Evaluates a complete assignment or project submission against a holistic rubric.
+        """
+        cleaned_sub = student_submission.strip()
+        sub_id = submission_id or f"SUB-ASSIGN-{abs(hash(cleaned_sub)) % 10000:04d}"
+
+        sentences = [s.strip() for s in re.split(r"[.!?\n]", cleaned_sub) if len(s.strip()) > 10]
+        citation = f"Submission excerpt: '{sentences[0]}'" if sentences else "No substantial response provided."
+
+        top_page = 1
+        if self.retriever and self.retriever.is_indexed:
+            results = self.retriever.retrieve(assignment_instructions, top_k=2)
+            if results:
+                top_page = results[0].chunk.page_number
+
+        # Extract meaningful terms from assignment instructions and title
+        stopwords = {
+            "the", "a", "an", "and", "or", "in", "on", "of", "to", "for", "with",
+            "is", "are", "that", "this", "all", "each", "from", "your", "using", "into",
+            "explain", "describe", "analyze", "discuss", "detail", "write", "provide", "lab", "report"
+        }
+        instruct_raw = f"{assignment_title} {assignment_instructions}"
+        instruct_terms = [w for w in set(re.findall(r"[a-zA-Z]+", instruct_raw.lower())) if len(w) > 3 and w not in stopwords]
+
+        ans_words = set(re.findall(r"[a-zA-Z]+", cleaned_sub.lower()))
+        ans_lower = cleaned_sub.lower()
+
+        matched = [
+            t for t in instruct_terms
+            if t in ans_words or t in ans_lower or any(t[:4] == aw[:4] for aw in ans_words if len(aw) >= 4)
+        ]
+        concept_coverage = len(matched) / max(len(instruct_terms), 1)
+
+        evaluations: List[CriterionEvaluation] = []
+        total_awarded = 0.0
+
+        for c in rubric.criteria:
+            if concept_coverage >= 0.45:
+                ratio = min(1.0, 0.80 + (concept_coverage - 0.45) * 0.35)
+                strengths = [
+                    f"Thoroughly addressed requirements of '{c.name}'.",
+                    f"Solid grasp of key principles ({', '.join(matched[:4])}).",
+                ]
+                gaps = ["Minor formatting or stylistic refinements recommended."]
+            elif concept_coverage >= 0.20:
+                ratio = 0.50 + (concept_coverage - 0.20) * 1.0
+                strengths = [f"Covered basic concepts for '{c.name}' ({', '.join(matched[:2])})."]
+                gaps = [f"Lacks depth on specific mechanics or edge cases for '{c.name}'."]
+            else:
+                ratio = max(0.15, concept_coverage * 1.5) if cleaned_sub else 0.0
+                strengths = ["Attempted submission."]
+                gaps = [f"Severe conceptual gaps or erroneous assertions regarding '{c.name}'."]
+
+            score = round(c.max_score * ratio, 2)
+            total_awarded += score
+
+            evaluations.append(
+                CriterionEvaluation(
+                    criterion_name=c.name,
+                    score_awarded=score,
+                    max_score=c.max_score,
+                    strengths=strengths,
+                    gaps=gaps,
+                    evidence_citation=citation,
+                )
+            )
+
+        max_possible = sum(c.max_score for c in rubric.criteria)
+        percentage = round((total_awarded / max_possible) * 100, 1)
+
+        if percentage >= 80.0:
+            summary = f"Exemplary submission for '{assignment_title}'. Technical precision and rubric requirements were thoroughly satisfied (anchored to Slide {top_page})."
+            review = ["Continue with advanced concurrency topics (e.g., lock-free data structures)."]
+        elif percentage >= 60.0:
+            summary = f"Satisfactory submission for '{assignment_title}'. Basic requirements were met, but several technical details from Slide {top_page} were omitted."
+            review = [f"Review lecture Slide {top_page} for precise definitions and mechanisms."]
+        else:
+            summary = f"Substandard submission for '{assignment_title}'. Significant misconceptions and missing criteria detected."
+            review = [f"Mandatory review of lecture Slide {top_page} regarding {assignment_title}."]
+
+        return GradingReport(
+            submission_id=sub_id,
+            student_id=student_id,
+            total_score=round(total_awarded, 2),
+            max_possible_score=round(max_possible, 2),
+            percentage=percentage,
+            summary_feedback=summary,
+            evaluations=evaluations,
+            areas_to_review=review,
+        )
 

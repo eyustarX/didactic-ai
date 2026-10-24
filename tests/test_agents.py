@@ -2,9 +2,11 @@ import pytest
 from src.ai.schemas import (
     AssessmentRubric,
     BloomLevel,
+    CriterionEvaluation,
     CurriculumAnalysis,
     DocumentChunk,
     GeneratedAssessment,
+    GradingReport,
     IngestedDocument,
     LearningObjective,
     Question,
@@ -16,6 +18,7 @@ from src.ai.agents import (
     AssessmentAgent,
     BaseAgent,
     CurriculumAgent,
+    GradingAgent,
     RubricAgent,
     classify_bloom_level,
     extract_topic_from_chunk,
@@ -397,5 +400,143 @@ def test_assessment_custom_question_counts(assessment_agent, sample_curriculum):
         )
         assert len(assessment.questions) == count
         assert len(assessment.questions) == count
+
+
+# ---------------------------------------------------------------------------
+# Tests: GradingAgent (Agent 4)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def grading_agent(retriever):
+    return GradingAgent(retriever=retriever)
+
+
+@pytest.fixture
+def sample_rubric_and_question(assessment_agent, rubric_agent, sample_curriculum):
+    rubric = rubric_agent.generate_rubric(
+        curriculum=sample_curriculum,
+        target_criteria_count=3,
+        total_marks=10.0,
+    )
+    assessment = assessment_agent.generate_assessment(
+        curriculum=sample_curriculum,
+        question_count=2,
+        total_points=10.0,
+    )
+    return rubric, assessment.questions[0]
+
+
+def test_grading_agent_grades_question_submission(grading_agent, sample_rubric_and_question):
+    rubric, question = sample_rubric_and_question
+    student_answer = (
+        "A mutex is a synchronization lock with ownership, where only the acquiring thread "
+        "can unlock it. In contrast, a semaphore is a signaling primitive."
+    )
+
+    report = grading_agent.grade_question_submission(
+        question=question,
+        rubric=rubric,
+        student_answer=student_answer,
+        student_id="STU-ALICE",
+    )
+
+    assert isinstance(report, GradingReport)
+    assert report.student_id == "STU-ALICE"
+    assert report.total_score > 0
+    assert report.max_possible_score == 10.0
+    assert 0.0 <= report.percentage <= 100.0
+    assert len(report.evaluations) == len(rubric.criteria)
+
+
+def test_grading_agent_extracts_student_verbatim_quote(grading_agent, sample_rubric_and_question):
+    rubric, question = sample_rubric_and_question
+    student_answer = "Deadlock requires circular wait and hold and wait to occur simultaneously."
+
+    report = grading_agent.grade_question_submission(
+        question=question,
+        rubric=rubric,
+        student_answer=student_answer,
+    )
+
+    # Verbatim citation must be extracted from the student's text
+    citation = report.evaluations[0].evidence_citation
+    assert "Student stated:" in citation
+    assert "Deadlock requires circular wait" in citation
+
+
+def test_grading_agent_evaluates_strengths_and_gaps(grading_agent, sample_rubric_and_question):
+    rubric, question = sample_rubric_and_question
+    partial_answer = "Deadlock happens."
+
+    report = grading_agent.grade_question_submission(
+        question=question,
+        rubric=rubric,
+        student_answer=partial_answer,
+    )
+
+    # For an incomplete answer, gaps must be flagged
+    has_gaps = any(len(ev.gaps) > 0 for ev in report.evaluations)
+    assert has_gaps
+    assert len(report.areas_to_review) > 0
+
+
+def test_grading_agent_grades_assignment_submission(grading_agent, sample_rubric_and_question):
+    rubric, _ = sample_rubric_and_question
+    assignment_title = "Concurrency Control Lab"
+    assignment_instructions = "Explain mutex vs semaphore and describe deadlock prevention."
+    student_submission = (
+        "In this lab, we analyze mutex locks and binary semaphores. A mutex has thread ownership, "
+        "while semaphores use wait() and signal() for signaling. To prevent deadlocks, the operating system "
+        "imposes strict resource ordering to break the circular wait condition."
+    )
+
+    report = grading_agent.grade_assignment_submission(
+        assignment_title=assignment_title,
+        assignment_instructions=assignment_instructions,
+        rubric=rubric,
+        student_submission=student_submission,
+        student_id="STU-001",
+    )
+
+    assert isinstance(report, GradingReport)
+    assert report.percentage >= 70.0
+    assert len(report.evaluations) == len(rubric.criteria)
+    assert "Submission excerpt:" in report.evaluations[0].evidence_citation
+
+
+def test_grading_agent_calibrated_scoring(grading_agent, sample_rubric_and_question):
+    """Verifies that an exemplary answer scores strictly higher than a poor/failing answer."""
+    rubric, _ = sample_rubric_and_question
+
+    mutex_question = Question(
+        id="Q-CALIB-01",
+        question_type=QuestionType.SHORT_ANSWER,
+        prompt="Explain the core difference between a mutex and a binary semaphore.",
+        reference_answer=(
+            "A mutex is a mutual exclusion lock with thread ownership. Only the locking thread can unlock it. "
+            "A binary semaphore is a signaling mechanism without ownership using wait and signal operations."
+        ),
+        max_points=10.0,
+        learning_objective="Differentiate between mutexes and semaphores (Slide 3, Bloom: analyze)",
+    )
+
+    good_answer = (
+        "A mutex is a mutual exclusion lock with thread ownership. Only the locking thread can unlock. "
+        "A semaphore is a signaling mechanism without ownership using wait and signal operations."
+    )
+    poor_answer = "A mutex is a wire. It speeds up the CPU."
+
+    report_good = grading_agent.grade_question_submission(
+        question=mutex_question, rubric=rubric, student_answer=good_answer
+    )
+    report_poor = grading_agent.grade_question_submission(
+        question=mutex_question, rubric=rubric, student_answer=poor_answer
+    )
+
+    assert report_good.percentage > report_poor.percentage
+    assert report_good.total_score > report_poor.total_score
+    assert report_good.percentage >= 75.0
+    assert report_poor.percentage <= 40.0
+
 
 
