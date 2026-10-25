@@ -20,8 +20,10 @@ from src.ai.agents import (
     BaseAgent,
     CurriculumAgent,
     GradingAgent,
+    MultiAgentCoordinator,
     RubricAgent,
     classify_bloom_level,
+    create_coordinator,
     extract_topic_from_chunk,
 )
 
@@ -736,6 +738,106 @@ def test_auditor_agent_provides_enrichment_for_perfect_score(auditor_agent):
     )
 
     assert any("[ENRICHMENT CHALLENGE]" in area for area in audited.areas_to_review)
+
+
+# ---------------------------------------------------------------------------
+# Tests: MultiAgentCoordinator (The Conductor)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def coordinator(retriever):
+    return MultiAgentCoordinator(retriever=retriever)
+
+
+def test_coordinator_initialization(coordinator):
+    assert isinstance(coordinator.curriculum_agent, CurriculumAgent)
+    assert isinstance(coordinator.rubric_agent, RubricAgent)
+    assert isinstance(coordinator.assessment_agent, AssessmentAgent)
+    assert isinstance(coordinator.grading_agent, GradingAgent)
+    assert isinstance(coordinator.auditor_agent, AuditorAgent)
+
+
+def test_coordinator_analyze_lecture_and_create_rubric(coordinator, os_lecture_document):
+    curriculum, rubric = coordinator.analyze_lecture_and_create_rubric(
+        document=os_lecture_document,
+        target_criteria_count=3,
+        total_marks=10.0,
+    )
+
+    assert isinstance(curriculum, CurriculumAnalysis)
+    assert isinstance(rubric, AssessmentRubric)
+    assert len(curriculum.objectives) > 0
+    assert len(rubric.criteria) == 3
+    assert abs(sum(c.weight for c in rubric.criteria) - 1.0) < 1e-4
+
+
+def test_coordinator_generate_assessment(coordinator, sample_curriculum):
+    assessment = coordinator.generate_assessment(
+        curriculum=sample_curriculum,
+        question_count=3,
+        total_points=15.0,
+    )
+
+    assert isinstance(assessment, GeneratedAssessment)
+    assert len(assessment.questions) == 3
+    assert abs(sum(q.max_points for q in assessment.questions) - 15.0) < 1e-3
+
+
+def test_coordinator_grade_and_audit_question(coordinator, sample_rubric_and_question):
+    rubric, _ = sample_rubric_and_question
+    question = Question(
+        id="Q-COORD-01",
+        question_type=QuestionType.SHORT_ANSWER,
+        prompt="Explain mutex locks and thread ownership.",
+        reference_answer="A mutex ensures mutual exclusion with thread ownership semantics.",
+        max_points=10.0,
+        learning_objective="Understand mutex primitives (Slide 3)",
+    )
+    student_answer = "A mutex is a mutual exclusion lock with thread ownership. Only the acquiring thread unlocks it."
+
+    audited_report = coordinator.grade_and_audit_question(
+        question=question,
+        rubric=rubric,
+        student_answer=student_answer,
+        student_id="STU-COORD-01",
+    )
+
+    assert isinstance(audited_report, GradingReport)
+    assert audited_report.percentage >= 70.0
+    assert audited_report.total_score <= audited_report.max_possible_score
+    # Citation must be verified without flags
+    assert not any("[AUDIT FLAG" in ev.evidence_citation for ev in audited_report.evaluations)
+
+
+def test_coordinator_grade_and_audit_assignment(coordinator, sample_rubric_and_question):
+    rubric, _ = sample_rubric_and_question
+    title = "Concurrency Control Lab"
+    instructions = "Explain mutex vs semaphore and describe deadlock prevention."
+    submission = (
+        "In this lab, we analyze mutex locks and binary semaphores. A mutex has thread ownership, "
+        "while semaphores use wait() and signal() for signaling. To prevent deadlocks, the operating system "
+        "imposes strict resource ordering to break the circular wait condition."
+    )
+
+    audited_report = coordinator.grade_and_audit_assignment(
+        assignment_title=title,
+        assignment_instructions=instructions,
+        rubric=rubric,
+        student_submission=submission,
+        student_id="STU-COORD-02",
+    )
+
+    assert isinstance(audited_report, GradingReport)
+    assert audited_report.percentage >= 70.0
+    assert len(audited_report.evaluations) == len(rubric.criteria)
+
+
+def test_create_coordinator_factory(os_lecture_document):
+    coord = create_coordinator(chunks=os_lecture_document.chunks)
+    assert isinstance(coord, MultiAgentCoordinator)
+    assert coord.retriever.is_indexed
+    assert coord.retriever.chunk_count == len(os_lecture_document.chunks)
+
 
 
 

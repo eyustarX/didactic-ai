@@ -21,10 +21,14 @@ Current Agents:
   5. AuditorAgent: Verifies grading fidelity, validates evidence
      citations (anti-hallucination), verifies mathematical bounds,
      and synthesizes targeted pedagogical remediation questions.
+
+Coordinator:
+  - MultiAgentCoordinator: Orchestrates all 5 specialized agents
+    into streamlined, single-call academic workflows.
 """
 
 import re
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from src.ai.rag import LectureRetriever, RetrievalResult
 from src.ai.schemas import (
@@ -958,5 +962,154 @@ class AuditorAgent(BaseAgent):
                     return f"[REMEDIATION PRACTICE]: Review Slide {target_page} ({slide_topic}). What are the three requirements for a valid critical section solution (mutual exclusion, progress, bounded waiting)? Define each."
 
         return f"[REMEDIATION PRACTICE]: Review lecture Slide {target_page} regarding {query_topic}. Formulate a concise summary of the core mechanics to address noted gaps."
+
+
+# ---------------------------------------------------------------------------
+# Multi-Agent Coordinator (The Conductor)
+# ---------------------------------------------------------------------------
+
+class MultiAgentCoordinator:
+    """
+    The Central Conductor: Orchestrates all 5 specialized agents
+    into unified end-to-end academic workflows.
+
+    Coordinates:
+      1. CurriculumAgent: Ingests slides and extracts Bloom-classified objectives.
+      2. RubricAgent: Synthesizes standardized rubrics with normalized weights.
+      3. AssessmentAgent: Generates balanced multi-format assessments with answer keys.
+      4. GradingAgent: Evaluates submissions against canonical criteria with evidence citations.
+      5. AuditorAgent: Audits evaluations, checks hallucination guardrails, clamps scores,
+         and attaches targeted remediation practice questions.
+    """
+
+    def __init__(self, retriever: LectureRetriever, provider=None):
+        self.retriever = retriever
+        self.provider = provider
+
+        # Initialize all 5 specialized agents
+        self.curriculum_agent = CurriculumAgent(retriever=retriever, provider=provider)
+        self.rubric_agent = RubricAgent(retriever=retriever, provider=provider)
+        self.assessment_agent = AssessmentAgent(retriever=retriever, provider=provider)
+        self.grading_agent = GradingAgent(retriever=retriever, provider=provider)
+        self.auditor_agent = AuditorAgent(retriever=retriever, provider=provider)
+
+    def analyze_lecture_and_create_rubric(
+        self,
+        document: IngestedDocument,
+        lecture_title: Optional[str] = None,
+        target_criteria_count: int = 4,
+        total_marks: float = 10.0,
+    ) -> Tuple[CurriculumAnalysis, AssessmentRubric]:
+        """
+        Workflow 1: Slide Ingestion -> Curriculum Analysis -> Rubric Synthesis.
+
+        Returns:
+            Tuple of (CurriculumAnalysis, AssessmentRubric).
+        """
+        title = lecture_title or document.filename.replace(".pdf", "").replace("_", " ").title()
+        curriculum = self.curriculum_agent.extract_objectives(
+            lecture_title=title,
+            document=document,
+        )
+        rubric = self.rubric_agent.generate_rubric(
+            curriculum=curriculum,
+            target_criteria_count=target_criteria_count,
+            total_marks=total_marks,
+        )
+        return curriculum, rubric
+
+    def generate_assessment(
+        self,
+        curriculum: CurriculumAnalysis,
+        rubric: Optional[AssessmentRubric] = None,
+        question_count: int = 3,
+        total_points: float = 10.0,
+        source_document: str = "lecture_slides.pdf",
+    ) -> GeneratedAssessment:
+        """
+        Workflow 2: Curriculum Objectives + Rubric -> Balanced Assessment with Answer Keys.
+
+        Returns:
+            GeneratedAssessment with RAG-anchored answer keys and normalized points.
+        """
+        return self.assessment_agent.generate_assessment(
+            curriculum=curriculum,
+            rubric=rubric,
+            question_count=question_count,
+            total_points=total_points,
+            source_document=source_document,
+        )
+
+    def grade_and_audit_question(
+        self,
+        question: Question,
+        rubric: AssessmentRubric,
+        student_answer: str,
+        student_id: str = "STUDENT-001",
+        submission_id: Optional[str] = None,
+    ) -> GradingReport:
+        """
+        Workflow 3A: Question Evaluation + Quality & Remediation Audit.
+        Pipes raw grading report from GradingAgent directly through AuditorAgent.
+
+        Returns:
+            Audited GradingReport with verified citations and tailored remediation.
+        """
+        raw_report = self.grading_agent.grade_question_submission(
+            question=question,
+            rubric=rubric,
+            student_answer=student_answer,
+            student_id=student_id,
+            submission_id=submission_id,
+        )
+        return self.auditor_agent.audit_grading_report(
+            report=raw_report,
+            student_submission=student_answer,
+            assessment_question=question,
+        )
+
+    def grade_and_audit_assignment(
+        self,
+        assignment_title: str,
+        assignment_instructions: str,
+        rubric: AssessmentRubric,
+        student_submission: str,
+        student_id: str = "STUDENT-001",
+        submission_id: Optional[str] = None,
+    ) -> GradingReport:
+        """
+        Workflow 3B: Assignment Evaluation + Quality & Remediation Audit.
+        Pipes assignment grading report from GradingAgent directly through AuditorAgent.
+
+        Returns:
+            Audited GradingReport with verified citations and tailored remediation.
+        """
+        raw_report = self.grading_agent.grade_assignment_submission(
+            assignment_title=assignment_title,
+            assignment_instructions=assignment_instructions,
+            rubric=rubric,
+            student_submission=student_submission,
+            student_id=student_id,
+            submission_id=submission_id,
+        )
+        return self.auditor_agent.audit_grading_report(
+            report=raw_report,
+            student_submission=student_submission,
+        )
+
+
+def create_coordinator(
+    chunks: Optional[List[DocumentChunk]] = None,
+    provider=None,
+) -> MultiAgentCoordinator:
+    """
+    Convenience factory to initialize the MultiAgentCoordinator with an indexed
+    in-memory retriever.
+    """
+    retriever = LectureRetriever()
+    if chunks:
+        retriever.index_chunks(chunks)
+    return MultiAgentCoordinator(retriever=retriever, provider=provider)
+
 
 
