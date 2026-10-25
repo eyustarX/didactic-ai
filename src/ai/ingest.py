@@ -1,6 +1,6 @@
 import io
 import re
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from pathlib import Path
 from pypdf import PdfReader
 from src.ai.schemas import DocumentChunk, IngestedDocument
