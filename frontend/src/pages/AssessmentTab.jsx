@@ -55,15 +55,11 @@ export default function AssessmentTab({
   currentUser,
 }) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [deleteError, setDeleteError] = useState(null);
   const [questionCount, setQuestionCount] = useState(3);
   const [assessmentTitle, setAssessmentTitle] = useState('');
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [generatingRubricId, setGeneratingRubricId] = useState(null);
   const [copilotPrompt, setCopilotPrompt] = useState('');
-  const [assessmentToDelete, setAssessmentToDelete] = useState(null);
-  const [isDeletingAssessment, setIsDeletingAssessment] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   // Assessment vs Assignment Studio Mode
@@ -200,51 +196,6 @@ export default function AssessmentTab({
     }
   }, [chatMessages, isChatLoading]);
 
-  // Created assessments library state
-  const [createdAssessments, setCreatedAssessments] = useState([]);
-  const [isLoadingAssessments, setIsLoadingAssessments] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const loadAssessments = async () => {
-    setIsLoadingAssessments(true);
-    setDeleteError(null);
-    try {
-      const list = await fetchAssessments({ lecturerId: currentUser?.id });
-      const safeList = Array.isArray(list) ? list : [];
-      setCreatedAssessments(safeList);
-
-      // Strict ownership check: only keep the active assessment if it belongs to this instructor
-      const currentStillValid = assessment?.id && safeList.some((a) => a.id === assessment.id);
-      if (!currentStillValid) {
-        if (safeList.length > 0) {
-          try {
-            const detail = await fetchAssessmentDetail(safeList[0].id, currentUser?.id);
-            if (detail) {
-              setAssessment(detail);
-            } else {
-              setAssessment(null);
-            }
-          } catch (e) {
-            console.error('Failed to load initial assessment detail:', e);
-            setAssessment(null);
-          }
-        } else {
-          setAssessment(null);
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to load created assessments list:', err);
-      setCreatedAssessments([]);
-      setAssessment(null);
-    } finally {
-      setIsLoadingAssessments(false);
-    }
-  };
-
-  useEffect(() => {
-    loadAssessments();
-  }, [currentUser?.id]);
-
   // Synchronize title if assessment or lectureTitle changes
   useEffect(() => {
     if (assessment?.title) {
@@ -254,44 +205,12 @@ export default function AssessmentTab({
     }
   }, [assessment, lectureTitle]);
 
-  const handleSelectAssessment = async (assItem) => {
-    setError(null);
-    setDeleteError(null);
-    try {
-      const detail = await fetchAssessmentDetail(assItem.id, currentUser?.id);
-      setAssessment(detail);
-      if (detail.title) setAssessmentTitle(detail.title);
-      setActiveQuestionIndex(0);
-    } catch (err) {
-      setError(err.message || 'Failed to load assessment details');
-    }
-  };
-
-  const confirmDeleteAssessment = async () => {
-    if (!assessmentToDelete) return;
-    setIsDeletingAssessment(true);
-    setDeleteError(null);
-    try {
-      await deleteAssessment(assessmentToDelete.id, currentUser?.id);
-      if (assessment?.id === assessmentToDelete.id) {
-        setAssessment(null);
-        setAssessmentTitle('');
-      }
-      setAssessmentToDelete(null);
-      await loadAssessments();
-    } catch (err) {
-      setDeleteError(err.message || 'Cannot delete assessment from database');
-    } finally {
-      setIsDeletingAssessment(false);
-    }
-  };
-
   const handleDownloadPdf = async (e, assId, solutions = false, customData = null) => {
     if (e) e.stopPropagation();
     setIsDownloadingPdf(true);
     setError(null);
     try {
-      const fallback = customData || (assessment?.id === assId ? assessment : createdAssessments.find((a) => a.id === assId)) || assessment;
+      const fallback = customData || assessment;
       await downloadAssessmentPdf(assId, solutions, currentUser?.id, fallback);
     } catch (err) {
       setError(err.message || 'Failed to download exam PDF');
@@ -361,9 +280,6 @@ export default function AssessmentTab({
       setAssessment(data);
       if (data.title) setAssessmentTitle(data.title);
       setActiveQuestionIndex(0);
-
-      // Refresh list of assessments
-      await loadAssessments();
     } catch (err) {
       setError(err.message || 'Failed to generate assessment');
     } finally {
@@ -385,7 +301,7 @@ export default function AssessmentTab({
     setChatMessages(newHistory);
     setChatInput('');
     if (chatInputRef.current) {
-      chatInputRef.current.style.height = '40px';
+      chatInputRef.current.style.height = '52px';
     }
     setIsChatLoading(true);
     setError(null);
@@ -615,15 +531,6 @@ export default function AssessmentTab({
     0
   );
 
-  const filteredAssessments = createdAssessments.filter((a) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (
-      (a.title && a.title.toLowerCase().includes(q)) ||
-      (a.lecture_note_name && a.lecture_note_name.toLowerCase().includes(q))
-    );
-  });
-
   return (
     <div>
       {/* Top Header */}
@@ -663,6 +570,18 @@ export default function AssessmentTab({
             {loading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
             <span>{loading ? 'Synthesizing...' : 'Generate Assessment'}</span>
           </button>
+
+          {setActiveTab && (
+            <button
+              onClick={() => setActiveTab('assessments_library')}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              title="Open full Assessments Library"
+            >
+              <Layers size={13} />
+              <span>Assessments Library</span>
+            </button>
+          )}
 
           {questions.length > 0 && (
             <button
@@ -884,21 +803,23 @@ export default function AssessmentTab({
           </div>
         </div>
 
-        {/* Message Stream */}
+        {/* Message Stream - Made huge, spacious & comfortable */}
         <div
           ref={chatContainerRef}
           className="custom-scroll"
           style={{
-            maxHeight: 260,
+            height: 480,
+            minHeight: 380,
+            maxHeight: 560,
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
-            gap: 10,
-            padding: '10px 12px',
+            gap: 12,
+            padding: '16px 20px',
             background: 'var(--bg)',
             border: '1px solid var(--border)',
-            borderRadius: 8,
-            marginBottom: 10,
+            borderRadius: 10,
+            marginBottom: 14,
           }}
         >
           {chatMessages.map((msg) => {
@@ -910,15 +831,15 @@ export default function AssessmentTab({
                   display: 'flex',
                   justifyContent: isUser ? 'flex-end' : 'flex-start',
                   alignItems: 'flex-start',
-                  gap: 8,
+                  gap: 10,
                 }}
               >
                 {!isUser && (
                   <div
                     style={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 6,
+                      width: 28,
+                      height: 28,
+                      borderRadius: 8,
                       background: 'var(--surface-alt)',
                       color: 'var(--accent)',
                       display: 'flex',
@@ -928,17 +849,17 @@ export default function AssessmentTab({
                       marginTop: 2,
                     }}
                   >
-                    <Bot size={13} />
+                    <Bot size={15} />
                   </div>
                 )}
 
                 <div
                   style={{
-                    maxWidth: '82%',
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    fontSize: '0.82rem',
-                    lineHeight: 1.45,
+                    maxWidth: '85%',
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    fontSize: '0.88rem',
+                    lineHeight: 1.55,
                     background: isUser ? 'var(--accent)' : 'var(--surface)',
                     border: isUser ? '1px solid var(--accent)' : '1px solid var(--border)',
                     color: isUser ? 'var(--on-accent)' : 'var(--text)',
@@ -951,17 +872,17 @@ export default function AssessmentTab({
                     <div
                       style={{
                         marginTop: 10,
-                        padding: '8px 10px',
+                        padding: '10px 12px',
                         background: 'var(--surface-alt)',
                         border: '1px solid var(--border)',
-                        borderRadius: 6,
+                        borderRadius: 8,
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 6,
+                        gap: 8,
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.76rem', color: 'var(--accent)', fontWeight: 600 }}>
-                        <CheckCircle2 size={13} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>
+                        <CheckCircle2 size={14} />
                         <span>Specifications ready ({msg.questionCount || questionCount} Questions)</span>
                       </div>
                       <button
@@ -971,12 +892,12 @@ export default function AssessmentTab({
                         className="btn btn-primary btn-sm"
                         style={{
                           border: 'none',
-                          fontSize: '0.78rem',
-                          padding: '6px 12px',
+                          fontSize: '0.8rem',
+                          padding: '6px 14px',
                           alignSelf: 'flex-start',
                         }}
                       >
-                        {loading ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
+                        {loading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
                         <span>Synthesize Assessment Now</span>
                       </button>
                     </div>
@@ -987,12 +908,12 @@ export default function AssessmentTab({
           })}
 
           {isChatLoading && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px' }}>
               <div
                 style={{
-                  width: 24,
-                  height: 24,
-                  borderRadius: 6,
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
                   background: 'var(--surface-alt)',
                   color: 'var(--accent)',
                   display: 'flex',
@@ -1000,31 +921,31 @@ export default function AssessmentTab({
                   justifyContent: 'center',
                 }}
               >
-                <Bot size={13} />
+                <Bot size={15} />
               </div>
               <div
                 style={{
-                  padding: '6px 10px',
-                  borderRadius: 6,
+                  padding: '8px 14px',
+                  borderRadius: 8,
                   background: 'var(--surface)',
                   border: '1px solid var(--border)',
-                  fontSize: '0.78rem',
+                  fontSize: '0.84rem',
                   color: 'var(--text-muted)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6,
+                  gap: 8,
                 }}
               >
-                <Loader2 size={12} className="spin" />
-                <span>Didactic AI is formulating follow-up questions...</span>
+                <Loader2 size={14} className="spin" />
+                <span>Didactic AI is formulating questions and rubrics...</span>
               </div>
             </div>
           )}
         </div>
 
         {/* Quick Suggestion Response Chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Quick prompts:</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 }}>Quick prompts:</span>
           {(assessmentType === 'assignment'
             ? [
                 { label: '📁 3 Homework Problems & Rubrics', prompt: 'Create 3 multi-part assignment problems (10 marks each) with clear multi-criteria grading rubrics, deliverables, and hints.' },
@@ -1046,8 +967,8 @@ export default function AssessmentTab({
               onClick={() => handleSendChatMessage(item.prompt)}
               disabled={isChatLoading || loading}
               style={{
-                fontSize: '0.72rem',
-                padding: '3px 10px',
+                fontSize: '0.76rem',
+                padding: '4px 12px',
                 borderRadius: 6,
                 background: 'var(--surface)',
                 border: '1px solid var(--border)',
@@ -1073,17 +994,17 @@ export default function AssessmentTab({
           ))}
         </div>
 
-        {/* Auto-Resizing Vertical Chat Input Bar */}
+        {/* Auto-Resizing Vertical Chat Input Bar - Enlarged */}
         <div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <button
               type="button"
               onClick={() => chatFileInputRef.current?.click()}
               disabled={isUploadingChatFile || isChatLoading || loading}
               className="btn btn-secondary btn-sm"
               style={{
-                height: 40,
-                width: 40,
+                height: 52,
+                width: 52,
                 padding: 0,
                 display: 'flex',
                 alignItems: 'center',
@@ -1096,17 +1017,17 @@ export default function AssessmentTab({
               }}
               title="Attach and upload lecture document (PDF, PPTX, DOCX)"
             >
-              {isUploadingChatFile ? <Loader2 size={16} className="spin" /> : <Paperclip size={16} />}
+              {isUploadingChatFile ? <Loader2 size={18} className="spin" /> : <Paperclip size={18} />}
             </button>
 
             <textarea
               ref={chatInputRef}
-              rows={1}
+              rows={2}
               value={chatInput}
               onChange={(e) => {
                 setChatInput(e.target.value);
                 e.target.style.height = 'auto';
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 220)}px`;
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -1114,20 +1035,20 @@ export default function AssessmentTab({
                   handleSendChatMessage();
                 }
               }}
-              placeholder="Ask Didactic AI to create an assessment (e.g. 5 MCQs on sorting, 2 short answers)..."
+              placeholder="Ask Didactic AI to create an assessment (e.g. 5 MCQs on sorting algorithms, 2 short answers with 10 marks each)..."
               className="input-textarea"
               style={{
                 flex: 1,
-                minHeight: 40,
-                maxHeight: 180,
+                minHeight: 52,
+                maxHeight: 220,
                 resize: 'none',
-                fontSize: '0.84rem',
-                padding: '9px 12px',
+                fontSize: '0.88rem',
+                padding: '12px 16px',
                 borderRadius: 8,
                 background: 'var(--bg)',
                 border: '1px solid var(--border)',
                 color: 'var(--text)',
-                lineHeight: 1.45,
+                lineHeight: 1.5,
                 wordBreak: 'break-word',
                 whiteSpace: 'pre-wrap',
                 overflowY: 'auto',
@@ -1141,196 +1062,34 @@ export default function AssessmentTab({
               disabled={!chatInput.trim() || isChatLoading || loading}
               className="btn btn-primary btn-sm"
               style={{
-                height: 40,
-                padding: '0 16px',
+                height: 52,
+                padding: '0 22px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
+                gap: 8,
+                fontSize: '0.88rem',
+                fontWeight: 600,
                 background: 'var(--accent)',
                 color: 'var(--on-accent)',
                 border: 'none',
                 cursor: !chatInput.trim() || isChatLoading ? 'not-allowed' : 'pointer',
                 opacity: !chatInput.trim() || isChatLoading ? 0.6 : 1,
                 flexShrink: 0,
+                borderRadius: 8,
               }}
             >
-              {isChatLoading ? <Loader2 size={13} className="spin" /> : <Send size={13} />}
+              {isChatLoading ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
               <span>Send</span>
             </button>
           </div>
-          <div style={{ marginTop: 5, fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', paddingLeft: 2 }}>
-            <span>↵ Enter to send • Shift+Enter for new line</span>
+          <div style={{ marginTop: 6, fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', paddingLeft: 2 }}>
+            <span>↵ Enter to send • Shift+Enter for new line • Powered by Didactic AI Copilot</span>
             {isChatLoading && <span style={{ color: 'var(--accent)' }}>AI generating response...</span>}
           </div>
         </div>
       </div>
 
-      {/* Created Assessments Library Panel */}
-      <div className="cartesia-card" style={{ marginBottom: 20, padding: '16px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileCheck size={16} style={{ color: 'var(--accent)' }} />
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 600 }}>Created Assessments Library</h3>
-            <span className="badge badge-outline" style={{ fontSize: '0.72rem' }}>
-              {createdAssessments.length} Total
-            </span>
-          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Search Input */}
-            <div style={{ position: 'relative', width: 220 }}>
-              <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Search assessments..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="input-text"
-                style={{ paddingLeft: 28, height: 28, fontSize: '0.8rem', width: '100%' }}
-              />
-            </div>
-
-            <button
-              onClick={handleNewAssessment}
-              className="btn btn-secondary btn-sm"
-              style={{ height: 28, fontSize: '0.78rem' }}
-              title="Start drafting a new assessment"
-            >
-              <Plus size={12} />
-              <span>New Assessment</span>
-            </button>
-
-            <button
-              onClick={loadAssessments}
-              disabled={isLoadingAssessments}
-              className="btn btn-secondary btn-sm"
-              style={{ height: 28, padding: '0 8px' }}
-              title="Refresh assessments list"
-            >
-              <RefreshCw size={12} className={isLoadingAssessments ? 'spin' : ''} />
-            </button>
-          </div>
-        </div>
-
-        {deleteError && (
-          <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 4, background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <AlertCircle size={14} />
-            <span>{deleteError}</span>
-          </div>
-        )}
-
-        {/* Assessment Cards Grid */}
-        {filteredAssessments.length === 0 ? (
-          <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', background: 'var(--bg)', borderRadius: 6, border: '1px dashed var(--border)' }}>
-            {searchQuery
-              ? `No assessments match "${searchQuery}".`
-              : currentUser?.name
-              ? `No assessments generated yet by ${currentUser.name}. Enter the number of questions above and click "Generate Assessment" to create your first one.`
-              : 'No assessments found. Enter the number of questions above and click "Generate Assessment" to create your first one.'}
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
-            {filteredAssessments.map((item) => {
-              const isSelected = assessment?.id === item.id;
-              const hasSubmissions = (item.submission_count || 0) > 0;
-              const itemLocked = item.status === 'locked' || hasSubmissions;
-
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => handleSelectAssessment(item)}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 6,
-                    background: isSelected ? 'var(--surface-alt)' : 'var(--bg)',
-                    border: isSelected ? '1.5px solid var(--accent)' : '1px solid var(--border-subtle)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                  }}
-                  className="cartesia-card-interactive"
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.88rem', color: isSelected ? 'var(--accent)' : 'var(--text)', lineHeight: 1.3 }}>
-                      {item.title}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {itemLocked && (
-                        <span title="Locked: Graded student submissions exist" style={{ color: 'var(--warning)' }}>
-                          <Lock size={12} />
-                        </span>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAssessmentToDelete(item);
-                        }}
-                        disabled={hasSubmissions}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          padding: 2,
-                          cursor: hasSubmissions ? 'not-allowed' : 'pointer',
-                          color: hasSubmissions ? 'var(--text-muted)' : 'var(--danger)',
-                          opacity: hasSubmissions ? 0.3 : 0.8,
-                        }}
-                        title={hasSubmissions ? 'Cannot delete assessment with graded student submissions' : 'Delete assessment from database'}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: '0.74rem' }}>
-                    <span className="badge badge-outline" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                      {item.question_count || 0} Questions
-                    </span>
-                    <span className="badge badge-outline" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                      {item.max_score || 0} pts
-                    </span>
-                    {hasSubmissions && (
-                      <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                        {item.submission_count} Graded
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--border-subtle)' }}>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button
-                        onClick={(e) => handleDownloadPdf(e, item.id, false)}
-                        disabled={isDownloadingPdf}
-                        className="btn btn-secondary btn-sm"
-                        style={{ height: 22, padding: '0 6px', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 3 }}
-                        title="Download Printable Student Exam Paper PDF"
-                      >
-                        <Download size={10} />
-                        <span>Exam PDF</span>
-                      </button>
-                      <button
-                        onClick={(e) => handleDownloadPdf(e, item.id, true)}
-                        disabled={isDownloadingPdf}
-                        className="btn btn-secondary btn-sm"
-                        style={{ height: 22, padding: '0 6px', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 3 }}
-                        title="Download Official Solution Key PDF"
-                      >
-                        <FileText size={10} />
-                        <span>Key PDF</span>
-                      </button>
-                    </div>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
-                      {item.created_at ? item.created_at.slice(0, 10) : 'Recent'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
       {/* Active Assessment Top Banner with PDF Download Controls */}
       {assessment && (
@@ -2040,104 +1799,7 @@ export default function AssessmentTab({
         </div>
       )}
 
-      {/* Database Deletion Confirmation Modal */}
-      {assessmentToDelete && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: 16,
-          }}
-          onClick={() => {
-            if (!isDeletingAssessment) setAssessmentToDelete(null);
-          }}
-        >
-          <div
-            className="cartesia-card"
-            style={{
-              maxWidth: 480,
-              width: '100%',
-              padding: 24,
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-              boxShadow: 'var(--shadow-card)',
-              borderRadius: 12,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <div
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 8,
-                  background: 'var(--danger-bg)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--danger)',
-                  flexShrink: 0,
-                }}
-              >
-                <Trash2 size={22} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                  Delete Assessment from Database
-                </h3>
-                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)' }}></span>
-                  Neon PostgreSQL Cloud Database
-                </span>
-              </div>
-            </div>
 
-            <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 18 }}>
-              Are you sure you want to permanently delete <strong style={{ color: 'var(--text)' }}>"{assessmentToDelete.title}"</strong>? 
-              This will permanently erase this assessment record, all its questions, and criteria from the <strong>Neon PostgreSQL Cloud Database</strong>.
-              This action is permanent and cannot be undone.
-            </p>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setAssessmentToDelete(null)}
-                disabled={isDeletingAssessment}
-                className="btn btn-secondary btn-sm"
-                style={{ padding: '8px 16px', fontSize: '0.82rem' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDeleteAssessment}
-                disabled={isDeletingAssessment}
-                className="btn btn-danger btn-sm"
-                style={{
-                  padding: '8px 18px',
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  cursor: isDeletingAssessment ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {isDeletingAssessment ? <Loader2 size={13} className="spin" /> : <Trash2 size={13} />}
-                <span>{isDeletingAssessment ? 'Deleting from Cloud DB...' : 'Delete from Database'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

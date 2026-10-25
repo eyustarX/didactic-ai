@@ -6,6 +6,7 @@ import LandingPage from './pages/LandingPage';
 import OverviewTab from './pages/OverviewTab';
 import CurriculumTab from './pages/CurriculumTab';
 import AssessmentTab from './pages/AssessmentTab';
+import AssessmentsLibraryTab from './pages/AssessmentsLibraryTab';
 import GradingTab from './pages/GradingTab';
 import AnalyticsTab from './pages/AnalyticsTab';
 import { fetchAnalytics, fetchLectureNotes, fetchLectureNoteDetail, fetchAssessment } from './services/api';
@@ -175,6 +176,15 @@ export default function App() {
               setAssessment={setAssessment}
               setActiveTab={setActiveTab}
               currentUser={currentUser}
+            />
+          )}
+
+          {activeTab === 'assessments_library' && (
+            <AssessmentsLibraryTab
+              currentUser={currentUser}
+              assessment={assessment}
+              setAssessment={setAssessment}
+              setActiveTab={setActiveTab}
             />
           )}
 

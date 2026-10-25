@@ -5,7 +5,8 @@ const TAB_TITLES = {
   overview: 'Platform overview',
   curriculum: 'Curriculum & slide ingest',
   rubrics: 'Rubrics studio',
-  assessment: 'Assessment generation',
+  assessment: 'Assessment studio',
+  assessments_library: 'Assessments library',
   grading: 'Decomposed grading',
   analytics: 'Cohort analytics',
 };
