@@ -286,6 +286,54 @@ class RubricAgent(BaseAgent):
         """
         rubric_id = f"RUB-{abs(hash(curriculum.lecture_title)) % 10000:04d}"
 
+        # Check if an LLM provider is connected
+        if self.provider is not None:
+            try:
+                lecture_summary = "\n".join(
+                    f"- Topic: {obj.topic} (Slide {obj.source_page}, Bloom: {obj.bloom_level.value}): {obj.description}"
+                    for obj in curriculum.objectives
+                )
+                if self.retriever and self.retriever.is_indexed:
+                    top_chunks = [c.content for c in self.retriever.chunks[:4]]
+                    lecture_summary += "\n\nSlide Excerpts:\n" + "\n---\n".join(top_chunks)
+
+                rubric = self.provider.generate_rubric(
+                    lecture_title=curriculum.lecture_title,
+                    lecture_content=lecture_summary,
+                )
+
+                if rubric and rubric.criteria:
+                    total_w = sum(c.weight for c in rubric.criteria)
+                    if total_w > 0:
+                        norm_criteria = []
+                        running_w = 0.0
+                        for i, crit in enumerate(rubric.criteria):
+                            if i == len(rubric.criteria) - 1:
+                                norm_w = round(1.0 - running_w, 4)
+                            else:
+                                norm_w = round(crit.weight / total_w, 4)
+                                running_w += norm_w
+                            max_sc = round(total_marks * norm_w, 2)
+                            norm_criteria.append(
+                                RubricCriterion(
+                                    name=crit.name,
+                                    description=crit.description,
+                                    weight=norm_w,
+                                    max_score=max_sc,
+                                )
+                            )
+                        return AssessmentRubric(
+                            rubric_id=rubric.rubric_id or rubric_id,
+                            title=rubric.title or f"Rubric: {curriculum.lecture_title}",
+                            criteria=norm_criteria,
+                            total_marks=total_marks,
+                        )
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"RubricAgent provider call failed ({exc}); falling back to deterministic heuristic."
+                )
+
         # Collect topics and slide pages by cognitive domain
         foundational_topics = []
         applied_topics = []
@@ -411,6 +459,67 @@ class AssessmentAgent(BaseAgent):
         objectives = curriculum.objectives
         if not objectives:
             raise ValueError("CurriculumAnalysis has no learning objectives to generate questions from.")
+
+        # Check if an LLM provider is connected
+        if self.provider is not None:
+            try:
+                lecture_summary = "\n".join(
+                    f"- Topic: {obj.topic} (Slide {obj.source_page}, Bloom: {obj.bloom_level.value}): {obj.description}"
+                    for obj in objectives
+                )
+                if self.retriever and self.retriever.is_indexed:
+                    top_chunks = [c.content for c in self.retriever.chunks[:4]]
+                    lecture_summary += "\n\nSlide Excerpts:\n" + "\n---\n".join(top_chunks)
+
+                assessment = self.provider.generate_assessment(
+                    lecture_title=curriculum.lecture_title,
+                    lecture_content=lecture_summary,
+                    question_count=question_count,
+                )
+
+                if assessment and assessment.questions:
+                    total_base = sum(q.max_points for q in assessment.questions)
+                    if total_base <= 0:
+                        total_base = float(len(assessment.questions))
+                    norm_questions = []
+                    running_pts = 0.0
+                    for idx, q in enumerate(assessment.questions):
+                        q_id = q.id if q.id.startswith("Q") else f"Q{idx + 1}"
+                        if idx == len(assessment.questions) - 1:
+                            pts = round(total_points - running_pts, 2)
+                        else:
+                            base_pts = q.max_points if q.max_points > 0 else 1.0
+                            pts = round((base_pts / total_base) * total_points, 2)
+                            running_pts += pts
+
+                        obj_ref = q.learning_objective
+                        if not obj_ref and objectives:
+                            matched_obj = objectives[idx % len(objectives)]
+                            obj_ref = f"{matched_obj.topic} (Slide {matched_obj.source_page}, Bloom: {matched_obj.bloom_level.value})"
+
+                        norm_questions.append(
+                            Question(
+                                id=q_id,
+                                question_type=q.question_type,
+                                prompt=q.prompt,
+                                options=q.options,
+                                reference_answer=q.reference_answer,
+                                max_points=max(0.5, pts),
+                                learning_objective=obj_ref or f"Understand {curriculum.lecture_title}",
+                            )
+                        )
+                    return GeneratedAssessment(
+                        title=assessment.title or f"Assessment: {curriculum.lecture_title}",
+                        course_name=assessment.course_name or "Computer Science & Systems Programming",
+                        source_document=source_document,
+                        questions=norm_questions,
+                        total_points=round(sum(q.max_points for q in norm_questions), 2),
+                    )
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"AssessmentAgent provider call failed ({exc}); falling back to deterministic heuristic."
+                )
 
         raw_questions = []
 
@@ -576,6 +685,31 @@ class GradingAgent(BaseAgent):
         cleaned_answer = student_answer.strip()
         sub_id = submission_id or f"SUB-Q-{abs(hash(cleaned_answer)) % 10000:04d}"
 
+        # Check if an LLM provider is connected
+        if self.provider is not None:
+            try:
+                report = self.provider.grade_exam_question(
+                    question=question,
+                    rubric=rubric,
+                    student_answer=student_answer,
+                )
+                if report:
+                    return GradingReport(
+                        submission_id=sub_id,
+                        student_id=student_id,
+                        total_score=report.total_score,
+                        max_possible_score=report.max_possible_score,
+                        percentage=report.percentage,
+                        summary_feedback=report.summary_feedback,
+                        evaluations=report.evaluations,
+                        areas_to_review=report.areas_to_review,
+                    )
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"GradingAgent provider call failed ({exc}); falling back to deterministic heuristic."
+                )
+
         # Step 1: Query RAG for lecture context surrounding the question's topic
         top_page = 1
         if self.retriever and self.retriever.is_indexed:
@@ -697,6 +831,32 @@ class GradingAgent(BaseAgent):
         """
         cleaned_sub = student_submission.strip()
         sub_id = submission_id or f"SUB-ASSIGN-{abs(hash(cleaned_sub)) % 10000:04d}"
+
+        # Check if an LLM provider is connected
+        if self.provider is not None:
+            try:
+                report = self.provider.grade_assignment(
+                    assignment_title=assignment_title,
+                    assignment_instructions=assignment_instructions,
+                    rubric=rubric,
+                    student_submission=student_submission,
+                )
+                if report:
+                    return GradingReport(
+                        submission_id=sub_id,
+                        student_id=student_id,
+                        total_score=report.total_score,
+                        max_possible_score=report.max_possible_score,
+                        percentage=report.percentage,
+                        summary_feedback=report.summary_feedback,
+                        evaluations=report.evaluations,
+                        areas_to_review=report.areas_to_review,
+                    )
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"GradingAgent assignment provider call failed ({exc}); falling back to deterministic heuristic."
+                )
 
         sentences = [s.strip() for s in re.split(r"[.!?\n]", cleaned_sub) if len(s.strip()) > 10]
         citation = f"Submission excerpt: '{sentences[0]}'" if sentences else "No substantial response provided."
@@ -1126,6 +1286,23 @@ def create_coordinator(
     if chunks:
         retriever.index_chunks(chunks)
     return MultiAgentCoordinator(retriever=retriever, provider=provider)
+
+
+def create_live_coordinator(
+    chunks: Optional[List[DocumentChunk]] = None,
+    api_key: Optional[str] = None,
+) -> MultiAgentCoordinator:
+    """
+    Factory to initialize MultiAgentCoordinator with GeminiLiveProvider
+    (or MockLLMProvider if no API key is available).
+    """
+    import os
+    from src.ai.engine import GeminiLiveProvider, MockLLMProvider
+
+    key = api_key or os.getenv("GEMINI_API_KEY")
+    provider = GeminiLiveProvider(api_key=key) if key else MockLLMProvider()
+    return create_coordinator(chunks=chunks, provider=provider)
+
 
 
 

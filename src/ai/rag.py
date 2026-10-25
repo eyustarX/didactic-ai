@@ -247,6 +247,11 @@ class LectureRetriever:
         """Returns the number of indexed chunks."""
         return len(self._chunks)
 
+    @property
+    def chunks(self) -> List[DocumentChunk]:
+        """Returns the indexed document chunks."""
+        return self._chunks
+
 
 # ---------------------------------------------------------------------------
 # Factory Helper

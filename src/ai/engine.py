@@ -15,6 +15,12 @@ import urllib.error
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from src.ai.schemas import (
     AssessmentRubric,
     RubricCriterion,
@@ -303,9 +309,9 @@ class GeminiLiveProvider(BaseLLMProvider):
     Uses Python standard library (urllib) to guarantee zero extra dependencies.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
-        self.model = "gemini-1.5-flash"
+        self.model = model or os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
         self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
 
     def _call_gemini_json(self, prompt: str, schema_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -332,8 +338,14 @@ class GeminiLiveProvider(BaseLLMProvider):
 
         with urllib.request.urlopen(req, timeout=30) as response:
             res_data = json.loads(response.read().decode("utf-8"))
-            raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-            return json.loads(raw_text)
+            raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            if raw_text.startswith("```json"):
+                raw_text = raw_text[7:]
+            elif raw_text.startswith("```"):
+                raw_text = raw_text[3:]
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3]
+            return json.loads(raw_text.strip())
 
     def generate_rubric(self, lecture_title: str, lecture_content: str) -> AssessmentRubric:
         prompt = format_rubric_generation_prompt(lecture_title, lecture_content)
@@ -441,31 +453,63 @@ class BedrockLiveProvider(BaseLLMProvider):
 class DidacticEngine:
     """
     Main engine used by applications, API handlers, and UI frontends.
-    Wraps whichever provider is active (Mock, Gemini, or Bedrock).
+    Wraps whichever provider is active (Mock, Gemini, or Bedrock)
+    with automatic offline fallback on network or API errors.
     """
 
     def __init__(self, provider: Optional[BaseLLMProvider] = None):
         self.provider = provider or get_default_provider()
+        self._fallback = MockLLMProvider()
 
     def generate_rubric(self, lecture_title: str, lecture_content: str) -> AssessmentRubric:
-        return self.provider.generate_rubric(lecture_title, lecture_content)
+        try:
+            return self.provider.generate_rubric(lecture_title, lecture_content)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"DidacticEngine.generate_rubric provider call failed ({exc}); falling back to offline simulator."
+            )
+            return self._fallback.generate_rubric(lecture_title, lecture_content)
 
     def generate_assessment(
         self, lecture_title: str, lecture_content: str, question_count: int = 3
     ) -> GeneratedAssessment:
-        return self.provider.generate_assessment(lecture_title, lecture_content, question_count)
+        try:
+            return self.provider.generate_assessment(lecture_title, lecture_content, question_count)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"DidacticEngine.generate_assessment provider call failed ({exc}); falling back to offline simulator."
+            )
+            return self._fallback.generate_assessment(lecture_title, lecture_content, question_count)
 
     def grade_exam_question(
         self, question: Question, rubric: AssessmentRubric, student_answer: str
     ) -> GradingReport:
-        return self.provider.grade_exam_question(question, rubric, student_answer)
+        try:
+            return self.provider.grade_exam_question(question, rubric, student_answer)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"DidacticEngine.grade_exam_question provider call failed ({exc}); falling back to offline simulator."
+            )
+            return self._fallback.grade_exam_question(question, rubric, student_answer)
 
     def grade_assignment(
         self, assignment_title: str, assignment_instructions: str, rubric: AssessmentRubric, student_submission: str
     ) -> GradingReport:
-        return self.provider.grade_assignment(
-            assignment_title, assignment_instructions, rubric, student_submission
-        )
+        try:
+            return self.provider.grade_assignment(
+                assignment_title, assignment_instructions, rubric, student_submission
+            )
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"DidacticEngine.grade_assignment provider call failed ({exc}); falling back to offline simulator."
+            )
+            return self._fallback.grade_assignment(
+                assignment_title, assignment_instructions, rubric, student_submission
+            )
 
 
 def get_default_provider() -> BaseLLMProvider:

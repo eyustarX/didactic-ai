@@ -94,6 +94,7 @@ from src.ai.agents import (
     MultiAgentCoordinator,
     RubricAgent,
     create_coordinator,
+    create_live_coordinator,
 )
 
 # ---------------------------------------------------------------------------
@@ -290,6 +291,7 @@ __all__ = [
     "AuditorAgent",
     "MultiAgentCoordinator",
     "create_coordinator",
+    "create_live_coordinator",
     # Analytics
     "CohortAnalyticsEngine",
     "analyze_cohort",
