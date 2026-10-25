@@ -18,8 +18,15 @@ export default function App() {
     return typeof window !== 'undefined' && window.innerWidth <= 860;
   });
 
-  // User Authentication State (defaults to unauthenticated)
-  const [currentUser, setCurrentUser] = useState(null);
+  // User Authentication State (defaults to cached user or unauthenticated)
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('didactic_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   // Shared workflow state
@@ -101,6 +108,9 @@ export default function App() {
         collapsed={collapsed}
         setCollapsed={setCollapsed}
         onGoToLanding={() => setView('landing')}
+        currentUser={currentUser}
+        onOpenAuth={() => setIsAuthOpen(true)}
+        onSignOut={handleSignOut}
       />
 
       {/* Main Content Area */}

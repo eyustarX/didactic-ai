@@ -2,14 +2,15 @@ import React from 'react';
 import {
   LayoutDashboard,
   FileText,
-  Award,
   FileCheck,
   GraduationCap,
-  BarChart3,
   Zap,
   PanelLeftClose,
   PanelLeftOpen,
   X,
+  User,
+  LogOut,
+  LogIn,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -17,7 +18,7 @@ const NAV_ITEMS = [
   { id: 'curriculum', label: 'Curriculum & Ingest', icon: FileText },
   { id: 'assessment', label: 'Assessment', icon: FileCheck },
   { id: 'grading', label: 'Exam & Paper Grading', icon: GraduationCap },
- ];
+];
 
 export default function Sidebar({
   activeTab,
@@ -25,6 +26,9 @@ export default function Sidebar({
   collapsed,
   setCollapsed,
   onGoToLanding,
+  currentUser,
+  onOpenAuth,
+  onSignOut,
 }) {
   const [isHovered, setIsHovered] = React.useState(false);
 
@@ -37,6 +41,13 @@ export default function Sidebar({
   };
 
   const isExpanded = !collapsed || isHovered;
+
+  const userInitial = currentUser?.name
+    ? currentUser.name.trim().charAt(0).toUpperCase()
+    : 'U';
+  const userHandle = currentUser?.email
+    ? `@${currentUser.email.split('@')[0]}`
+    : '@academic';
 
   return (
     <>
@@ -117,6 +128,81 @@ export default function Sidebar({
               );
             })}
           </nav>
+
+          {/* Lower Sidebar Profile Section */}
+          <div className="sidebar-profile-section">
+            {currentUser ? (
+              <div
+                className="sidebar-profile-card"
+                onClick={onOpenAuth}
+                title={!isExpanded ? `${currentUser.name} (${currentUser.role || 'Instructor'})` : 'Account details & profile'}
+              >
+                <div className="sidebar-profile-avatar-wrap">
+                  <div className="sidebar-profile-avatar">
+                    {userInitial}
+                  </div>
+                  <span className="sidebar-status-dot" title="Active session" />
+                </div>
+
+                <div className="sidebar-profile-info">
+                  <div className="sidebar-profile-name-row">
+                    <span className="sidebar-profile-name" title={currentUser.name}>
+                      {currentUser.name}
+                    </span>
+                  </div>
+                  <div className="sidebar-profile-meta-row">
+                    <span className="sidebar-profile-sub">
+                      {currentUser.department || currentUser.role || 'Instructor'}
+                    </span>
+                    <span className="sidebar-profile-email" title={currentUser.email || userHandle}>
+                      {userHandle}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onSignOut) onSignOut();
+                  }}
+                  className="sidebar-profile-action-btn"
+                  title="Sign out"
+                >
+                  <LogOut size={13} />
+                </button>
+              </div>
+            ) : (
+              <div
+                className="sidebar-profile-card guest"
+                onClick={onOpenAuth}
+                title={!isExpanded ? 'Sign in to academic profile' : 'Sign in to save and attribute records'}
+              >
+                <div className="sidebar-profile-avatar-wrap">
+                  <div className="sidebar-profile-avatar guest-avatar">
+                    <User size={14} />
+                  </div>
+                </div>
+
+                <div className="sidebar-profile-info">
+                  <span className="sidebar-profile-name">Guest Profile</span>
+                  <span className="sidebar-profile-sub">Sign in to save</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenAuth) onOpenAuth();
+                  }}
+                  className="sidebar-profile-action-btn"
+                  title="Sign in"
+                >
+                  <LogIn size={13} />
+                </button>
+              </div>
+            )}
+          </div>
         </aside>
       </div>
     </>
