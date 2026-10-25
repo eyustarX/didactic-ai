@@ -39,6 +39,36 @@ from src.ai.prompts import (
 )
 
 
+def sanitize_exam_question_text(text: str, lecture_title: str = "") -> str:
+    """
+    Cleans up meta-references such as 'according to the lecture notes',
+    'based on the lecture content', 'as covered in the slides', or file names.
+    Ensures questions read as authentic, standalone university exam problems.
+    """
+    if not text:
+        return text
+
+    patterns = [
+        r"(?i),?\s*\b(?:according to|based on|as discussed in|as covered in|as stated in|referenced in)\s+(?:the\s+)?(?:lecture(?:\s+notes?|\s+slides?|\s+material|\s+content)?|slides?|notes?|file|pdf|textbook|provided\s+material)\b[,:]?",
+        r"(?i)\b(?:in|from)\s+(?:the\s+)?(?:lecture\s+notes?|lecture\s+slides?|lecture\s+material|provided\s+slides?|lecture)\b",
+        r"(?i),?\s*\b(?:as\s+covered\s+in\s+the\s+lecture)\b",
+        r"(?i),?\s*\b(?:based\s+on\s+the\s+lecture)\b",
+    ]
+    cleaned = text
+    for p in patterns:
+        cleaned = re.sub(p, "", cleaned)
+
+    if lecture_title:
+        base_name = re.sub(r"\.(pdf|docx|pptx|txt)$", "", lecture_title, flags=re.IGNORECASE).strip()
+        cleaned = re.sub(rf"(?i)\b(?:in|from|for)\s+['\"]?{re.escape(base_name)}['\"]?\b", "", cleaned)
+        cleaned = re.sub(rf"(?i)\b{re.escape(base_name)}\.(pdf|docx|pptx)\b", "", cleaned)
+
+    cleaned = re.sub(r"\s*,\s*\?", "?", cleaned)
+    cleaned = re.sub(r"\s*,\s*\.", ".", cleaned)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+    return cleaned
+
+
 # ---------------------------------------------------------------------------
 # Abstract Provider Interface
 # ---------------------------------------------------------------------------
@@ -53,7 +83,7 @@ class BaseLLMProvider(ABC):
 
     @abstractmethod
     def generate_assessment(
-        self, lecture_title: str, lecture_content: str, question_count: int = 3
+        self, lecture_title: str, lecture_content: str, question_count: int = 3, custom_instructions: Optional[str] = None
     ) -> GeneratedAssessment:
         """Generates exam questions with official answer keys from lecture content."""
         pass
@@ -71,6 +101,15 @@ class BaseLLMProvider(ABC):
     ) -> GradingReport:
         """Grades a full assignment or project report against a holistic rubric."""
         pass
+
+    def copilot_chat(
+        self, messages: List[Dict[str, str]], lecture_title: str, lecture_content: str
+    ) -> Dict[str, Any]:
+        """Multi-turn conversational copilot that clarifies assessment requirements."""
+        return {
+            "reply": f"I can help you configure an assessment for '{lecture_title}'. Which specific topics and question formats would you like to cover?",
+            "ready_to_generate": False,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +152,7 @@ class MockLLMProvider(BaseLLMProvider):
         )
 
     def generate_assessment(
-        self, lecture_title: str, lecture_content: str, question_count: int = 3
+        self, lecture_title: str, lecture_content: str, question_count: int = 3, custom_instructions: Optional[str] = None
     ) -> GeneratedAssessment:
         questions: List[Question] = []
         
@@ -121,14 +160,26 @@ class MockLLMProvider(BaseLLMProvider):
         content_lines = [line.strip() for line in lecture_content.splitlines() if len(line.strip()) > 20]
         ref_text = content_lines[0] if content_lines else f"Key concept in {lecture_title}."
 
-        q1 = Question(
-            id="Q1",
-            question_type=QuestionType.SHORT_ANSWER,
-            prompt=f"Explain the primary purpose and mechanism of {lecture_title}.",
-            reference_answer=ref_text,
-            max_points=5.0,
-            learning_objective=f"Understand core mechanisms of {lecture_title}",
-        )
+        is_fitb = custom_instructions and any(w in custom_instructions.lower() for w in ["fill in the blank", "fill in the blanks", "fill in the black", "blank"])
+
+        if is_fitb:
+            q1 = Question(
+                id="Q1",
+                question_type=QuestionType.FILL_IN_THE_BLANK,
+                prompt=f"In systems design, the ________ mechanism establishes foundational ordering and correctness in {lecture_title}.",
+                reference_answer="synchronization",
+                max_points=2.0,
+                learning_objective=f"Recall terminology of {lecture_title}",
+            )
+        else:
+            q1 = Question(
+                id="Q1",
+                question_type=QuestionType.SHORT_ANSWER,
+                prompt=f"Explain the primary purpose and mechanism of {lecture_title}.",
+                reference_answer=ref_text,
+                max_points=5.0,
+                learning_objective=f"Understand core mechanisms of {lecture_title}",
+            )
         questions.append(q1)
 
         if question_count >= 2:
@@ -298,6 +349,49 @@ class MockLLMProvider(BaseLLMProvider):
             areas_to_review=review,
         )
 
+    def copilot_chat(
+        self, messages: List[Dict[str, str]], lecture_title: str, lecture_content: str
+    ) -> Dict[str, Any]:
+        def _get_text(msg: Dict[str, Any]) -> str:
+            return (msg.get("content") or msg.get("text") or "").strip()
+
+        last_msg = _get_text(messages[-1]).lower() if messages else ""
+        has_format = any(w in last_msg for w in ["mcq", "multiple choice", "short answer", "fill in the blank", "fill in the blanks", "fill in the black", "fill-in-the-blank", "blank", "true false", "true/false", "quiz", "midterm", "exam", "question", "questions"])
+        has_topics = any(w in last_msg for w in ["search", "sort", "algorithm", "complexity", "big-o", "tree", "graph", "chapter", "slide", "concept"])
+        has_marks = any(w in last_msg for w in ["mark", "marks", "point", "points", "pts", "1 mark", "2 mark", "5 mark"])
+        user_turns = [m for m in messages if m.get("role") == "user"]
+
+        if len(user_turns) >= 2 and (has_marks or len(user_turns) >= 3):
+            numbers = [int(n) for n in re.findall(r"\b(\d+)\b", last_msg)]
+            q_count = sum(numbers) if (numbers and sum(numbers) <= 25) else (numbers[0] if numbers else 5)
+            return {
+                "reply": f"Perfect! I have compiled your assessment specifications for '{lecture_title}'. We will generate {q_count} questions (with A, B, C, D choices for multiple choice, complete answer keys, and your custom point allocation). Click 'Synthesize Assessment' below to generate it now.",
+                "ready_to_generate": True,
+                "suggested_prompt": _get_text(messages[-1]) if messages else "Generate balanced assessment",
+                "question_count": q_count,
+            }
+        elif has_topics and has_format and not has_marks:
+            return {
+                "reply": f"Great focus on those topics and formats! How many marks should each question type be worth? (For example: 1 mark for Multiple Choice, and 2 or 5 marks for Short Answer?)",
+                "ready_to_generate": False,
+                "suggested_prompt": None,
+                "question_count": None,
+            }
+        elif has_topics and not has_format:
+            return {
+                "reply": f"Excellent choice of topics for '{lecture_title}'! What question formats would you like (e.g., Multiple Choice with A-D options, Short Answer, or True/False), and how many marks should each question type be worth?",
+                "ready_to_generate": False,
+                "suggested_prompt": None,
+                "question_count": None,
+            }
+        else:
+            return {
+                "reply": f"I can certainly help you build an assessment from '{lecture_title}'! Which specific topics from the lecture should we emphasize, which question formats do you prefer (e.g., Multiple Choice with A-D options, Short Answer), and how many marks per question?",
+                "ready_to_generate": False,
+                "suggested_prompt": None,
+                "question_count": None,
+            }
+
 
 # ---------------------------------------------------------------------------
 # 2. GeminiLiveProvider (Free Live API via Google AI Studio)
@@ -345,7 +439,17 @@ class GeminiLiveProvider(BaseLLMProvider):
                 raw_text = raw_text[3:]
             if raw_text.endswith("```"):
                 raw_text = raw_text[:-3]
-            return json.loads(raw_text.strip())
+            clean_str = raw_text.strip()
+            try:
+                return json.loads(clean_str, strict=False)
+            except Exception:
+                # Sanitize raw control characters if strict=False fails
+                sanitized = re.sub(
+                    r"[\x00-\x1f\x7f-\x9f]",
+                    lambda m: "\n" if m.group(0) in ("\n", "\r") else " ",
+                    clean_str,
+                )
+                return json.loads(sanitized, strict=False)
 
     def generate_rubric(self, lecture_title: str, lecture_content: str) -> AssessmentRubric:
         prompt = format_rubric_generation_prompt(lecture_title, lecture_content)
@@ -365,9 +469,11 @@ class GeminiLiveProvider(BaseLLMProvider):
         return AssessmentRubric.model_validate(data)
 
     def generate_assessment(
-        self, lecture_title: str, lecture_content: str, question_count: int = 3
+        self, lecture_title: str, lecture_content: str, question_count: int = 3, custom_instructions: Optional[str] = None
     ) -> GeneratedAssessment:
-        prompt = format_assessment_generation_prompt(lecture_title, lecture_content, question_count)
+        prompt = format_assessment_generation_prompt(
+            lecture_title, lecture_content, question_count, custom_instructions=custom_instructions
+        )
         data = self._call_gemini_json(prompt, GeneratedAssessment.model_json_schema())
         if isinstance(data, list):
             data = {"questions": data}
@@ -386,17 +492,42 @@ class GeminiLiveProvider(BaseLLMProvider):
                     if "id" not in q or not q["id"]:
                         q["id"] = q.get("question_id") or f"Q{idx + 1}"
                     if "prompt" not in q or not q["prompt"]:
-                        q["prompt"] = q.get("question_text") or q.get("question") or f"Explain the concept of {lecture_title}."
+                        q["prompt"] = q.get("question_text") or q.get("question") or f"Explain the core technical principles of {lecture_title}."
+                    else:
+                        q["prompt"] = sanitize_exam_question_text(q["prompt"], lecture_title)
+
                     if "reference_answer" not in q or not q["reference_answer"]:
-                        q["reference_answer"] = q.get("answer_key") or q.get("correct_answer") or q.get("answer") or "See lecture notes."
+                        q["reference_answer"] = q.get("answer_key") or q.get("correct_answer") or q.get("answer") or "Standard model solution."
+                    else:
+                        q["reference_answer"] = sanitize_exam_question_text(q["reference_answer"], lecture_title)
+
                     if "max_points" not in q and "points" in q:
                         q["max_points"] = q["points"]
                     elif "max_points" not in q:
                         q["max_points"] = 5.0
-                    if "question_type" not in q:
-                        q["question_type"] = "short_answer"
+                    if "question_type" not in q or not q["question_type"]:
+                        if "____" in q.get("prompt", ""):
+                            q["question_type"] = "fill_in_the_blank"
+                        elif q.get("options") and len(q.get("options")) > 0:
+                            q["question_type"] = "multiple_choice"
+                        else:
+                            q["question_type"] = "short_answer"
                     if "learning_objective" not in q or not q["learning_objective"]:
-                        q["learning_objective"] = f"Understand {lecture_title}"
+                        clean_topic = re.sub(r"\.(pdf|docx|pptx|txt)$", "", lecture_title, flags=re.IGNORECASE).strip()
+                        q["learning_objective"] = f"Understand and analyze principles of {clean_topic}"
+
+                    opts = q.get("options")
+                    if isinstance(opts, list) and len(opts) > 0:
+                        prefix_labels = ["A)", "B)", "C)", "D)", "E)"]
+                        clean_opts = []
+                        for o_idx, opt in enumerate(opts):
+                            opt_str = sanitize_exam_question_text(str(opt).strip(), lecture_title)
+                            if not re.match(r"^[A-E]\)", opt_str, re.IGNORECASE):
+                                opt_str = f"{prefix_labels[min(o_idx, len(prefix_labels)-1)]} {opt_str}"
+                            clean_opts.append(opt_str)
+                        q["options"] = clean_opts
+                        if not re.search(r"\bA\)", q["prompt"]):
+                            q["prompt"] = f"{q['prompt']}\n\n" + "\n".join(clean_opts)
 
         total_pts = sum(q.get("max_points", 5.0) for q in data.get("questions", []))
         if "total_points" not in data or not data["total_points"]:
@@ -509,6 +640,67 @@ class GeminiLiveProvider(BaseLLMProvider):
         )
         return GradingReport.model_validate(data)
 
+    def copilot_chat(
+        self, messages: List[Dict[str, str]], lecture_title: str, lecture_content: str
+    ) -> Dict[str, Any]:
+        schema = {
+            "type": "object",
+            "properties": {
+                "reply": {
+                    "type": "string",
+                    "description": "Conversational assistant reply to the professor, asking follow-up questions or confirming readiness.",
+                },
+                "ready_to_generate": {
+                    "type": "boolean",
+                    "description": "Set to true ONLY when the professor has provided enough details (e.g. topics and question types/counts) to generate the assessment.",
+                },
+                "suggested_prompt": {
+                    "type": "string",
+                    "description": "The compiled instruction prompt summarizing the agreed assessment specs (e.g. '5 MCQs and 3 short answer on Binary Search'). Only when ready_to_generate is true.",
+                },
+                "question_count": {
+                    "type": "integer",
+                    "description": "Total question count determined from conversation (e.g. 5, 8, or 10).",
+                },
+            },
+            "required": ["reply", "ready_to_generate"],
+        }
+
+        chat_transcript = "\n".join(
+            f"{'Professor' if m.get('role') == 'user' else 'Didactic AI'}: {(m.get('content') or m.get('text') or '').strip()}"
+            for m in messages
+        )
+
+        prompt = (
+            f"You are Didactic AI, an expert academic teaching and assessment assistant for university professors.\n"
+            f"You are helping a professor configure an assessment based on their lecture material.\n\n"
+            f"--- LECTURE TITLE ---\n{lecture_title}\n\n"
+            f"--- LECTURE EXCERPT ---\n{lecture_content[:1500]}\n--- END LECTURE ---\n\n"
+            f"--- CONVERSATION HISTORY ---\n{chat_transcript}\n--- END HISTORY ---\n\n"
+            f"Instructions:\n"
+            f"1. Help the professor clarify: (a) specific topics/slides to cover, (b) question formats (Multiple Choice with choices A, B, C, D; Fill in the Blank with clear blanks; Short Answer; True/False), (c) mark values for each question type (e.g. 1 mark per MCQ, 1-2 marks per Fill-in-the-blank, 2 or 5 marks per Short Answer), and (d) total question count.\n"
+            f"2. Keep your response conversational and friendly (1-3 sentences). If the professor hasn't mentioned how many marks each question is worth, be sure to ask.\n"
+            f"3. If the professor gives broad or partial instructions, ask clarifying questions and set ready_to_generate = false.\n"
+            f"4. Once the professor has provided the specifics (topics, formats, marks per question, and counts), summarize the agreed specifications, set ready_to_generate = true, provide suggested_prompt (explicitly specifying marks per question format), and specify question_count."
+        )
+
+        try:
+            data = self._call_gemini_json(prompt, schema)
+            if not isinstance(data, dict):
+                data = {
+                    "reply": "I'd be glad to help! Which concepts from the lecture would you like to focus on?",
+                    "ready_to_generate": False,
+                }
+            if "reply" not in data or not data["reply"]:
+                data["reply"] = data.get("response") or data.get("message") or data.get("answer") or "How can I help configure this assessment?"
+            if "ready_to_generate" not in data:
+                data["ready_to_generate"] = False
+            return data
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(f"GeminiLiveProvider.copilot_chat failed ({exc}); falling back to mock provider.")
+            return MockLLMProvider().copilot_chat(messages, lecture_title, lecture_content)
+
 
 # ---------------------------------------------------------------------------
 # 3. BedrockLiveProvider (AWS Cloud Adapter via Boto3)
@@ -551,9 +743,11 @@ class BedrockLiveProvider(BaseLLMProvider):
         return AssessmentRubric.model_validate_json(json_str)
 
     def generate_assessment(
-        self, lecture_title: str, lecture_content: str, question_count: int = 3
+        self, lecture_title: str, lecture_content: str, question_count: int = 3, custom_instructions: Optional[str] = None
     ) -> GeneratedAssessment:
-        prompt = format_assessment_generation_prompt(lecture_title, lecture_content, question_count) + "\nOutput strictly in valid JSON."
+        prompt = format_assessment_generation_prompt(
+            lecture_title, lecture_content, question_count, custom_instructions=custom_instructions
+        ) + "\nOutput strictly in valid JSON."
         raw = self._call_bedrock(prompt)
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         json_str = match.group(0) if match else raw
@@ -578,6 +772,11 @@ class BedrockLiveProvider(BaseLLMProvider):
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         json_str = match.group(0) if match else raw
         return GradingReport.model_validate_json(json_str)
+
+    def copilot_chat(
+        self, messages: List[Dict[str, str]], lecture_title: str, lecture_content: str
+    ) -> Dict[str, Any]:
+        return MockLLMProvider().copilot_chat(messages, lecture_title, lecture_content)
 
 
 # ---------------------------------------------------------------------------
@@ -606,16 +805,20 @@ class DidacticEngine:
             return self._fallback.generate_rubric(lecture_title, lecture_content)
 
     def generate_assessment(
-        self, lecture_title: str, lecture_content: str, question_count: int = 3
+        self, lecture_title: str, lecture_content: str, question_count: int = 3, custom_instructions: Optional[str] = None
     ) -> GeneratedAssessment:
         try:
-            return self.provider.generate_assessment(lecture_title, lecture_content, question_count)
+            return self.provider.generate_assessment(
+                lecture_title, lecture_content, question_count, custom_instructions=custom_instructions
+            )
         except Exception as exc:
             import logging
             logging.getLogger(__name__).warning(
                 f"DidacticEngine.generate_assessment provider call failed ({exc}); falling back to offline simulator."
             )
-            return self._fallback.generate_assessment(lecture_title, lecture_content, question_count)
+            return self._fallback.generate_assessment(
+                lecture_title, lecture_content, question_count, custom_instructions=custom_instructions
+            )
 
     def grade_exam_question(
         self, question: Question, rubric: AssessmentRubric, student_answer: str
@@ -644,6 +847,18 @@ class DidacticEngine:
             return self._fallback.grade_assignment(
                 assignment_title, assignment_instructions, rubric, student_submission
             )
+
+    def copilot_chat(
+        self, messages: List[Dict[str, str]], lecture_title: str, lecture_content: str
+    ) -> Dict[str, Any]:
+        try:
+            return self.provider.copilot_chat(messages, lecture_title, lecture_content)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"DidacticEngine.copilot_chat provider call failed ({exc}); falling back to offline simulator."
+            )
+            return self._fallback.copilot_chat(messages, lecture_title, lecture_content)
 
 
 def get_default_provider() -> BaseLLMProvider:

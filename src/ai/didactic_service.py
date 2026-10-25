@@ -3,8 +3,12 @@ Didactic AI Service layer adapter.
 Bridge between FastAPI REST routes and Didactic AI Core Engine.
 """
 
+import logging
+import re
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 from src.ai.schemas import (
     CurriculumAnalysis,
@@ -112,6 +116,7 @@ def generate_assessment(
     lecture_title: str,
     ticked_parts: List[Dict[str, Any]],
     question_count: int = 3,
+    custom_instructions: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Synthesizes an assessment testing the selected key parts using live AI agents.
@@ -129,13 +134,26 @@ def generate_assessment(
             lecture_title=lecture_title,
             lecture_content=content_summary,
             question_count=question_count,
+            custom_instructions=custom_instructions,
         )
         questions = []
         for idx, q in enumerate(gen_assess.questions):
             kp_title = ticked_parts[idx % len(ticked_parts)].get("title", "Core Topic") if ticked_parts else "Core Concept"
+            
+            # Format choices A, B, C, D directly into question text if not already present
+            formatted_text = q.prompt
+            if q.options and len(q.options) > 0:
+                opt_str = "\n".join(f"{opt}" for opt in q.options)
+                if not re.search(r"\bA\)", formatted_text):
+                    formatted_text = f"{q.prompt}\n\n{opt_str}"
+
+            # Store answer key prominently in student_hint
+            answer_key = q.reference_answer or "Standard model solution."
+            hint = f"Official Answer Key: {answer_key}\nLearning Objective: {q.learning_objective}"
+
             questions.append({
-                "text": q.prompt,
-                "student_hint": f"Key focus: {q.learning_objective}",
+                "text": formatted_text,
+                "student_hint": hint,
                 "max_marks": q.max_points,
                 "tested_key_point_titles": [kp_title],
             })
@@ -143,7 +161,8 @@ def generate_assessment(
             "title": gen_assess.title or f"Assessment: {lecture_title}",
             "questions": questions,
         }
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"ai_generate_assessment call failed ({exc}); falling back to fallback template.", exc_info=True)
         questions = []
         points_per_q = round(10.0 / max(question_count, 1), 1)
 
@@ -152,8 +171,8 @@ def generate_assessment(
             title = kp.get("title", "Concept")
             summary = kp.get("summary", "")
 
-            q_text = f"Explain the core mechanisms and significance of {title}. {summary}"
-            hint = f"Focus on definition, operation, and edge cases for {title}."
+            q_text = f"Explain the core mechanisms, theoretical principles, and operational significance of {title}."
+            hint = f"Official Answer Key: {summary}\nLearning Objective: Understand and apply {title}."
 
             questions.append({
                 "text": q_text,
@@ -300,10 +319,14 @@ def grade_submission(
             citation = report.evaluations[0].evidence_citation if report.evaluations else f"Excerpt: '{cleaned[:50]}...'"
             question_results.append({
                 "question_id": q_id,
+                "question_text": q_text,
                 "score": score,
+                "points_awarded": score,
                 "max_score": max_marks,
-                "feedback": report.summary_feedback,
+                "max_points": max_marks,
+                "feedback": report.summary_feedback or "Demonstrates sound conceptual understanding aligned with reference answer.",
                 "evidence_citation": citation,
+                "matched_student_answer": citation,
                 "criterion_scores": crit_scores,
             })
         except Exception:
@@ -328,15 +351,32 @@ def grade_submission(
 
             question_results.append({
                 "question_id": q_id,
+                "question_text": q_text,
                 "score": score,
+                "points_awarded": score,
                 "max_score": max_marks,
-                "feedback": f"Demonstrated grasp of {len(overlap)} key technical terms.",
+                "max_points": max_marks,
+                "feedback": f"Demonstrated grasp of {len(overlap)} core technical concepts with relevant terminology.",
                 "evidence_citation": citation,
+                "matched_student_answer": citation,
                 "criterion_scores": crit_scores,
             })
 
+    total_possible = sum(float(q.get("max_marks", 10.0)) for q in questions_payload) or 10.0
+    percentage = round((total_score / total_possible) * 100, 1)
+
+    if percentage >= 85:
+        summary_feedback = f"Excellent mastery ({total_score:g}/{total_possible:g} pts, {percentage}%). The candidate provided thorough, technically precise answers consistent with model solutions."
+    elif percentage >= 65:
+        summary_feedback = f"Good performance ({total_score:g}/{total_possible:g} pts, {percentage}%). Core principles are understood, with minor omissions in detail or edge case analysis."
+    else:
+        summary_feedback = f"Developing understanding ({total_score:g}/{total_possible:g} pts, {percentage}%). Recommend reviewing fundamental lecture concepts and terminology noted in question feedback."
+
     return {
         "ai_total": round(total_score, 2),
+        "total_score": round(total_score, 2),
+        "max_score": round(total_possible, 2),
+        "summary_feedback": summary_feedback,
         "question_results": question_results,
     }
 

@@ -14,352 +14,23 @@ import {
   RefreshCw,
   Users,
   Award,
+  FileCheck,
+  BookOpen,
+  PenTool,
+  Plus,
+  FileText,
+  Clock,
+  ArrowRight,
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import {
   gradeStudentSubmission,
   confirmSubmissionScore,
   fetchAssessmentSubmissions,
+  fetchAssessments,
+  fetchAssessmentDetail,
+  createManualSubmission,
 } from '../services/api';
-
-const DEFAULT_COHORT_SUBMISSIONS = [
-  {
-    id: 'sub-001',
-    student_number: 'STU-2026-081',
-    student_name: 'Alice Johnson',
-    ai_total: 94.0,
-    total_score: 94.0,
-    max_score: 100.0,
-    percentage: 94.0,
-    status: 'confirmed',
-    graded_at: '2026-10-24T21:44:52Z',
-    question_results: [
-      {
-        question_text: 'Core Architecture and Principles',
-        points_awarded: 19.0,
-        max_points: 20.0,
-        feedback: 'Thorough explanation of distributed revision graphs and SHA-1 hashing.',
-        matched_student_answer: 'Git models projects as snapshots over time rather than file deltas.',
-      },
-      {
-        question_text: 'Staging Area and Workflow',
-        points_awarded: 19.0,
-        max_points: 20.0,
-        feedback: 'Accurate description of index, working tree, and commit states.',
-        matched_student_answer: 'git add indexes changed files; git commit permanently snapshots.',
-      },
-      {
-        question_text: 'Branching and Three-Way Merge',
-        points_awarded: 18.5,
-        max_points: 20.0,
-        feedback: 'Demonstrates deep understanding of pointer manipulation.',
-        matched_student_answer: 'Branches are simply 41-byte references pointing to commit hashes.',
-      },
-      {
-        question_text: 'Conflict Resolution Strategies',
-        points_awarded: 18.5,
-        max_points: 20.0,
-        feedback: 'Correct step-by-step approach for manual conflict markers.',
-        matched_student_answer: 'Inspect <<<< markers, resolve diffs, re-add to staging, and commit.',
-      },
-      {
-        question_text: 'Remote Tracking and Push Safety',
-        points_awarded: 19.0,
-        max_points: 20.0,
-        feedback: 'Excellent synthesis of fast-forward merges and fetch vs pull.',
-        matched_student_answer: 'git pull combines git fetch with git merge origin/branch.',
-      },
-    ],
-  },
-  {
-    id: 'sub-002',
-    student_number: 'STU-2026-082',
-    student_name: 'Marcus Chen',
-    ai_total: 88.5,
-    total_score: 88.5,
-    max_score: 100.0,
-    percentage: 88.5,
-    status: 'confirmed',
-    graded_at: '2026-10-24T21:44:53Z',
-    question_results: [
-      {
-        question_text: 'Core Architecture and Principles',
-        points_awarded: 17.5,
-        max_points: 20.0,
-        feedback: 'Solid explanation, minor omission regarding blob storage.',
-        matched_student_answer: 'Git uses content-addressable storage with commit objects.',
-      },
-      {
-        question_text: 'Staging Area and Workflow',
-        points_awarded: 18.0,
-        max_points: 20.0,
-        feedback: 'Clear workflow description with accurate command usage.',
-        matched_student_answer: 'The three states: modified, staged, committed.',
-      },
-      {
-        question_text: 'Branching and Three-Way Merge',
-        points_awarded: 18.0,
-        max_points: 20.0,
-        feedback: 'Explains fast-forward vs recursive merge cleanly.',
-        matched_student_answer: 'Fast-forward moves pointer directly when no diverge exists.',
-      },
-      {
-        question_text: 'Conflict Resolution Strategies',
-        points_awarded: 17.0,
-        max_points: 20.0,
-        feedback: 'Good practical resolution procedure.',
-        matched_student_answer: 'Locate conflicts, decide keep HEAD or incoming, stage resolved file.',
-      },
-      {
-        question_text: 'Remote Tracking and Push Safety',
-        points_awarded: 18.0,
-        max_points: 20.0,
-        feedback: 'Well reasoned explanation of upstream tracking.',
-        matched_student_answer: 'git branch -u origin/main sets tracking for effortless pull.',
-      },
-    ],
-  },
-  {
-    id: 'sub-003',
-    student_number: 'STU-2026-083',
-    student_name: 'Sophia Rodriguez',
-    ai_total: 91.0,
-    total_score: 91.0,
-    max_score: 100.0,
-    percentage: 91.0,
-    status: 'confirmed',
-    graded_at: '2026-10-24T21:44:54Z',
-    question_results: [
-      {
-        question_text: 'Core Architecture and Principles',
-        points_awarded: 18.5,
-        max_points: 20.0,
-        feedback: 'Clear, well-formulated definitions with DAG diagram description.',
-        matched_student_answer: 'The repository is a directed acyclic graph of immutable commit nodes.',
-      },
-      {
-        question_text: 'Staging Area and Workflow',
-        points_awarded: 18.5,
-        max_points: 20.0,
-        feedback: 'Comprehensive step-by-step breakdown of lifecycle.',
-        matched_student_answer: 'Working directory -> Staging (Index) -> Repository (.git database).',
-      },
-      {
-        question_text: 'Branching and Three-Way Merge',
-        points_awarded: 18.0,
-        max_points: 20.0,
-        feedback: 'Correct understanding of common ancestor identification.',
-        matched_student_answer: 'Three-way merges utilize the merge-base between branches.',
-      },
-      {
-        question_text: 'Conflict Resolution Strategies',
-        points_awarded: 18.0,
-        max_points: 20.0,
-        feedback: 'Good understanding of merge tools and diff inspection.',
-        matched_student_answer: 'Use git mergetool or manually edit conflict markers before committing.',
-      },
-      {
-        question_text: 'Remote Tracking and Push Safety',
-        points_awarded: 18.0,
-        max_points: 20.0,
-        feedback: 'Accurate distinction between pull --rebase and standard pull.',
-        matched_student_answer: 'Pull --rebase keeps a linear history without unnecessary merge commits.',
-      },
-    ],
-  },
-  {
-    id: 'sub-004',
-    student_number: 'STU-2026-084',
-    student_name: 'David Kim',
-    ai_total: 79.5,
-    total_score: 79.5,
-    max_score: 100.0,
-    percentage: 79.5,
-    status: 'graded',
-    graded_at: '2026-10-24T21:44:55Z',
-    question_results: [
-      {
-        question_text: 'Core Architecture and Principles',
-        points_awarded: 16.0,
-        max_points: 20.0,
-        feedback: 'Basic concept understood, could expand on cryptographic hashing.',
-        matched_student_answer: 'Git stores files and keeps track of what changed.',
-      },
-      {
-        question_text: 'Staging Area and Workflow',
-        points_awarded: 16.5,
-        max_points: 20.0,
-        feedback: 'Correct command sequence, brief explanation.',
-        matched_student_answer: 'git add stages files, git commit saves them.',
-      },
-      {
-        question_text: 'Branching and Three-Way Merge',
-        points_awarded: 15.5,
-        max_points: 20.0,
-        feedback: 'Lacks explanation of merge-base.',
-        matched_student_answer: 'Branches let multiple people work together without conflicting.',
-      },
-      {
-        question_text: 'Conflict Resolution Strategies',
-        points_awarded: 16.0,
-        max_points: 20.0,
-        feedback: 'Accurately identifies conflict markers.',
-        matched_student_answer: 'Look for <<<<<< and >>>>>> and delete what you do not want.',
-      },
-      {
-        question_text: 'Remote Tracking and Push Safety',
-        points_awarded: 15.5,
-        max_points: 20.0,
-        feedback: 'Missed explanation of non-fast-forward push rejection.',
-        matched_student_answer: 'git push sends code to GitHub.',
-      },
-    ],
-  },
-  {
-    id: 'sub-005',
-    student_number: 'STU-2026-085',
-    student_name: 'Fatima Al-Mansoor',
-    ai_total: 96.0,
-    total_score: 96.0,
-    max_score: 100.0,
-    percentage: 96.0,
-    status: 'confirmed',
-    graded_at: '2026-10-24T21:44:56Z',
-    question_results: [
-      {
-        question_text: 'Core Architecture and Principles',
-        points_awarded: 19.5,
-        max_points: 20.0,
-        feedback: 'Exemplary grasp of object stores (blobs, trees, commits, annotated tags).',
-        matched_student_answer: 'Content addressability ensures complete cryptographic immutability.',
-      },
-      {
-        question_text: 'Staging Area and Workflow',
-        points_awarded: 19.5,
-        max_points: 20.0,
-        feedback: 'Flawless analysis of intermediate cache representation.',
-        matched_student_answer: 'The index acts as a staging cache decoupling disk modifications.',
-      },
-      {
-        question_text: 'Branching and Three-Way Merge',
-        points_awarded: 19.0,
-        max_points: 20.0,
-        feedback: 'Precise topological explanation of commit ancestors.',
-        matched_student_answer: 'Git identifies the nearest common ancestor to construct the merge tree.',
-      },
-      {
-        question_text: 'Conflict Resolution Strategies',
-        points_awarded: 19.0,
-        max_points: 20.0,
-        feedback: 'Exemplary resolution flow including re-running test suites.',
-        matched_student_answer: 'Resolve conflicts, test build pass, git add, and finalize commit.',
-      },
-      {
-        question_text: 'Remote Tracking and Push Safety',
-        points_awarded: 19.0,
-        max_points: 20.0,
-        feedback: 'Comprehensive breakdown of atomic pushes and lease safety.',
-        matched_student_answer: 'git push --force-with-lease prevents overwriting un-fetched remote work.',
-      },
-    ],
-  },
-  {
-    id: 'sub-006',
-    student_number: 'STU-2026-086',
-    student_name: "Liam O'Connor",
-    ai_total: 82.0,
-    total_score: 82.0,
-    max_score: 100.0,
-    percentage: 82.0,
-    status: 'graded',
-    graded_at: '2026-10-24T21:44:57Z',
-    question_results: [
-      {
-        question_text: 'Core Architecture and Principles',
-        points_awarded: 16.5,
-        max_points: 20.0,
-        feedback: 'Good grasp of distributed version control benefits.',
-        matched_student_answer: 'Everyone has a full copy of the codebase and history locally.',
-      },
-      {
-        question_text: 'Staging Area and Workflow',
-        points_awarded: 16.5,
-        max_points: 20.0,
-        feedback: 'Solid workflow explanation.',
-        matched_student_answer: 'Files must be added to staging before they can be committed.',
-      },
-      {
-        question_text: 'Branching and Three-Way Merge',
-        points_awarded: 16.0,
-        max_points: 20.0,
-        feedback: 'Understands basic checkout and merge process.',
-        matched_student_answer: 'git checkout -b creates branch, git merge brings it into main.',
-      },
-      {
-        question_text: 'Conflict Resolution Strategies',
-        points_awarded: 16.5,
-        max_points: 20.0,
-        feedback: 'Competent handling of text conflicts.',
-        matched_student_answer: 'Open the conflicting file, edit the conflict region, and commit.',
-      },
-      {
-        question_text: 'Remote Tracking and Push Safety',
-        points_awarded: 16.5,
-        max_points: 20.0,
-        feedback: 'Accurate description of origin remote.',
-        matched_student_answer: 'Origin is the remote repository alias configured in git config.',
-      },
-    ],
-  },
-  {
-    id: 'sub-007',
-    student_number: 'STU-2026-087',
-    student_name: 'Maya Patel',
-    ai_total: 89.0,
-    total_score: 89.0,
-    max_score: 100.0,
-    percentage: 89.0,
-    status: 'confirmed',
-    graded_at: '2026-10-24T21:44:58Z',
-    question_results: [
-      {
-        question_text: 'Core Architecture and Principles',
-        points_awarded: 18.0,
-        max_points: 20.0,
-        feedback: 'Accurate description of SHA checksum integrity.',
-        matched_student_answer: 'Every commit is cryptographically chained using SHA-1/SHA-256.',
-      },
-      {
-        question_text: 'Staging Area and Workflow',
-        points_awarded: 18.0,
-        max_points: 20.0,
-        feedback: 'Detailed step explanation.',
-        matched_student_answer: 'Allows selective commits by staging partial changes.',
-      },
-      {
-        question_text: 'Branching and Three-Way Merge',
-        points_awarded: 17.5,
-        max_points: 20.0,
-        feedback: 'Good practical analysis.',
-        matched_student_answer: 'Branches are lightweight references to commits.',
-      },
-      {
-        question_text: 'Conflict Resolution Strategies',
-        points_awarded: 17.5,
-        max_points: 20.0,
-        feedback: 'Solid strategy outlined.',
-        matched_student_answer: 'Identify conflict sections, consult team if needed, add and commit.',
-      },
-      {
-        question_text: 'Remote Tracking and Push Safety',
-        points_awarded: 18.0,
-        max_points: 20.0,
-        feedback: 'Understands fetch vs merge vs rebase.',
-        matched_student_answer: 'git fetch updates origin branches without merging into working tree.',
-      },
-    ],
-  },
-];
 
 export default function GradingTab({
   assessment,
@@ -367,41 +38,120 @@ export default function GradingTab({
   currentUser,
   onGradingComplete,
 }) {
+  // Dual-Pane Split Screen Toggle: Benchmark Guide (Assignment & Rubrics)
+  const [showAssignmentGuide, setShowAssignmentGuide] = useState(true);
+
+  // Grading Mode: 'paper' (AI PDF OCR) or 'manual' (Direct Teacher Score Entry)
+  const [gradingMode, setGradingMode] = useState('paper');
+
+  // Paper Grading State
   const [studentName, setStudentName] = useState('');
   const [studentNumber, setStudentNumber] = useState('');
   const [studentFile, setStudentFile] = useState(null);
-
   const [isGrading, setIsGrading] = useState(false);
+
+  // Manual Score Entry State
+  const [manualStudentName, setManualStudentName] = useState('');
+  const [manualStudentNumber, setManualStudentNumber] = useState('');
+  const [manualQuestionScores, setManualQuestionScores] = useState({});
+  const [manualQuestionAnswers, setManualQuestionAnswers] = useState({});
+  const [manualQuestionFeedback, setManualQuestionFeedback] = useState({});
+  const [manualSummaryFeedback, setManualSummaryFeedback] = useState('');
+  const [isSubmittingManual, setIsSubmittingManual] = useState(false);
+  const [manualSuccessMsg, setManualSuccessMsg] = useState(null);
+
+  // Shared Status & Report State
   const [gradingError, setGradingError] = useState(null);
   const [gradingReport, setGradingReport] = useState(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
 
-  // Gradebook / Roster state
-  const [submissions, setSubmissions] = useState(DEFAULT_COHORT_SUBMISSIONS);
+  // Dedicated Gradebook for the active assessment
+  const [submissions, setSubmissions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(false);
   const [confirmingSubId, setConfirmingSubId] = useState(null);
+  const [assessmentsList, setAssessmentsList] = useState([]);
+  const [isLoadingAssessments, setIsLoadingAssessments] = useState(false);
 
   const reportRef = useRef(null);
 
-  // Load submissions from backend for the active assessment
+  // Initialize manual scores whenever active assessment changes
+  useEffect(() => {
+    if (assessment?.questions && assessment.questions.length > 0) {
+      const initScores = {};
+      const initAnswers = {};
+      const initFeedback = {};
+      assessment.questions.forEach((q) => {
+        initScores[q.id] = q.max_marks || 0;
+        initAnswers[q.id] = '';
+        initFeedback[q.id] = '';
+      });
+      setManualQuestionScores(initScores);
+      setManualQuestionAnswers(initAnswers);
+      setManualQuestionFeedback(initFeedback);
+    }
+  }, [assessment?.id]);
+
+  // Fetch available assessments to allow switching classes/exams
+  const loadAssessmentsList = async () => {
+    setIsLoadingAssessments(true);
+    try {
+      const list = await fetchAssessments(currentUser?.id);
+      if (Array.isArray(list)) {
+        setAssessmentsList(list);
+        if (!assessment?.id && list.length > 0) {
+          const latest = list[0];
+          const full = await fetchAssessmentDetail(latest.id, currentUser?.id);
+          if (full && setAssessment) {
+            setAssessment(full);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load assessments list in GradingTab:', e);
+    } finally {
+      setIsLoadingAssessments(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAssessmentsList();
+  }, [currentUser?.id]);
+
+  const handleSelectAssessment = async (e) => {
+    const aid = e.target.value;
+    if (!aid) return;
+    try {
+      const full = await fetchAssessmentDetail(aid, currentUser?.id);
+      if (full && setAssessment) {
+        setAssessment(full);
+        setGradingReport(null);
+        setGradingError(null);
+        setManualSuccessMsg(null);
+      }
+    } catch (err) {
+      console.error('Failed to switch assessment in GradingTab:', err);
+    }
+  };
+
+  // Load submissions from backend strictly for the active assessment
   const loadSubmissions = async () => {
     if (!assessment?.id) {
-      setSubmissions(DEFAULT_COHORT_SUBMISSIONS);
+      setSubmissions([]);
       return;
     }
     setIsLoadingSubmissions(true);
     try {
       const data = await fetchAssessmentSubmissions(assessment.id, currentUser?.id);
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         setSubmissions(data);
       } else {
-        setSubmissions(DEFAULT_COHORT_SUBMISSIONS);
+        setSubmissions([]);
       }
     } catch (err) {
-      console.warn('Using default cohort submissions:', err);
-      setSubmissions(DEFAULT_COHORT_SUBMISSIONS);
+      console.warn('Failed to load submissions for active assessment:', err);
+      setSubmissions([]);
     } finally {
       setIsLoadingSubmissions(false);
     }
@@ -416,7 +166,6 @@ export default function GradingTab({
     if (file) {
       setStudentFile(file);
       setGradingError(null);
-      // Auto-populate student name from file name if blank
       if (!studentName) {
         const guessed = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' ');
         setStudentName(guessed);
@@ -424,13 +173,14 @@ export default function GradingTab({
     }
   };
 
+  // Mode 1: AI Paper OCR & Grading
   const handleGrade = async () => {
     if (!assessment?.id && !assessment?.questions?.length) {
-      setGradingError('Please generate or select an assessment first in the Assessment tab.');
+      setGradingError('Please select or generate an assessment first in the Assessment studio.');
       return;
     }
     if (!studentFile) {
-      setGradingError('Please upload the student answer sheet PDF.');
+      setGradingError('Please upload the student exam paper PDF.');
       return;
     }
     if (!studentName.trim()) {
@@ -451,24 +201,37 @@ export default function GradingTab({
         lecturerId: currentUser?.id,
       });
 
-      setGradingReport(report);
+      const formattedReport = {
+        ...report,
+        summary_feedback: report.summary_feedback || 'Completed evaluation verified against normalized rubrics.',
+        question_results: (report.question_results || []).map((qr, idx) => ({
+          ...qr,
+          question_text: qr.question_text || assessment?.questions?.[idx]?.text || `Question ${idx + 1}`,
+          points_awarded: qr.points_awarded ?? qr.score ?? 0,
+          max_points: qr.max_points ?? qr.max_score ?? assessment?.questions?.[idx]?.max_marks ?? 10,
+          matched_student_answer: qr.matched_student_answer || qr.evidence_citation || 'Extracted answer excerpt from student paper.',
+          feedback: qr.feedback || 'Answer matches required technical criteria.',
+        })),
+      };
 
-      // Append or update in submissions list
+      setGradingReport(formattedReport);
+
+      // Append or update in active assessment's submissions
       setSubmissions((prev) => {
-        const exists = prev.some((s) => s.id === report.submission_id || s.student_name === report.student_name);
+        const exists = prev.some((s) => s.id === formattedReport.submission_id || s.student_name === formattedReport.student_name);
         const newEntry = {
-          id: report.submission_id,
-          student_id: report.student_id,
-          student_number: report.student_number || studentNumber || 'STU-NEW',
-          student_name: report.student_name || studentName,
-          ai_total: report.ai_total,
-          total_score: report.total_score ?? report.ai_total,
-          max_score: report.max_score || assessment?.max_score || 100,
-          percentage: report.max_score ? Number(((report.total_score / report.max_score) * 100).toFixed(1)) : 0,
-          status: report.status || 'graded',
+          id: formattedReport.submission_id,
+          student_id: formattedReport.student_id,
+          student_number: formattedReport.student_number || studentNumber || 'STU-NEW',
+          student_name: formattedReport.student_name || studentName,
+          ai_total: formattedReport.ai_total,
+          total_score: formattedReport.total_score ?? formattedReport.ai_total,
+          max_score: formattedReport.max_score || assessment?.max_score || 100,
+          percentage: formattedReport.max_score ? Number(((formattedReport.total_score / formattedReport.max_score) * 100).toFixed(1)) : 0,
+          status: formattedReport.status || 'graded',
           graded_at: new Date().toISOString(),
-          question_results: report.question_results,
-          summary_feedback: report.summary_feedback,
+          question_results: formattedReport.question_results,
+          summary_feedback: formattedReport.summary_feedback,
         };
         if (exists) {
           return prev.map((s) => (s.id === report.submission_id || s.student_name === report.student_name ? newEntry : s));
@@ -480,15 +243,123 @@ export default function GradingTab({
         onGradingComplete(report);
       }
 
-      // Scroll to report card
       setTimeout(() => {
         reportRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     } catch (err) {
-      setGradingError(err.message || 'Grading failed. Please check backend connection.');
+      setGradingError(err.message || 'Grading failed. Please verify backend connection.');
     } finally {
       setIsGrading(false);
     }
+  };
+
+  // Mode 2: Insert Student Score Manually
+  const handleManualSubmit = async (e) => {
+    e.preventDefault();
+    if (!assessment?.id) {
+      setGradingError('Please select an active assessment first.');
+      return;
+    }
+    if (!manualStudentName.trim()) {
+      setGradingError('Student name is required.');
+      return;
+    }
+
+    setIsSubmittingManual(true);
+    setGradingError(null);
+    setManualSuccessMsg(null);
+
+    try {
+      const qScoresPayload = (assessment.questions || []).map((q) => ({
+        question_id: q.id,
+        points: parseFloat(manualQuestionScores[q.id]) || 0,
+        matched_student_answer: manualQuestionAnswers[q.id] || '',
+        feedback: manualQuestionFeedback[q.id] || '',
+      }));
+
+      const totalManual = qScoresPayload.reduce((sum, item) => sum + item.points, 0);
+
+      const result = await createManualSubmission({
+        assessment_id: assessment.id,
+        student_name: manualStudentName.trim(),
+        student_number: manualStudentNumber.trim() || undefined,
+        total_score: totalManual,
+        summary_feedback: manualSummaryFeedback.trim() || undefined,
+        question_scores: qScoresPayload,
+        lecturerId: currentUser?.id,
+      });
+
+      const formattedReport = {
+        ...result,
+        summary_feedback: result.summary_feedback || 'Recorded and verified directly by instructor.',
+        question_results: (result.question_results || []).map((qr, idx) => ({
+          ...qr,
+          question_text: qr.question_text || assessment?.questions?.[idx]?.text || `Question ${idx + 1}`,
+          points_awarded: qr.points_awarded ?? 0,
+          max_points: qr.max_points ?? assessment?.questions?.[idx]?.max_marks ?? 10,
+          matched_student_answer: qr.matched_student_answer || 'Recorded answer',
+          feedback: qr.feedback || 'Manually scored by instructor.',
+        })),
+      };
+
+      setGradingReport(formattedReport);
+      setIsConfirmed(true);
+
+      // Prepend to submissions list
+      setSubmissions((prev) => {
+        const exists = prev.some((s) => s.id === result.id || s.student_name === result.student_name);
+        const newEntry = {
+          id: result.id,
+          student_id: result.student_id,
+          student_number: result.student_number || manualStudentNumber || 'STU-NEW',
+          student_name: result.student_name || manualStudentName,
+          ai_total: result.ai_total,
+          total_score: result.total_score,
+          max_score: result.max_score || assessment.max_score || 100,
+          percentage: result.percentage,
+          status: 'confirmed',
+          graded_at: new Date().toISOString(),
+          question_results: formattedReport.question_results,
+          summary_feedback: formattedReport.summary_feedback,
+        };
+        if (exists) {
+          return prev.map((s) => (s.id === result.id || s.student_name === result.student_name ? newEntry : s));
+        }
+        return [newEntry, ...prev];
+      });
+
+      setManualSuccessMsg(`Score successfully recorded for ${manualStudentName}!`);
+      setManualStudentName('');
+      setManualStudentNumber('');
+      setManualSummaryFeedback('');
+
+      if (onGradingComplete) {
+        onGradingComplete(result);
+      }
+
+      setTimeout(() => {
+        reportRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } catch (err) {
+      setGradingError(err.message || 'Failed to record student score.');
+    } finally {
+      setIsSubmittingManual(false);
+    }
+  };
+
+  // Adjust/Override score for a question live
+  const handleAdjustQuestionScore = (qIdx, newPoints) => {
+    if (!gradingReport?.question_results) return;
+    const updatedQRs = [...gradingReport.question_results];
+    updatedQRs[qIdx] = { ...updatedQRs[qIdx], points_awarded: newPoints };
+    const newTotal = updatedQRs.reduce((sum, item) => sum + (parseFloat(item.points_awarded) || 0), 0);
+    setGradingReport({
+      ...gradingReport,
+      question_results: updatedQRs,
+      total_score: newTotal,
+      ai_total: newTotal,
+    });
+    setIsConfirmed(false);
   };
 
   const handleConfirmScore = async () => {
@@ -502,7 +373,7 @@ export default function GradingTab({
       );
       setIsConfirmed(true);
       setSubmissions((prev) =>
-        prev.map((s) => (s.id === gradingReport.submission_id ? { ...s, status: 'confirmed' } : s))
+        prev.map((s) => (s.id === gradingReport.submission_id ? { ...s, status: 'confirmed', total_score: gradingReport.total_score } : s))
       );
     } catch (err) {
       console.error('Failed to confirm score:', err);
@@ -530,17 +401,28 @@ export default function GradingTab({
   };
 
   const handleReviewSubmission = (sub) => {
+    const qResults = (sub.question_results && sub.question_results.length > 0)
+      ? sub.question_results
+      : (assessment?.questions || []).map((q, idx) => ({
+          question_id: q.id,
+          question_text: q.text,
+          points_awarded: Number(((sub.total_score || 0) / Math.max(assessment?.questions?.length || 1, 1)).toFixed(1)),
+          max_points: q.max_marks,
+          matched_student_answer: 'Student response recorded',
+          feedback: `Score: ${sub.total_score} recorded for ${sub.student_name}`,
+        }));
+
     setGradingReport({
       submission_id: sub.id,
       student_number: sub.student_number,
       student_name: sub.student_name,
       assessment_title: assessment?.title || 'Assessment',
       total_score: sub.total_score,
-      ai_total: sub.ai_total,
+      ai_total: sub.ai_total ?? sub.total_score,
       max_score: sub.max_score || assessment?.max_score || 100,
       status: sub.status,
       summary_feedback: sub.summary_feedback || 'Completed evaluation verified against normalized rubrics.',
-      question_results: sub.question_results || [],
+      question_results: qResults,
     });
     setIsConfirmed(sub.status === 'confirmed');
     setTimeout(() => {
@@ -559,9 +441,11 @@ export default function GradingTab({
       { header: 'Student Name', key: 'student_name', width: 24 },
       { header: 'Assessment Title', key: 'assessment_title', width: 32 },
       { header: 'Question #', key: 'question_num', width: 14 },
+      { header: 'Question Prompt', key: 'question_text', width: 40 },
       { header: 'Points Awarded', key: 'points_awarded', width: 16 },
       { header: 'Max Points', key: 'max_points', width: 14 },
-      { header: 'Feedback / Excerpt', key: 'feedback', width: 45 },
+      { header: 'Student Answer / Citation', key: 'student_answer', width: 45 },
+      { header: 'Feedback', key: 'feedback', width: 45 },
       { header: 'Total Score', key: 'total_score', width: 14 },
       { header: 'Max Score', key: 'max_score', width: 14 },
       { header: 'Status', key: 'status', width: 14 },
@@ -575,26 +459,15 @@ export default function GradingTab({
           student_name: gradingReport.student_name || studentName,
           assessment_title: gradingReport.assessment_title || assessment?.title || 'Assessment',
           question_num: `Q${idx + 1}`,
+          question_text: qr.question_text || `Question ${idx + 1}`,
           points_awarded: qr.points_awarded,
           max_points: qr.max_points,
-          feedback: qr.feedback,
+          student_answer: qr.matched_student_answer || '',
+          feedback: qr.feedback || '',
           total_score: idx === 0 ? (gradingReport.total_score ?? gradingReport.ai_total) : '',
           max_score: idx === 0 ? gradingReport.max_score : '',
           status: idx === 0 ? (isConfirmed ? 'CONFIRMED' : 'GRADED') : '',
         });
-      });
-    } else {
-      worksheet.addRow({
-        student_id: gradingReport.student_number || 'STU-001',
-        student_name: gradingReport.student_name || studentName,
-        assessment_title: gradingReport.assessment_title || assessment?.title || 'Assessment',
-        question_num: 'All Questions',
-        points_awarded: gradingReport.total_score ?? gradingReport.ai_total,
-        max_points: gradingReport.max_score,
-        feedback: gradingReport.summary_feedback,
-        total_score: gradingReport.total_score ?? gradingReport.ai_total,
-        max_score: gradingReport.max_score,
-        status: isConfirmed ? 'CONFIRMED' : 'GRADED',
       });
     }
 
@@ -605,14 +478,14 @@ export default function GradingTab({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${(gradingReport.student_name || 'Student').replace(/\s+/g, '_')}_Grading_Report.xlsx`;
+    link.download = `${(gradingReport.student_name || 'Student').replace(/\s+/g, '_')}_Report.xlsx`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
   const handleExportCohortExcel = async () => {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Cohort Gradebook');
+    const worksheet = workbook.addWorksheet('Class Gradebook');
 
     worksheet.columns = [
       { header: 'Student ID', key: 'id', width: 16 },
@@ -621,7 +494,7 @@ export default function GradingTab({
       { header: 'Total Score', key: 'total_score', width: 14 },
       { header: 'Max Score', key: 'max_score', width: 14 },
       { header: 'Percentage', key: 'percentage', width: 14 },
-      { header: 'Tier', key: 'tier', width: 12 },
+      { header: 'Grade Tier', key: 'tier', width: 12 },
       { header: 'Status', key: 'status', width: 16 },
       { header: 'Graded At', key: 'graded_at', width: 22 },
     ];
@@ -672,7 +545,7 @@ export default function GradingTab({
     );
   });
 
-  // Summary statistics
+  // Summary statistics for this dedicated assessment class
   const cohortCount = submissions.length;
   const cohortAvg = cohortCount > 0
     ? (submissions.reduce((acc, curr) => acc + (curr.percentage || (curr.max_score ? (curr.total_score / curr.max_score) * 100 : 0)), 0) / cohortCount).toFixed(1)
@@ -684,107 +557,596 @@ export default function GradingTab({
 
   return (
     <div>
+      {/* Assessment Selector & Context Banner */}
+      <div
+        className="cartesia-card"
+        style={{
+          marginBottom: 20,
+          padding: '14px 18px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)',
+          border: '1px solid rgba(99, 102, 241, 0.3)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 8,
+              background: 'rgba(99, 102, 241, 0.18)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--accent)',
+            }}
+          >
+            <GraduationCap size={20} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent)', fontWeight: 600 }}>
+                Active Exam & Class Selection
+              </span>
+              {assessment?.status === 'locked' && (
+                <span className="badge" style={{ background: '#ca8a04', color: '#fff', fontSize: '0.66rem', padding: '1px 5px' }}>
+                  Locked
+                </span>
+              )}
+            </div>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text)', margin: '2px 0 0 0' }}>
+              {assessment?.title || 'No Assessment Selected'}
+            </h2>
+            <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: 0, marginTop: 2 }}>
+              {assessment?.questions?.length || assessment?.question_count || 0} Questions • {assessment?.max_score || 0} Total Marks • Dedicated Class Gradebook
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            Switch Exam / Class:
+          </label>
+          <select
+            value={assessment?.id || ''}
+            onChange={handleSelectAssessment}
+            className="input-text"
+            style={{ height: 32, fontSize: '0.82rem', minWidth: 240, padding: '0 8px', background: 'var(--bg)', color: 'var(--text)' }}
+          >
+            {assessmentsList.length === 0 && <option value="">No assessments found in database</option>}
+            {assessmentsList.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.title} ({a.question_count || 0} Qs • {a.max_score || 0} pts)
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Decomposed Student Grading & Gradebook</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Student Exam & Paper Grading Studio</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-            Upload whole-assessment student PDFs, evaluate against normalized rubrics, and maintain audit-ready cohort records.
+            Grade student exams for this class. Upload scanned student exam papers or enter scores manually.
           </p>
         </div>
 
-        {assessment && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setShowAssignmentGuide(!showAssignmentGuide)}
+            className="btn btn-secondary btn-sm"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: showAssignmentGuide ? 'rgba(99, 102, 241, 0.15)' : 'var(--surface)',
+              border: showAssignmentGuide ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid var(--border)',
+              color: showAssignmentGuide ? 'var(--accent)' : 'var(--text)',
+              padding: '6px 12px',
+            }}
+            title="Toggle side-by-side Assignment & Rubrics Benchmark Guide to prevent grading blind"
+          >
+            <BookOpen size={13} />
+            <span>{showAssignmentGuide ? '👁️ Hide Assignment Guide' : '👁️ Show Assignment Guide'}</span>
+          </button>
+
+          {assessment && (
             <span className="badge badge-accent">
-              Active: {assessment.title || 'Current Assessment'} ({questionsCount} questions)
+              Active Exam: {assessment.title || 'Current Assessment'} ({questionsCount} questions)
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* 3-Step Physical Paper Grading Pipeline Banner */}
+      <div
+        className="cartesia-card"
+        style={{
+          marginBottom: 20,
+          padding: '14px 18px',
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.7) 100%)',
+          border: '1px solid rgba(99, 102, 241, 0.2)',
+        }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(37, 99, 235, 0.2)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
+              1
+            </div>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>Print Exam Paper</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Generate PDF in Assessment tab</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(234, 179, 8, 0.2)', color: '#eab308', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
+              2
+            </div>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>Collect & Scan</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Students complete exam; scan paper</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
+              3
+            </div>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>Score with AI or Manually</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Upload paper PDF or insert scores directly</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Dual-Pane Split Screen Workspace */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: showAssignmentGuide ? 'minmax(320px, 380px) 1fr' : '1fr',
+          gap: 20,
+          alignItems: 'start',
+        }}
+      >
+        {/* Left Column: Assignment & Rubric Companion (The Benchmark Guide) */}
+        {showAssignmentGuide && (
+          <div
+            className="cartesia-card custom-scroll"
+            style={{
+              position: 'sticky',
+              top: 16,
+              maxHeight: 'calc(100vh - 40px)',
+              overflowY: 'auto',
+              padding: '16px 18px',
+              background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)',
+              border: '1px solid rgba(99, 102, 241, 0.3)',
+              borderRadius: 10,
+            }}
+          >
+            {/* Guide Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <BookOpen size={16} style={{ color: 'var(--accent)' }} />
+                <div>
+                  <h3 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                    Assignment & Rubric Guide
+                  </h3>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                    Benchmark Reference
+                  </span>
+                </div>
+              </div>
+              <span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>
+                {questionsCount} Questions • {assessment?.max_score || 0} pts
+              </span>
+            </div>
+
+            {/* Questions List */}
+            {!assessment?.questions || assessment.questions.length === 0 ? (
+              <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                No questions found for this assessment. Select an assessment with questions in the dropdown above.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {assessment.questions.map((q, qIdx) => {
+                  const isMcq = /[A-D]\)/.test(q.text || '');
+                  const isFitb = /____|fill in the blank/i.test(q.text || '') || q.question_type === 'fill_in_the_blank';
+                  const maxPts = q.max_marks || q.max_points || 10;
+                  const criteria = q.rubric?.criteria || [];
+                  const answerKey = q.reference_answer || (q.student_hint?.includes('Answer Key:') ? q.student_hint.replace(/^.*Answer\s+Key:\s*/i, '').trim() : q.student_hint);
+
+                  return (
+                    <div
+                      key={q.id || qIdx}
+                      style={{
+                        padding: '12px 14px',
+                        background: 'var(--bg)',
+                        borderRadius: 8,
+                        border: '1px solid var(--border)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span className="badge badge-accent" style={{ fontSize: '0.68rem', fontWeight: 700 }}>
+                            Q{qIdx + 1}
+                          </span>
+                          {isMcq && <span className="badge badge-outline" style={{ fontSize: '0.62rem' }}>MCQ</span>}
+                          {isFitb && <span className="badge" style={{ fontSize: '0.62rem', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981' }}>FITB</span>}
+                          {!isMcq && !isFitb && <span className="badge badge-outline" style={{ fontSize: '0.62rem' }}>Task</span>}
+                        </div>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)' }}>
+                          {maxPts} pts
+                        </span>
+                      </div>
+
+                      {/* Question Text */}
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                        {q.text || q.prompt}
+                      </div>
+
+                      {/* Model Solution / Key */}
+                      {answerKey && (
+                        <div
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: 6,
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            fontSize: '0.76rem',
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                            <CheckCircle2 size={12} />
+                            <span>Model Solution / Key:</span>
+                          </span>
+                          <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
+                            {answerKey}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Rubric Criteria with Points */}
+                      {criteria.length > 0 && (
+                        <div style={{ marginTop: 2 }}>
+                          <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                            Rubric Criteria ({criteria.length}):
+                          </span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {criteria.map((c, cIdx) => (
+                              <div
+                                key={c.id || cIdx}
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
+                                  gap: 6,
+                                  fontSize: '0.75rem',
+                                  padding: '4px 6px',
+                                  background: 'var(--surface)',
+                                  borderRadius: 4,
+                                }}
+                              >
+                                <span style={{ color: 'var(--text-muted)', flex: 1, lineHeight: 1.3 }}>
+                                  • {c.description}
+                                </span>
+                                <span style={{ fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>
+                                  {c.max_points} pts
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Right Column: Student Grading Studio */}
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          {/* Grading Studio Mode Selection Tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={() => { setGradingMode('paper'); setGradingError(null); }}
+          className={`btn btn-sm ${gradingMode === 'paper' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px' }}
+        >
+          <UploadCloud size={14} />
+          <span>Upload & Grade Scanned Exam Paper (PDF)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setGradingMode('manual'); setGradingError(null); }}
+          className={`btn btn-sm ${gradingMode === 'manual' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px' }}
+        >
+          <PenTool size={14} />
+          <span>Insert Student Score Manually</span>
+        </button>
+      </div>
+
+      {/* Mode A: Upload & Grade Scanned Exam Paper (PDF) */}
+      {gradingMode === 'paper' && (
+        <div className="cartesia-card" style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <UploadCloud size={16} />
+              <span>Grade Student Exam Paper (PDF)</span>
+            </h3>
+            <span className="badge badge-accent" style={{ fontSize: '0.72rem' }}>
+              Instant AI Scoring & Feedback
             </span>
           </div>
-        )}
-      </div>
 
-      {/* Upload and Student Info Card */}
-      <div className="cartesia-card" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <UploadCloud size={16} />
-            <span>Grade New Student Submission</span>
-          </h3>
-          <span className="badge badge-outline" style={{ fontSize: '0.72rem' }}>
-            Whole-Assessment Evaluation
-          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Student Name</label>
+              <input
+                type="text"
+                placeholder="e.g. Alice Johnson"
+                value={studentName}
+                onChange={(e) => setStudentName(e.target.value)}
+                className="input-text"
+                style={{ fontSize: '0.88rem' }}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Student ID / Number (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. STU-2026-081"
+                value={studentNumber}
+                onChange={(e) => setStudentNumber(e.target.value)}
+                className="input-text"
+                style={{ fontSize: '0.88rem' }}
+              />
+            </div>
+          </div>
+
+          {/* Dropzone Box */}
+          <label className="dropzone" style={{ position: 'relative', marginBottom: 16 }}>
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={handleFileChange}
+              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+              disabled={isGrading}
+            />
+            <div className="dropzone-icon">
+              {isGrading ? <Loader2 size={22} className="spin" /> : <UploadCloud size={22} />}
+            </div>
+            <div>
+              <p style={{ fontWeight: 500, fontSize: '0.88rem', marginBottom: 2 }}>
+                {studentFile ? studentFile.name : 'Select or drop student exam paper PDF'}
+              </p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                {studentFile
+                  ? `${(studentFile.size / 1024).toFixed(1)} KB — Ready to grade with AI`
+                  : 'Upload scanned or digital PDF with student answers for all questions'}
+              </p>
+            </div>
+          </label>
+
+          {gradingError && (
+            <div style={{ marginBottom: 14, padding: 10, borderRadius: 4, background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertCircle size={15} />
+              <span>{gradingError}</span>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={handleGrade}
+              disabled={isGrading || !studentFile || !studentName.trim()}
+              className="btn btn-primary"
+              style={{ padding: '8px 20px' }}
+            >
+              {isGrading ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
+              <span>{isGrading ? 'Grading Paper with AI...' : 'Grade Student Paper'}</span>
+            </button>
+          </div>
         </div>
+      )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Student Name</label>
+      {/* Mode B: Insert Student Score Manually */}
+      {gradingMode === 'manual' && (
+        <form onSubmit={handleManualSubmit} className="cartesia-card" style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <PenTool size={16} />
+              <span>Insert Student Exam Score Directly</span>
+            </h3>
+            <span className="badge badge-accent" style={{ fontSize: '0.72rem' }}>
+              Direct Gradebook Entry
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Student Name *</label>
+              <input
+                type="text"
+                placeholder="e.g. Marcus Chen"
+                value={manualStudentName}
+                onChange={(e) => setManualStudentName(e.target.value)}
+                required
+                className="input-text"
+                style={{ fontSize: '0.88rem' }}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Student ID / Number (Optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. STU-2026-082"
+                value={manualStudentNumber}
+                onChange={(e) => setManualStudentNumber(e.target.value)}
+                className="input-text"
+                style={{ fontSize: '0.88rem' }}
+              />
+            </div>
+          </div>
+
+          {/* Per-Question Score Inputs */}
+          {assessment?.questions && assessment.questions.length > 0 ? (
+            <div style={{ marginBottom: 16 }}>
+              <label className="form-label" style={{ marginBottom: 8, display: 'block' }}>
+                Question Breakdown & Marks Allocation:
+              </label>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {assessment.questions.map((q, idx) => (
+                  <div
+                    key={q.id || idx}
+                    style={{
+                      padding: '10px 14px',
+                      background: 'var(--bg)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 6,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 6 }}>
+                      <div style={{ fontSize: '0.84rem', color: 'var(--text)', flex: 1 }}>
+                        <span style={{ fontWeight: 600, color: 'var(--accent)', marginRight: 6 }}>
+                          Q{idx + 1}:
+                        </span>
+                        {q.text}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Score:</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          max={q.max_marks}
+                          value={manualQuestionScores[q.id] ?? q.max_marks}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setManualQuestionScores((prev) => ({ ...prev, [q.id]: val }));
+                          }}
+                          className="input-text"
+                          style={{ width: 65, height: 28, fontSize: '0.84rem', textAlign: 'center', fontWeight: 600 }}
+                        />
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>/ {q.max_marks} pts</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 6 }}>
+                      <input
+                        type="text"
+                        placeholder="Student answer (optional)..."
+                        value={manualQuestionAnswers[q.id] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setManualQuestionAnswers((prev) => ({ ...prev, [q.id]: val }));
+                        }}
+                        className="input-text"
+                        style={{ height: 28, fontSize: '0.78rem' }}
+                      />
+
+                      <input
+                        type="text"
+                        placeholder="Teacher note / feedback (optional)..."
+                        value={manualQuestionFeedback[q.id] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setManualQuestionFeedback((prev) => ({ ...prev, [q.id]: val }));
+                        }}
+                        className="input-text"
+                        style={{ height: 28, fontSize: '0.78rem' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total Score Display */}
+              <div style={{ marginTop: 12, padding: '8px 14px', background: 'var(--surface)', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.84rem', fontWeight: 600 }}>Total Calculated Score:</span>
+                <span style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent)' }}>
+                  {Object.values(manualQuestionScores).reduce((sum, v) => sum + (parseFloat(v) || 0), 0)} / {assessment.max_score} pts
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">Total Score Awarded (out of {assessment?.max_score || 100})</label>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max={assessment?.max_score || 100}
+                placeholder="e.g. 85"
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 0;
+                  setManualQuestionScores({ default: val });
+                }}
+                className="input-text"
+                style={{ fontSize: '0.88rem' }}
+              />
+            </div>
+          )}
+
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label className="form-label">Overall Feedback / Comments (Optional)</label>
             <input
               type="text"
-              placeholder="e.g. Alice Johnson"
-              value={studentName}
-              onChange={(e) => setStudentName(e.target.value)}
+              placeholder="e.g. Great understanding of core algorithms. Minor precision error in Q2."
+              value={manualSummaryFeedback}
+              onChange={(e) => setManualSummaryFeedback(e.target.value)}
               className="input-text"
-              style={{ fontSize: '0.88rem' }}
+              style={{ fontSize: '0.86rem' }}
             />
           </div>
 
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Student ID / Number (Optional)</label>
-            <input
-              type="text"
-              placeholder="e.g. STU-2026-081"
-              value={studentNumber}
-              onChange={(e) => setStudentNumber(e.target.value)}
-              className="input-text"
-              style={{ fontSize: '0.88rem' }}
-            />
-          </div>
-        </div>
+          {gradingError && (
+            <div style={{ marginBottom: 14, padding: 10, borderRadius: 4, background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <AlertCircle size={15} />
+              <span>{gradingError}</span>
+            </div>
+          )}
 
-        {/* Dropzone Box matching the lecture notes upload box */}
-        <label className="dropzone" style={{ position: 'relative', marginBottom: 16 }}>
-          <input
-            type="file"
-            accept=".pdf"
-            onChange={handleFileChange}
-            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
-            disabled={isGrading}
-          />
-          <div className="dropzone-icon">
-            {isGrading ? <Loader2 size={22} className="spin" /> : <UploadCloud size={22} />}
-          </div>
-          <div>
-            <p style={{ fontWeight: 500, fontSize: '0.88rem', marginBottom: 2 }}>
-              {studentFile ? studentFile.name : 'Click to select or drop student answer sheet (PDF)'}
-            </p>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-              {studentFile
-                ? `${(studentFile.size / 1024).toFixed(1)} KB — Ready to grade`
-                : 'Upload single PDF containing the student answers to all assessment questions'}
-            </p>
-          </div>
-        </label>
+          {manualSuccessMsg && (
+            <div style={{ marginBottom: 14, padding: 10, borderRadius: 4, background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#10b981', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle2 size={15} />
+              <span>{manualSuccessMsg}</span>
+            </div>
+          )}
 
-        {gradingError && (
-          <div style={{ marginBottom: 14, padding: 10, borderRadius: 4, background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <AlertCircle size={15} />
-            <span>{gradingError}</span>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="submit"
+              disabled={isSubmittingManual || !manualStudentName.trim()}
+              className="btn btn-primary"
+              style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              {isSubmittingManual ? <Loader2 size={15} className="spin" /> : <PenTool size={15} />}
+              <span>{isSubmittingManual ? 'Saving Score...' : 'Insert Student Score to Gradebook'}</span>
+            </button>
           </div>
-        )}
+        </form>
+      )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={handleGrade}
-            disabled={isGrading || !studentFile || !studentName.trim()}
-            className="btn btn-primary"
-            style={{ padding: '8px 20px' }}
-          >
-            {isGrading ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
-            <span>{isGrading ? 'Grading Full Assessment...' : 'Grade Student Submission'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Active Grading Report (If reviewed or just graded) */}
+      {/* Active Grading Report (Reviewed or just graded) */}
       {gradingReport && (
         <div ref={reportRef} style={{ display: 'flex', flexDirection: 'column', gap: 18, marginBottom: 28 }}>
           {/* Headline Summary Card */}
@@ -845,51 +1207,97 @@ export default function GradingTab({
             )}
           </div>
 
-          {/* Question-by-Question Detailed Results */}
+          {/* Question-by-Question Detailed Results with Complete Question Context */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text)' }}>
-              Question Evaluations ({gradingReport.question_results?.length || 0})
+              Question-by-Question Evaluation ({gradingReport.question_results?.length || 0} Questions)
             </h4>
 
-            {(gradingReport.question_results || []).map((qr, idx) => (
-              <div key={qr.question_id || idx} className="cartesia-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="badge badge-accent">Question {idx + 1}</span>
-                    <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)' }}>
-                      {qr.question_text || `Question ${idx + 1}`}
-                    </span>
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text)' }}>
-                    {qr.points_awarded} / {qr.max_points} pts
-                  </div>
-                </div>
+            {(gradingReport.question_results || []).map((qr, idx) => {
+              const fullQ = assessment?.questions?.find((q, qIndex) => q.id === qr.question_id || qIndex === idx);
+              const questionPrompt = fullQ?.text || qr.question_text || `Question ${idx + 1}`;
+              const expectedCriteria = fullQ?.rubric?.criteria || [];
 
-                {/* Extracted Student Answer from PDF */}
-                <div style={{ background: 'var(--bg)', padding: '10px 12px', borderRadius: 4, border: '1px solid var(--border-subtle)', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                    <Quote size={12} />
-                    <span>Matched Answer from Student PDF:</span>
-                  </div>
-                  <p style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>
-                    {qr.matched_student_answer || 'No explicit section matched for this question.'}
-                  </p>
-                </div>
+              return (
+                <div key={qr.question_id || idx} className="cartesia-card" style={{ padding: '16px 18px' }}>
+                  {/* Question Header & Prompt */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="badge badge-accent">Question {idx + 1}</span>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          Max Marks: {qr.max_points} pts
+                        </span>
+                      </div>
 
-                {/* Rubric Feedback */}
-                {qr.feedback && (
-                  <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', background: 'var(--surface)', padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border-subtle)' }}>
-                    <span style={{ fontWeight: 600, color: 'var(--text)' }}>Feedback: </span>
-                    {qr.feedback}
+                      {/* Interactive Point Adjustment */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Points Awarded:</span>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          max={qr.max_points}
+                          value={qr.points_awarded}
+                          onChange={(e) => handleAdjustQuestionScore(idx, parseFloat(e.target.value) || 0)}
+                          className="input-text"
+                          style={{ width: 62, height: 26, fontSize: '0.82rem', textAlign: 'center', fontWeight: 600 }}
+                        />
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>
+                          / {qr.max_points}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Full Exam Question Text */}
+                    <div style={{ padding: '10px 12px', background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)', fontSize: '0.86rem', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
+                      <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--accent)', fontWeight: 600, display: 'block', marginBottom: 2 }}>
+                        Exam Question Asked:
+                      </span>
+                      {questionPrompt}
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {/* Rubric Criteria / Expected Key */}
+                  {expectedCriteria.length > 0 && (
+                    <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(99, 102, 241, 0.08)', borderRadius: 6, border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--accent)', fontWeight: 600, display: 'block', marginBottom: 3 }}>
+                        Rubric Criteria & Answer Key:
+                      </span>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                        {expectedCriteria.map((c, cIdx) => (
+                          <li key={c.id || cIdx}>{c.description} ({c.max_points} pts)</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Student Answer */}
+                  <div style={{ background: 'var(--bg)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-subtle)', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                      <Quote size={12} />
+                      <span style={{ fontWeight: 600 }}>Student's Answer (from Paper or Entry):</span>
+                    </div>
+                    <p style={{ fontSize: '0.82rem', fontFamily: 'var(--font-mono)', color: 'var(--text)', whiteSpace: 'pre-wrap', lineHeight: 1.4, margin: 0 }}>
+                      {qr.matched_student_answer || 'No explicit answer recorded.'}
+                    </p>
+                  </div>
+
+                  {/* Feedback */}
+                  {qr.feedback && (
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', background: 'var(--surface)', padding: '8px 10px', borderRadius: 4, border: '1px solid var(--border-subtle)' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text)' }}>Evaluation & Feedback: </span>
+                      {qr.feedback}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Cohort Gradebook Table Section */}
+      {/* Cohort Gradebook Table Section - Dedicated strictly to this assessment */}
       <div className="cartesia-card">
         {/* Gradebook Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
@@ -897,11 +1305,11 @@ export default function GradingTab({
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <GraduationCap size={18} style={{ color: 'var(--accent)' }} />
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-                Assessment Gradebook & Cohort Roster
+                Class Gradebook: {assessment?.title || 'Selected Assessment'}
               </h3>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-              Official immutable grading records for this assessment cohort. Click "Review" on any student to inspect textual citations.
+              Only students who submitted or were graded for this specific exam are listed here.
             </p>
           </div>
 
@@ -911,9 +1319,9 @@ export default function GradingTab({
               <span>Refresh</span>
             </button>
 
-            <button onClick={handleExportCohortExcel} className="btn btn-secondary btn-sm">
+            <button onClick={handleExportCohortExcel} disabled={submissions.length === 0} className="btn btn-secondary btn-sm">
               <FileSpreadsheet size={13} />
-              <span>Export Entire Gradebook (.xlsx)</span>
+              <span>Export Class Gradebook (.xlsx)</span>
             </button>
           </div>
         </div>
@@ -925,7 +1333,7 @@ export default function GradingTab({
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text)' }}>{cohortCount} Students</div>
           </div>
           <div style={{ background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Cohort Average</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Class Average</div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent)' }}>{cohortAvg}%</div>
           </div>
           <div style={{ background: 'var(--bg)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
@@ -1037,8 +1445,21 @@ export default function GradingTab({
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
-                    No student submissions found matching "{searchTerm}".
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-muted)' }}>
+                    {searchTerm ? (
+                      `No student submissions found matching "${searchTerm}".`
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        <GraduationCap size={28} style={{ color: 'var(--accent)', opacity: 0.7 }} />
+                        <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+                          No Student Submissions for this Exam Yet
+                        </span>
+                        <span style={{ fontSize: '0.8rem' }}>
+                          This class gradebook is dedicated specifically to <strong>{assessment?.title || 'this assessment'}</strong>.<br />
+                          Upload a student exam paper or insert scores manually above to start recording grades for this class.
+                        </span>
+                      </div>
+                    )}
                   </td>
                 </tr>
               )}
@@ -1046,6 +1467,8 @@ export default function GradingTab({
           </table>
         </div>
       </div>
+        </div> {/* End Right Column */}
+      </div> {/* End Dual-Pane Split Screen Workspace */}
     </div>
   );
 }

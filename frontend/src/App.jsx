@@ -139,8 +139,11 @@ export default function App() {
           {activeTab === 'assessment' && (
             <AssessmentTab
               activeNoteId={activeNoteId}
+              setActiveNoteId={setActiveNoteId}
               lectureTitle={lectureTitle}
+              setLectureTitle={setLectureTitle}
               lectureContent={lectureContent}
+              setLectureContent={setLectureContent}
               assessment={assessment}
               setAssessment={setAssessment}
               setActiveTab={setActiveTab}

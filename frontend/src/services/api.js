@@ -125,18 +125,34 @@ export async function updateKeyPoints(noteId, keyPoints, lecturerId) {
  * 3. Assessment & Questions
  * ------------------------------------------------------------- */
 
-export async function generateAssessmentFromParts({ lecture_note_id, question_count = 3, title, lecturerId }) {
+export async function generateAssessmentFromParts({ lecture_note_id, question_count = 3, title, prompt, lecturerId }) {
   const res = await fetch(`${API_BASE}/assessments/generate`, {
     method: 'POST',
     headers: {
       ...getAuthHeaders(lecturerId),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ lecture_note_id, question_count, title }),
+    body: JSON.stringify({ lecture_note_id, question_count, title, prompt }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to generate assessment' }));
     throw new Error(err.detail || 'Failed to generate assessment');
+  }
+  return await res.json();
+}
+
+export async function copilotChat({ messages, lecture_note_id, lecture_title, lecturerId }) {
+  const res = await fetch(`${API_BASE}/assessments/copilot-chat`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(lecturerId),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ messages, lecture_note_id, lecture_title }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to chat with Copilot' }));
+    throw new Error(err.detail || 'Failed to chat with Copilot');
   }
   return await res.json();
 }
@@ -232,6 +248,33 @@ export async function regenerateQuestionRubric(questionId, lecturerId) {
 }
 
 export const generateQuestionRubric = regenerateQuestionRubric;
+
+export async function generateRubricFromQuestion({
+  question_text,
+  max_marks,
+  student_hint,
+  lecture_note_id,
+  lecturerId,
+}) {
+  const res = await fetch(`${API_BASE}/rubrics/generate-from-question`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(lecturerId),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      question_text,
+      max_marks: parseFloat(max_marks) || 10,
+      student_hint,
+      lecture_note_id,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to generate rubric' }));
+    throw new Error(err.detail || 'Failed to generate rubric');
+  }
+  return await res.json();
+}
 
 export async function updateQuestionRubric(questionId, criteria, lecturerId) {
   const res = await fetch(`${API_BASE}/questions/${questionId}/rubric`, {
@@ -342,6 +385,36 @@ export async function confirmSubmissionScore(submissionId, totalScore, lecturerI
   return await res.json();
 }
 
+export async function createManualSubmission({
+  assessment_id,
+  student_name,
+  student_number,
+  total_score,
+  summary_feedback,
+  question_scores,
+  lecturerId,
+}) {
+  const res = await fetch(`${API_BASE}/assessments/${assessment_id}/manual-submission`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(lecturerId),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      student_name,
+      student_number,
+      total_score,
+      summary_feedback,
+      question_scores,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Failed to record manual grade' }));
+    throw new Error(err.detail || 'Failed to record manual grade');
+  }
+  return await res.json();
+}
+
 export async function fetchAssessmentSubmissions(assessmentId, lecturerId) {
   const res = await fetch(`${API_BASE}/assessments/${assessmentId}/submissions`, {
     headers: getAuthHeaders(lecturerId),
@@ -356,6 +429,60 @@ export async function fetchExportExcelData(assessmentId, lecturerId) {
   });
   if (!res.ok) throw new Error('Failed to fetch Excel export data');
   return await res.json();
+}
+
+export async function downloadAssessmentPdf(assessmentId, solutions = false, lecturerId, assessmentFallbackData = null) {
+  let res = null;
+  if (assessmentId && assessmentId !== 'undefined' && assessmentId !== 'null') {
+    try {
+      const url = `${API_BASE}/assessments/${assessmentId}/export-pdf?solutions=${solutions ? 'true' : 'false'}`;
+      res = await fetch(url, {
+        headers: getAuthHeaders(lecturerId),
+      });
+    } catch (e) {
+      console.warn('GET /export-pdf failed, attempting fallback...', e);
+    }
+  }
+
+  if ((!res || !res.ok) && assessmentFallbackData) {
+    try {
+      const url = `${API_BASE}/assessments/export-pdf-custom`;
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(lecturerId),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          assessment_data: assessmentFallbackData,
+          solutions,
+        }),
+      });
+    } catch (e) {
+      console.error('Custom PDF export failed:', e);
+    }
+  }
+
+  if (!res || !res.ok) {
+    const err = await res?.json().catch(() => ({ detail: 'Failed to download assessment PDF' }));
+    throw new Error(err?.detail || 'Failed to download assessment PDF');
+  }
+
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition');
+  let filename = solutions ? 'Assessment_Solution_Key.pdf' : 'Assessment_Exam_Paper.pdf';
+  if (disposition && disposition.includes('filename=')) {
+    const match = disposition.match(/filename="?([^";]+)"?/);
+    if (match && match[1]) filename = match[1];
+  }
+  const blobUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(blobUrl);
 }
 
 /* -------------------------------------------------------------

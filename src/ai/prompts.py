@@ -50,7 +50,7 @@ Instructions:
 # ---------------------------------------------------------------------------
 # 2. Assessment / Exam Generation Prompt
 # ---------------------------------------------------------------------------
-ASSESSMENT_GENERATION_PROMPT_TEMPLATE = """Using the lecture content provided below, generate an assessment consisting of {question_count} high-quality questions for "{lecture_title}".
+ASSESSMENT_GENERATION_PROMPT_TEMPLATE = """Using the subject matter in the lecture content provided below, generate an assessment consisting of {question_count} high-quality questions for "{lecture_title}".
 
 --- LECTURE CONTENT ---
 {lecture_content}
@@ -58,11 +58,26 @@ ASSESSMENT_GENERATION_PROMPT_TEMPLATE = """Using the lecture content provided be
 
 Instructions:
 1. Formulate questions covering varied levels of Bloom's Taxonomy (understanding, application, analysis).
-2. Use appropriate QuestionTypes (multiple_choice, short_answer, essay, or code_analysis).
-3. For multiple-choice questions, provide 4 options where only one is demonstrably correct.
-4. For EVERY question, write an authoritative "reference_answer" that serves as the official answer key derived directly from the lecture notes.
-5. Allocate positive max_points for each question reflecting its depth and complexity.
-6. Specify the learning_objective being evaluated.
+2. Use appropriate QuestionTypes (multiple_choice, fill_in_the_blank, short_answer, essay, or code_analysis).
+3. STRICT EXAM INTEGRITY AND STYLE (NO META-REFERENCES):
+   - Every question must read as an authentic, standalone university exam question.
+   - NEVER use meta-references or filler phrases such as "according to the lecture notes", "as discussed in the slides", "from the lecture", "based on the provided text", "in the lecture", or "as covered in the slides".
+   - NEVER mention file names, slide numbers, document titles, or uploaded chapter names (e.g., NEVER say "In chapter 4-JavaScript", "In ch-2", "In this PDF", or "In slide 5").
+   - Test the technical concepts directly (e.g., write "Which keyword in modern JavaScript declares an immutable constant?" instead of "Which keyword according to the lecture notes...").
+4. CRITICAL FOR MULTIPLE CHOICE QUESTIONS:
+   - You MUST provide 4 distinct, plausible options labeled A), B), C), and D) in the "options" array.
+   - Also include the options directly within the question prompt string, formatted on new lines:
+     "Question text?\nA) Option 1\nB) Option 2\nC) Option 3\nD) Option 4"
+   - Set "reference_answer" to the exact correct letter and text (e.g. "B) Option 2").
+5. CRITICAL FOR FILL IN THE BLANK QUESTIONS:
+   - When requested to create fill-in-the-blank questions (or "fill in the blank" / "fill in the blanks"):
+   - Set "question_type" to "fill_in_the_blank".
+   - Put a clear blank underline `________` in the prompt string where the key term belongs (e.g. "In JavaScript, the ________ method schedules a function to execute after a specified delay.").
+   - Set "reference_answer" to the exact word or phrase that completes the blank (e.g. "setTimeout").
+   - Set "options" to null or an empty list.
+6. For EVERY question, write an authoritative, exact "reference_answer" that serves as the official answer key. Write the answer key directly and concisely without saying "According to the lecture...".
+7. Allocate positive max_points for each question reflecting its depth and complexity (e.g., 1 mark for multiple choice, 1-2 marks for fill-in-the-blank, 2 to 5 marks for short answer, or as specified by the professor).
+8. Specify the learning_objective being evaluated.
 """
 
 
@@ -149,14 +164,22 @@ def format_rubric_generation_prompt(lecture_title: str, lecture_content: str) ->
 def format_assessment_generation_prompt(
     lecture_title: str, 
     lecture_content: str, 
-    question_count: int = 5
+    question_count: int = 5,
+    custom_instructions: Optional[str] = None,
 ) -> str:
     """Formats the prompt for generating exam questions and answer keys."""
-    return ASSESSMENT_GENERATION_PROMPT_TEMPLATE.format(
+    base_prompt = ASSESSMENT_GENERATION_PROMPT_TEMPLATE.format(
         lecture_title=lecture_title,
         lecture_content=lecture_content.strip(),
         question_count=question_count,
     )
+    if custom_instructions and custom_instructions.strip():
+        base_prompt += (
+            f"\n\n--- PROFESSOR'S CUSTOM INSTRUCTIONS & SPECIFICATIONS ---\n"
+            f"{custom_instructions.strip()}\n"
+            f"IMPORTANT: Strictly satisfy the professor's custom specifications above (such as requested question types e.g. multiple choice / short answer / true-false, exact counts, difficulty level, and specific topic focus)."
+        )
+    return base_prompt
 
 
 def format_exam_grading_prompt(

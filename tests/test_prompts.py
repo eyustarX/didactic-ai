@@ -82,6 +82,18 @@ def test_format_assessment_generation_prompt():
     assert "reference_answer" in prompt
 
 
+def test_format_assessment_generation_prompt_with_custom_instructions():
+    prompt = format_assessment_generation_prompt(
+        lecture_title="Sorting Algorithms",
+        lecture_content="QuickSort and MergeSort complexities.",
+        question_count=5,
+        custom_instructions="Generate 3 multiple choice and 2 short answer questions focused on pivot selection.",
+    )
+    assert "Sorting Algorithms" in prompt
+    assert "PROFESSOR'S CUSTOM INSTRUCTIONS & SPECIFICATIONS" in prompt
+    assert "Generate 3 multiple choice and 2 short answer questions focused on pivot selection." in prompt
+
+
 def test_format_exam_grading_prompt(sample_question, sample_rubric):
     student_answer = "Deadlock needs mutual exclusion, no preemption, hold and wait, and circular wait."
     prompt = format_exam_grading_prompt(
