@@ -189,74 +189,95 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
       {/* Chalk scroll progress indicator along top edge */}
       <div id="scroll-progress-line" role="progressbar" aria-label="Reading progress" />
 
-      {/* Centered Sticky Navbar */}
-      <div className="landing-nav-wrapper">
-        <nav className="landing-nav">
-          <a href="#" className="landing-logo" onClick={scrollToTop} title="Didactic AI Home">
-            <div className="brand-icon">
-              <Zap size={15} />
-            </div>
-            <span>Didactic AI</span>
+      {/* Landing Navbar */}
+      <nav className="landing-nav">
+        {/* Logo: Always scrolls to top / stays on landing page, never launches platform */}
+        <a href="#" className="landing-logo" onClick={scrollToTop} title="Didactic AI Home">
+          <div className="brand-icon">
+            <Zap size={15} />
+          </div>
+          <span>Didactic AI</span>
+        </a>
+
+        <div className="landing-links">
+          <a
+            href="#curriculum"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('curriculum');
+            }}
+            className="landing-link"
+          >
+            Curriculum
+          </a>
+          <a
+            href="#rubrics"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('rubrics');
+            }}
+            className="landing-link"
+          >
+            Rubrics
+          </a>
+          <a
+            href="#assessment"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('assessment');
+            }}
+            className="landing-link"
+          >
+            Assessment
+          </a>
+          <a
+            href="#grading"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('grading');
+            }}
+            className="landing-link"
+          >
+            Grading
+          </a>
+          <a
+            href="#export"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('export');
+            }}
+            className="landing-link"
+          >
+            Audit & Export
           </a>
 
-          <div className="landing-links">
-            <a
-              href="#curriculum"
-              onClick={(e) => {
-                e.preventDefault();
-                scrollToSection('curriculum');
-              }}
-              className="landing-link"
+          {/* User Sign In / Profile Button */}
+          {currentUser ? (
+            <button
+              onClick={onOpenAuth}
+              className="btn btn-secondary btn-sm"
+              title="Instructor Profile"
             >
-              Curriculum & Rubrics
-            </a>
-            <a
-              href="#assessment"
-              onClick={(e) => {
-                e.preventDefault();
-                scrollToSection('assessment');
-              }}
-              className="landing-link"
-            >
-              Assessment & Grading
-            </a>
-            <a
-              href="#export"
-              onClick={(e) => {
-                e.preventDefault();
-                scrollToSection('export');
-              }}
-              className="landing-link"
-            >
-              Gradebook & Export
-            </a>
-
-            {currentUser ? (
-              <button
-                onClick={onOpenAuth}
-                className="btn btn-secondary btn-sm"
-                title="Instructor Profile"
-              >
-                <User size={13} style={{ color: 'var(--accent)' }} />
-                <span>{currentUser.name}</span>
-              </button>
-            ) : (
-              <button onClick={onOpenAuth} className="btn btn-secondary btn-sm">
-                <LogIn size={13} />
-                <span>Sign in</span>
-              </button>
-            )}
-
-            <button onClick={onEnterApp} className="btn btn-primary btn-sm">
-              <span>Launch</span>
-              <ArrowRight size={13} />
+              <User size={13} style={{ color: 'var(--accent)' }} />
+              <span>{currentUser.name}</span>
             </button>
-          </div>
-        </nav>
-      </div>
+          ) : (
+            <button onClick={onOpenAuth} className="btn btn-secondary btn-sm">
+              <LogIn size={13} />
+              <span>Sign in</span>
+            </button>
+          )}
 
-      {/* Hero Section */}
+          <button onClick={onEnterApp} className="btn btn-primary btn-sm">
+            <span>Launch platform</span>
+            <ArrowRight size={13} />
+          </button>
+        </div>
+      </nav>
+
+      {/* 1 & 2. Hero Section */}
       <header className="hero-section">
+        {/* Headline: Word-by-word reveal + 2. Wavy underline under "one student" */}
         <h1 className="hero-title" id="hero-headline">
           <span className="word" style={{ animationDelay: '0.12s' }}>Nurturing</span>{' '}
           <span className="word" style={{ animationDelay: '0.18s' }}>Understanding,</span>{' '}
@@ -264,6 +285,7 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
           <span className="wavy-wrapper">
             <span className="word" style={{ animationDelay: '0.30s' }}>One</span>{' '}
             <span className="word" style={{ animationDelay: '0.36s' }}>Student</span>
+            {/* 2. Wavy underline drawing under "one student" */}
             <svg className="wavy-svg" viewBox="0 0 160 12" preserveAspectRatio="none">
               <path d="M 0,7 Q 10,0 20,7 T 40,7 T 60,7 T 80,7 T 100,7 T 120,7 T 140,7 T 160,7" />
             </svg>
@@ -274,19 +296,19 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
         </h1>
 
         <p className="hero-lead">
-          Didactic AI transforms lecture notes into structured assessments, synthesizes transparent
+          Didactic AI transforms lecture notes into comprehensive assessments, synthesizes transparent
           grading rubrics, and evaluates student answer sheets with objective criteria and decomposed feedback.
         </p>
 
         <div className="hero-actions">
-          <button onClick={onEnterApp} className="btn btn-primary" style={{ padding: '9px 22px', fontSize: '0.92rem' }}>
+          <button onClick={onEnterApp} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '0.95rem' }}>
             <span>Enter workspace</span>
-            <ArrowRight size={14} />
+            <ArrowRight size={15} />
           </button>
           <button
-            onClick={() => scrollToSection('curriculum')}
+            onClick={() => scrollToSection('rubrics')}
             className="btn btn-secondary"
-            style={{ padding: '9px 18px', fontSize: '0.92rem' }}
+            style={{ padding: '10px 20px', fontSize: '0.95rem' }}
           >
             <span>Explore rubrics</span>
           </button>
