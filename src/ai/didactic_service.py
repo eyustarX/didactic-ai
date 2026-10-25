@@ -362,7 +362,7 @@ def grade_submission(
                 "criterion_scores": crit_scores,
             })
 
-    total_possible = sum(float(q.get("max_marks", 10.0)) for q in questions_payload) or 10.0
+    total_possible = sum(float(q.get("max_marks", 10.0)) for q in questions) or 10.0
     percentage = round((total_score / total_possible) * 100, 1)
 
     if percentage >= 85:
