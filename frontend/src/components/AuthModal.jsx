@@ -3,7 +3,6 @@ import { X, User, Lock, Mail, CheckCircle } from 'lucide-react';
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser }) {
   const [isRegister, setIsRegister] = useState(false);
-  const [role, setRole] = useState('Instructor');
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [password, setPassword] = useState('');
@@ -14,10 +13,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
   const handleSubmit = (e) => {
     e.preventDefault();
     const user = {
-      name: name || (email ? email.split('@')[0] : 'Academic User'),
-      email: email || 'user@university.edu',
-      role,
-      department: department || 'Academic Department',
+      name: name || (email ? email.split('@')[0] : 'Instructor'),
+      email: email || 'instructor@university.edu',
+      role: 'Instructor',
+      department: department || 'Computer Science',
       id: `usr_${Math.random().toString(36).substr(2, 6)}`,
     };
 
@@ -75,46 +74,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
         {/* Modal Header */}
         <div style={{ marginBottom: 20 }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em' }}>
-            {isRegister ? 'Create academic account' : 'Sign in to Didactic AI'}
+            {isRegister ? 'Create instructor account' : 'Instructor Sign In'}
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>
-            Identify your instructor or student profile to save and attribute submissions.
+            Sign in to your instructor profile to manage curriculum, author assessments, and grade student submissions.
           </p>
-        </div>
-
-        {/* Role Selector Tabs */}
-        <div
-          style={{
-            display: 'flex',
-            background: 'var(--surface-muted)',
-            padding: 3,
-            borderRadius: 'var(--radius-md)',
-            marginBottom: 18,
-            border: '1px solid var(--border-subtle)',
-          }}
-        >
-          {['Instructor', 'Student'].map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRole(r)}
-              style={{
-                flex: 1,
-                padding: '6px 0',
-                fontSize: '0.78rem',
-                fontWeight: role === r ? 600 : 400,
-                color: role === r ? 'var(--text)' : 'var(--text-muted)',
-                background: role === r ? 'var(--bg)' : 'transparent',
-                borderRadius: 'var(--radius-sm)',
-                border: 'none',
-                cursor: 'pointer',
-                boxShadow: role === r ? 'var(--shadow-sm)' : 'none',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              {r}
-            </button>
-          ))}
         </div>
 
         {/* Form */}
@@ -188,7 +152,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
             style={{ width: '100%', marginTop: 8, padding: '10px 0' }}
           >
             <CheckCircle size={15} />
-            <span>{isRegister ? 'Register and Enter' : 'Sign in as ' + role}</span>
+            <span>{isRegister ? 'Create Instructor Account' : 'Sign in as Instructor'}</span>
           </button>
         </form>
 

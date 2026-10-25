@@ -176,7 +176,7 @@ export default function Sidebar({
               <div
                 className="sidebar-profile-card guest"
                 onClick={onOpenAuth}
-                title={!isExpanded ? 'Sign in to academic profile' : 'Sign in to save and attribute records'}
+                title={!isExpanded ? 'Instructor sign in' : 'Sign in as instructor to manage curriculum and assessments'}
               >
                 <div className="sidebar-profile-avatar-wrap">
                   <div className="sidebar-profile-avatar guest-avatar">
@@ -185,8 +185,8 @@ export default function Sidebar({
                 </div>
 
                 <div className="sidebar-profile-info">
-                  <span className="sidebar-profile-name">Guest Profile</span>
-                  <span className="sidebar-profile-sub">Sign in to save</span>
+                  <span className="sidebar-profile-name">Instructor Access</span>
+                  <span className="sidebar-profile-sub">Sign in to workspace</span>
                 </div>
 
                 <button
@@ -196,7 +196,7 @@ export default function Sidebar({
                     if (onOpenAuth) onOpenAuth();
                   }}
                   className="sidebar-profile-action-btn"
-                  title="Sign in"
+                  title="Instructor sign in"
                 >
                   <LogIn size={13} />
                 </button>
