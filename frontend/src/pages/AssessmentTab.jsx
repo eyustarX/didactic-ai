@@ -708,9 +708,9 @@ export default function AssessmentTab({
               gap: 6,
               fontSize: '0.8rem',
               padding: '6px 14px',
-              border: '1px solid rgba(99, 102, 241, 0.4)',
-              background: 'rgba(99, 102, 241, 0.1)',
-              color: 'var(--accent)',
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--text)',
             }}
             title="Paste any question prompt and generate normalized rubrics with AI"
           >
@@ -726,9 +726,8 @@ export default function AssessmentTab({
         style={{
           marginBottom: 20,
           padding: '16px 20px',
-          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(30, 41, 59, 0.6) 100%)',
-          border: '1px solid rgba(99, 102, 241, 0.28)',
-          borderRadius: 10,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
         }}
       >
         {/* Chatbot Header */}
@@ -739,12 +738,11 @@ export default function AssessmentTab({
                 width: 32,
                 height: 32,
                 borderRadius: 8,
-                background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+                background: 'var(--accent)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
-                boxShadow: '0 2px 8px rgba(99, 102, 241, 0.35)',
+                color: 'var(--on-accent)',
               }}
             >
               <Bot size={18} />
@@ -783,9 +781,9 @@ export default function AssessmentTab({
             flexWrap: 'wrap',
             gap: 10,
             padding: '8px 12px',
-            background: 'rgba(15, 23, 42, 0.6)',
+            background: 'var(--bg)',
             borderRadius: 8,
-            border: '1px solid rgba(99, 102, 241, 0.25)',
+            border: '1px solid var(--border-subtle)',
             marginBottom: 10,
           }}
         >
@@ -844,9 +842,9 @@ export default function AssessmentTab({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 5,
-                background: 'rgba(99, 102, 241, 0.12)',
-                border: '1px solid rgba(99, 102, 241, 0.35)',
-                color: 'var(--accent)',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
               }}
               title="Upload lecture slides or PDF directly to the chat"
             >
@@ -891,7 +889,7 @@ export default function AssessmentTab({
                       width: 24,
                       height: 24,
                       borderRadius: 6,
-                      background: 'rgba(99, 102, 241, 0.2)',
+                      background: 'var(--surface-alt)',
                       color: 'var(--accent)',
                       display: 'flex',
                       alignItems: 'center',
@@ -911,9 +909,9 @@ export default function AssessmentTab({
                     borderRadius: 8,
                     fontSize: '0.82rem',
                     lineHeight: 1.45,
-                    background: isUser ? 'rgba(99, 102, 241, 0.28)' : 'var(--surface)',
-                    border: isUser ? '1px solid rgba(99, 102, 241, 0.5)' : '1px solid var(--border)',
-                    color: isUser ? '#fff' : 'var(--text)',
+                    background: isUser ? 'var(--accent)' : 'var(--surface)',
+                    border: isUser ? '1px solid var(--accent)' : '1px solid var(--border)',
+                    color: isUser ? 'var(--on-accent)' : 'var(--text)',
                   }}
                 >
                   <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{msg.content}</p>
@@ -924,8 +922,8 @@ export default function AssessmentTab({
                       style={{
                         marginTop: 10,
                         padding: '8px 10px',
-                        background: 'rgba(16, 185, 129, 0.1)',
-                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                        background: 'var(--surface-alt)',
+                        border: '1px solid var(--border)',
                         borderRadius: 6,
                         display: 'flex',
                         flexDirection: 'column',
@@ -942,7 +940,6 @@ export default function AssessmentTab({
                         disabled={loading || (!lectureContent && !activeNoteId)}
                         className="btn btn-primary btn-sm"
                         style={{
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                           border: 'none',
                           fontSize: '0.78rem',
                           padding: '6px 12px',
@@ -966,7 +963,7 @@ export default function AssessmentTab({
                   width: 24,
                   height: 24,
                   borderRadius: 6,
-                  background: 'rgba(99, 102, 241, 0.2)',
+                  background: 'var(--surface-alt)',
                   color: 'var(--accent)',
                   display: 'flex',
                   alignItems: 'center',
@@ -1030,9 +1027,9 @@ export default function AssessmentTab({
               }}
               onMouseEnter={(e) => {
                 if (!isChatLoading) {
-                  e.currentTarget.style.color = '#fff';
-                  e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.6)';
-                  e.currentTarget.style.background = 'rgba(99, 102, 241, 0.15)';
+                  e.currentTarget.style.color = 'var(--accent)';
+                  e.currentTarget.style.borderColor = 'var(--accent)';
+                  e.currentTarget.style.background = 'var(--surface-alt)';
                 }
               }}
               onMouseLeave={(e) => {
@@ -1064,7 +1061,7 @@ export default function AssessmentTab({
                 borderRadius: 8,
                 flexShrink: 0,
                 color: 'var(--accent)',
-                border: '1px solid rgba(99, 102, 241, 0.35)',
+                border: '1px solid var(--border)',
                 background: 'var(--bg)',
               }}
               title="Attach and upload lecture document (PDF, PPTX, DOCX)"
@@ -1098,7 +1095,7 @@ export default function AssessmentTab({
                 padding: '9px 12px',
                 borderRadius: 8,
                 background: 'var(--bg)',
-                border: '1px solid rgba(99, 102, 241, 0.35)',
+                border: '1px solid var(--border)',
                 color: 'var(--text)',
                 lineHeight: 1.45,
                 wordBreak: 'break-word',
@@ -1119,7 +1116,8 @@ export default function AssessmentTab({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                background: 'var(--accent)',
+                color: 'var(--on-accent)',
                 border: 'none',
                 cursor: !chatInput.trim() || isChatLoading ? 'not-allowed' : 'pointer',
                 opacity: !chatInput.trim() || isChatLoading ? 0.6 : 1,
@@ -1212,7 +1210,7 @@ export default function AssessmentTab({
                   style={{
                     padding: '12px 14px',
                     borderRadius: 6,
-                    background: isSelected ? 'var(--surface-active, rgba(59, 130, 246, 0.08))' : 'var(--bg)',
+                    background: isSelected ? 'var(--surface-alt)' : 'var(--bg)',
                     border: isSelected ? '1.5px solid var(--accent)' : '1px solid var(--border-subtle)',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
@@ -1229,7 +1227,7 @@ export default function AssessmentTab({
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       {itemLocked && (
-                        <span title="Locked: Graded student submissions exist" style={{ color: '#eab308' }}>
+                        <span title="Locked: Graded student submissions exist" style={{ color: 'var(--warning)' }}>
                           <Lock size={12} />
                         </span>
                       )}
@@ -1284,7 +1282,7 @@ export default function AssessmentTab({
                         onClick={(e) => handleDownloadPdf(e, item.id, true)}
                         disabled={isDownloadingPdf}
                         className="btn btn-secondary btn-sm"
-                        style={{ height: 22, padding: '0 6px', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 3, color: '#10b981' }}
+                        style={{ height: 22, padding: '0 6px', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 3 }}
                         title="Download Official Solution Key PDF"
                       >
                         <FileText size={10} />
@@ -1314,8 +1312,8 @@ export default function AssessmentTab({
             alignItems: 'center',
             flexWrap: 'wrap',
             gap: 12,
-            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%)',
-            border: '1px solid rgba(99, 102, 241, 0.25)',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1324,7 +1322,7 @@ export default function AssessmentTab({
                 width: 36,
                 height: 36,
                 borderRadius: 8,
-                background: 'rgba(99, 102, 241, 0.15)',
+                background: 'var(--surface-alt)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1339,7 +1337,7 @@ export default function AssessmentTab({
                   {assessmentTitle || assessment.title}
                 </h2>
                 {isLocked ? (
-                  <span className="badge" style={{ background: '#ca8a04', color: '#fff', fontSize: '0.68rem', padding: '1px 6px' }}>
+                  <span className="badge" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning)', fontSize: '0.68rem', padding: '1px 6px' }}>
                     Locked
                   </span>
                 ) : (
@@ -1363,7 +1361,6 @@ export default function AssessmentTab({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
                 border: 'none',
                 padding: '7px 14px',
                 fontSize: '0.8rem',
@@ -1383,8 +1380,8 @@ export default function AssessmentTab({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                border: '1px solid rgba(16, 185, 129, 0.4)',
-                color: '#10b981',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
                 padding: '7px 14px',
                 fontSize: '0.8rem',
                 fontWeight: 500,
@@ -1405,8 +1402,8 @@ export default function AssessmentTab({
           style={{
             marginBottom: 16,
             padding: '14px 18px',
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.9) 100%)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -1420,11 +1417,11 @@ export default function AssessmentTab({
                 width: 38,
                 height: 38,
                 borderRadius: 8,
-                background: 'rgba(16, 185, 129, 0.15)',
+                background: 'var(--surface-alt)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#10b981',
+                color: 'var(--accent)',
                 flexShrink: 0,
               }}
             >
@@ -1435,7 +1432,7 @@ export default function AssessmentTab({
                 <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
                   Ready to Grade Student Answer Papers?
                 </h4>
-                <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', fontSize: '0.68rem', padding: '1px 6px' }}>
+                <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
                   Paper Grading
                 </span>
               </div>
@@ -1450,7 +1447,6 @@ export default function AssessmentTab({
             onClick={() => setActiveTab && setActiveTab('grading')}
             className="btn btn-primary btn-sm"
             style={{
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
               border: 'none',
               padding: '8px 16px',
               fontSize: '0.82rem',
@@ -1468,7 +1464,7 @@ export default function AssessmentTab({
       )}
 
       {isLocked && (
-        <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 6, background: 'rgba(234, 179, 8, 0.12)', border: '1px solid rgba(234, 179, 8, 0.4)', color: '#eab308', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem' }}>
+        <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 6, background: 'var(--warning-bg)', border: '1px solid var(--warning)', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem' }}>
           <Lock size={15} />
           <span>This assessment is server-locked because student work has been submitted or graded. Questions and rubrics are immutable.</span>
         </div>
@@ -1534,11 +1530,11 @@ export default function AssessmentTab({
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
                           <span>Fill in the Blank:</span>
-                          <strong style={{ color: '#10b981' }}>{fitbs.length} ({fitbPts} pts)</strong>
+                          <strong style={{ color: 'var(--accent)' }}>{fitbs.length} ({fitbPts} pts)</strong>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
                           <span>Short Answer / Essay:</span>
-                          <strong style={{ color: '#f59e0b' }}>{written.length} ({writtenPts} pts)</strong>
+                          <strong style={{ color: 'var(--accent)' }}>{written.length} ({writtenPts} pts)</strong>
                         </div>
                       </div>
                     </div>
@@ -1608,7 +1604,7 @@ export default function AssessmentTab({
                       padding: '8px 10px',
                       borderRadius: 4,
                       cursor: 'pointer',
-                      background: isSelected ? 'var(--accent-subtle, rgba(59, 130, 246, 0.12))' : 'var(--surface)',
+                      background: isSelected ? 'var(--surface-alt)' : 'var(--surface)',
                       border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
                       transition: 'all 0.15s ease',
                     }}
@@ -1624,7 +1620,7 @@ export default function AssessmentTab({
                           </span>
                         )}
                         {(/____|fill in the blank/i.test(q.text || '') || q.question_type === 'fill_in_the_blank') && (
-                          <span className="badge" style={{ fontSize: '0.62rem', padding: '1px 5px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                          <span className="badge badge-outline" style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
                             FITB
                           </span>
                         )}
@@ -1694,8 +1690,8 @@ export default function AssessmentTab({
                     margin: '12px 0',
                     padding: '10px 14px',
                     borderRadius: 8,
-                    background: 'rgba(16, 185, 129, 0.08)',
-                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 6,
@@ -1728,7 +1724,7 @@ export default function AssessmentTab({
                     style={{
                       fontSize: '0.84rem',
                       background: 'var(--bg)',
-                      borderColor: 'rgba(16, 185, 129, 0.35)',
+                      borderColor: 'var(--border)',
                       color: 'var(--text)',
                       borderRadius: 6,
                     }}
@@ -1785,9 +1781,9 @@ export default function AssessmentTab({
                           display: 'flex',
                           alignItems: 'center',
                           gap: 5,
-                          border: '1px solid rgba(99, 102, 241, 0.4)',
-                          color: 'var(--accent)',
-                          background: 'rgba(99, 102, 241, 0.1)',
+                          border: '1px solid var(--border)',
+                          color: 'var(--text)',
+                          background: 'var(--surface)',
                         }}
                         title="Synthesize normalized grading criteria and point distribution with AI for this question prompt"
                       >
@@ -1892,7 +1888,7 @@ export default function AssessmentTab({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -1910,9 +1906,9 @@ export default function AssessmentTab({
               maxWidth: 540,
               width: '100%',
               padding: 24,
-              background: 'var(--card)',
-              border: '1px solid rgba(99, 102, 241, 0.4)',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-card)',
               borderRadius: 12,
             }}
             onClick={(e) => e.stopPropagation()}
@@ -1923,7 +1919,7 @@ export default function AssessmentTab({
                   width: 42,
                   height: 42,
                   borderRadius: 8,
-                  background: 'rgba(99, 102, 241, 0.15)',
+                  background: 'var(--surface-alt)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1998,7 +1994,6 @@ export default function AssessmentTab({
                 style={{
                   padding: '8px 18px',
                   fontSize: '0.82rem',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
                   border: 'none',
                   display: 'flex',
                   alignItems: 'center',
@@ -2022,7 +2017,7 @@ export default function AssessmentTab({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backgroundColor: 'rgba(0, 0, 0, 0.4)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -2040,9 +2035,9 @@ export default function AssessmentTab({
               maxWidth: 480,
               width: '100%',
               padding: 24,
-              background: 'var(--card)',
-              border: '1px solid rgba(239, 68, 68, 0.4)',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-card)',
               borderRadius: 12,
             }}
             onClick={(e) => e.stopPropagation()}
@@ -2053,11 +2048,11 @@ export default function AssessmentTab({
                   width: 42,
                   height: 42,
                   borderRadius: 8,
-                  background: 'rgba(239, 68, 68, 0.15)',
+                  background: 'var(--danger-bg)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#ef4444',
+                  color: 'var(--danger)',
                   flexShrink: 0,
                 }}
               >
@@ -2067,8 +2062,8 @@ export default function AssessmentTab({
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
                   Delete Assessment from Database
                 </h3>
-                <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }}></span>
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)' }}></span>
                   Neon PostgreSQL Cloud Database
                 </span>
               </div>
@@ -2098,9 +2093,6 @@ export default function AssessmentTab({
                 style={{
                   padding: '8px 18px',
                   fontSize: '0.82rem',
-                  background: '#ef4444',
-                  color: '#fff',
-                  border: 'none',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,

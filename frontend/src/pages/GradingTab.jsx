@@ -568,8 +568,8 @@ export default function GradingTab({
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: 12,
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)',
-          border: '1px solid rgba(99, 102, 241, 0.3)',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -578,7 +578,7 @@ export default function GradingTab({
               width: 38,
               height: 38,
               borderRadius: 8,
-              background: 'rgba(99, 102, 241, 0.18)',
+              background: 'var(--surface-alt)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -593,7 +593,7 @@ export default function GradingTab({
                 Active Exam & Class Selection
               </span>
               {assessment?.status === 'locked' && (
-                <span className="badge" style={{ background: '#ca8a04', color: '#fff', fontSize: '0.66rem', padding: '1px 5px' }}>
+                <span className="badge" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning)', fontSize: '0.66rem', padding: '1px 5px' }}>
                   Locked
                 </span>
               )}
@@ -645,9 +645,9 @@ export default function GradingTab({
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              background: showAssignmentGuide ? 'rgba(99, 102, 241, 0.15)' : 'var(--surface)',
-              border: showAssignmentGuide ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid var(--border)',
-              color: showAssignmentGuide ? 'var(--accent)' : 'var(--text)',
+              background: showAssignmentGuide ? 'var(--accent)' : 'var(--surface)',
+              border: '1px solid var(--border)',
+              color: showAssignmentGuide ? 'var(--on-accent)' : 'var(--text)',
               padding: '6px 12px',
             }}
             title="Toggle side-by-side Assignment & Rubrics Benchmark Guide to prevent grading blind"
@@ -670,13 +670,13 @@ export default function GradingTab({
         style={{
           marginBottom: 20,
           padding: '14px 18px',
-          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.7) 100%)',
-          border: '1px solid rgba(99, 102, 241, 0.2)',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
         }}
       >
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(37, 99, 235, 0.2)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface-alt)', color: 'var(--accent)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
               1
             </div>
             <div>
@@ -686,7 +686,7 @@ export default function GradingTab({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(234, 179, 8, 0.2)', color: '#eab308', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface-alt)', color: 'var(--accent)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
               2
             </div>
             <div>
@@ -696,7 +696,7 @@ export default function GradingTab({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface-alt)', color: 'var(--accent)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, flexShrink: 0 }}>
               3
             </div>
             <div>
@@ -726,8 +726,8 @@ export default function GradingTab({
               maxHeight: 'calc(100vh - 40px)',
               overflowY: 'auto',
               padding: '16px 18px',
-              background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%)',
-              border: '1px solid rgba(99, 102, 241, 0.3)',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
               borderRadius: 10,
             }}
           >
@@ -782,7 +782,7 @@ export default function GradingTab({
                             Q{qIdx + 1}
                           </span>
                           {isMcq && <span className="badge badge-outline" style={{ fontSize: '0.62rem' }}>MCQ</span>}
-                          {isFitb && <span className="badge" style={{ fontSize: '0.62rem', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981' }}>FITB</span>}
+                          {isFitb && <span className="badge badge-outline" style={{ fontSize: '0.62rem' }}>FITB</span>}
                           {!isMcq && !isFitb && <span className="badge badge-outline" style={{ fontSize: '0.62rem' }}>Task</span>}
                         </div>
                         <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)' }}>
@@ -801,12 +801,12 @@ export default function GradingTab({
                           style={{
                             padding: '8px 10px',
                             borderRadius: 6,
-                            background: 'rgba(16, 185, 129, 0.08)',
-                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            background: 'var(--bg)',
+                            border: '1px solid var(--border)',
                             fontSize: '0.76rem',
                           }}
                         >
-                          <span style={{ fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                          <span style={{ fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
                             <CheckCircle2 size={12} />
                             <span>Model Solution / Key:</span>
                           </span>
@@ -1126,7 +1126,7 @@ export default function GradingTab({
           )}
 
           {manualSuccessMsg && (
-            <div style={{ marginBottom: 14, padding: 10, borderRadius: 4, background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#10b981', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ marginBottom: 14, padding: 10, borderRadius: 4, background: 'var(--success-bg)', border: '1px solid var(--border)', color: 'var(--success)', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 8 }}>
               <CheckCircle2 size={15} />
               <span>{manualSuccessMsg}</span>
             </div>
@@ -1260,7 +1260,7 @@ export default function GradingTab({
 
                   {/* Rubric Criteria / Expected Key */}
                   {expectedCriteria.length > 0 && (
-                    <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(99, 102, 241, 0.08)', borderRadius: 6, border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                    <div style={{ marginBottom: 12, padding: '8px 12px', background: 'var(--surface)', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
                       <span style={{ fontSize: '0.72rem', color: 'var(--accent)', fontWeight: 600, display: 'block', marginBottom: 3 }}>
                         Rubric Criteria & Answer Key:
                       </span>
