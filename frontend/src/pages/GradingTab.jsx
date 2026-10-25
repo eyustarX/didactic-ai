@@ -38,9 +38,6 @@ export default function GradingTab({
   currentUser,
   onGradingComplete,
 }) {
-  // Dual-Pane Split Screen Toggle: Benchmark Guide (Assignment & Rubrics)
-  const [showAssignmentGuide, setShowAssignmentGuide] = useState(true);
-
   // Grading Mode: 'paper' (AI PDF OCR) or 'manual' (Direct Teacher Score Entry)
   const [gradingMode, setGradingMode] = useState('paper');
 
@@ -637,25 +634,6 @@ export default function GradingTab({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            onClick={() => setShowAssignmentGuide(!showAssignmentGuide)}
-            className="btn btn-secondary btn-sm"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: showAssignmentGuide ? 'var(--accent)' : 'var(--surface)',
-              border: '1px solid var(--border)',
-              color: showAssignmentGuide ? 'var(--on-accent)' : 'var(--text)',
-              padding: '6px 12px',
-            }}
-            title="Toggle side-by-side Assignment & Rubrics Benchmark Guide to prevent grading blind"
-          >
-            <BookOpen size={13} />
-            <span>{showAssignmentGuide ? '👁️ Hide Assignment Guide' : '👁️ Show Assignment Guide'}</span>
-          </button>
-
           {assessment && (
             <span className="badge badge-accent">
               Active Exam: {assessment.title || 'Current Assessment'} ({questionsCount} questions)
@@ -707,157 +685,8 @@ export default function GradingTab({
         </div>
       </div>
 
-      {/* Dual-Pane Split Screen Workspace */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: showAssignmentGuide ? 'minmax(320px, 380px) 1fr' : '1fr',
-          gap: 20,
-          alignItems: 'start',
-        }}
-      >
-        {/* Left Column: Assignment & Rubric Companion (The Benchmark Guide) */}
-        {showAssignmentGuide && (
-          <div
-            className="cartesia-card custom-scroll"
-            style={{
-              position: 'sticky',
-              top: 16,
-              maxHeight: 'calc(100vh - 40px)',
-              overflowY: 'auto',
-              padding: '16px 18px',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 10,
-            }}
-          >
-            {/* Guide Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <BookOpen size={16} style={{ color: 'var(--accent)' }} />
-                <div>
-                  <h3 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                    Assignment & Rubric Guide
-                  </h3>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                    Benchmark Reference
-                  </span>
-                </div>
-              </div>
-              <span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>
-                {questionsCount} Questions • {assessment?.max_score || 0} pts
-              </span>
-            </div>
-
-            {/* Questions List */}
-            {!assessment?.questions || assessment.questions.length === 0 ? (
-              <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                No questions found for this assessment. Select an assessment with questions in the dropdown above.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {assessment.questions.map((q, qIdx) => {
-                  const isMcq = /[A-D]\)/.test(q.text || '');
-                  const isFitb = /____|fill in the blank/i.test(q.text || '') || q.question_type === 'fill_in_the_blank';
-                  const maxPts = q.max_marks || q.max_points || 10;
-                  const criteria = q.rubric?.criteria || [];
-                  const answerKey = q.reference_answer || (q.student_hint?.includes('Answer Key:') ? q.student_hint.replace(/^.*Answer\s+Key:\s*/i, '').trim() : q.student_hint);
-
-                  return (
-                    <div
-                      key={q.id || qIdx}
-                      style={{
-                        padding: '12px 14px',
-                        background: 'var(--bg)',
-                        borderRadius: 8,
-                        border: '1px solid var(--border)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span className="badge badge-accent" style={{ fontSize: '0.68rem', fontWeight: 700 }}>
-                            Q{qIdx + 1}
-                          </span>
-                          {isMcq && <span className="badge badge-outline" style={{ fontSize: '0.62rem' }}>MCQ</span>}
-                          {isFitb && <span className="badge badge-outline" style={{ fontSize: '0.62rem' }}>FITB</span>}
-                          {!isMcq && !isFitb && <span className="badge badge-outline" style={{ fontSize: '0.62rem' }}>Task</span>}
-                        </div>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)' }}>
-                          {maxPts} pts
-                        </span>
-                      </div>
-
-                      {/* Question Text */}
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text)', lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
-                        {q.text || q.prompt}
-                      </div>
-
-                      {/* Model Solution / Key */}
-                      {answerKey && (
-                        <div
-                          style={{
-                            padding: '8px 10px',
-                            borderRadius: 6,
-                            background: 'var(--bg)',
-                            border: '1px solid var(--border)',
-                            fontSize: '0.76rem',
-                          }}
-                        >
-                          <span style={{ fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                            <CheckCircle2 size={12} />
-                            <span>Model Solution / Key:</span>
-                          </span>
-                          <div style={{ color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
-                            {answerKey}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Rubric Criteria with Points */}
-                      {criteria.length > 0 && (
-                        <div style={{ marginTop: 2 }}>
-                          <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                            Rubric Criteria ({criteria.length}):
-                          </span>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            {criteria.map((c, cIdx) => (
-                              <div
-                                key={c.id || cIdx}
-                                style={{
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'flex-start',
-                                  gap: 6,
-                                  fontSize: '0.75rem',
-                                  padding: '4px 6px',
-                                  background: 'var(--surface)',
-                                  borderRadius: 4,
-                                }}
-                              >
-                                <span style={{ color: 'var(--text-muted)', flex: 1, lineHeight: 1.3 }}>
-                                  • {c.description}
-                                </span>
-                                <span style={{ fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>
-                                  {c.max_points} pts
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Right Column: Student Grading Studio */}
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      {/* Student Grading Studio */}
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           {/* Grading Studio Mode Selection Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button
@@ -1467,8 +1296,7 @@ export default function GradingTab({
           </table>
         </div>
       </div>
-        </div> {/* End Right Column */}
-      </div> {/* End Dual-Pane Split Screen Workspace */}
+      </div>
     </div>
   );
 }
