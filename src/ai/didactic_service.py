@@ -114,30 +114,58 @@ def generate_assessment(
     question_count: int = 3,
 ) -> Dict[str, Any]:
     """
-    Synthesizes an assessment testing the selected key parts.
+    Synthesizes an assessment testing the selected key parts using live AI agents.
     """
-    questions = []
-    points_per_q = round(10.0 / max(question_count, 1), 1)
+    from src.services.engine_adapter import ai_engine
+    engine = ai_engine()
 
-    for idx in range(question_count):
-        kp = ticked_parts[idx % len(ticked_parts)] if ticked_parts else {"title": "Key Concept", "summary": "Core mechanism"}
-        title = kp.get("title", "Concept")
-        summary = kp.get("summary", "")
+    content_summary = "\n".join(
+        f"- {kp.get('title', 'Topic')}: {kp.get('summary', '')}"
+        for kp in ticked_parts
+    ) or f"Lecture content on {lecture_title}"
 
-        q_text = f"Explain the core mechanisms and significance of {title}. {summary}"
-        hint = f"Focus on definition, operation, and edge cases for {title}."
+    try:
+        gen_assess = engine.generate_assessment(
+            lecture_title=lecture_title,
+            lecture_content=content_summary,
+            question_count=question_count,
+        )
+        questions = []
+        for idx, q in enumerate(gen_assess.questions):
+            kp_title = ticked_parts[idx % len(ticked_parts)].get("title", "Core Topic") if ticked_parts else "Core Concept"
+            questions.append({
+                "text": q.prompt,
+                "student_hint": f"Key focus: {q.learning_objective}",
+                "max_marks": q.max_points,
+                "tested_key_point_titles": [kp_title],
+            })
+        return {
+            "title": gen_assess.title or f"Assessment: {lecture_title}",
+            "questions": questions,
+        }
+    except Exception:
+        questions = []
+        points_per_q = round(10.0 / max(question_count, 1), 1)
 
-        questions.append({
-            "text": q_text,
-            "student_hint": hint,
-            "max_marks": points_per_q,
-            "tested_key_point_titles": [title],
-        })
+        for idx in range(question_count):
+            kp = ticked_parts[idx % len(ticked_parts)] if ticked_parts else {"title": "Key Concept", "summary": "Core mechanism"}
+            title = kp.get("title", "Concept")
+            summary = kp.get("summary", "")
 
-    return {
-        "title": f"Assessment: {lecture_title}",
-        "questions": questions,
-    }
+            q_text = f"Explain the core mechanisms and significance of {title}. {summary}"
+            hint = f"Focus on definition, operation, and edge cases for {title}."
+
+            questions.append({
+                "text": q_text,
+                "student_hint": hint,
+                "max_marks": points_per_q,
+                "tested_key_point_titles": [title],
+            })
+
+        return {
+            "title": f"Assessment: {lecture_title}",
+            "questions": questions,
+        }
 
 
 def generate_rubric(
@@ -147,30 +175,53 @@ def generate_rubric(
     max_marks: float = 10.0,
 ) -> Dict[str, Any]:
     """
-    Generates a structured rubric for a question.
+    Generates a structured rubric for a question using live AI agents.
     """
-    p1 = round(max_marks * 0.40, 2)
-    p2 = round(max_marks * 0.30, 2)
-    p3 = round(max_marks - p1 - p2, 2)
+    from src.services.engine_adapter import ai_engine
+    engine = ai_engine()
 
-    criteria = [
-        {
-            "description": f"Core Conceptual Understanding: Accurately explains fundamental principles addressed in '{question_text[:50]}...'",
-            "max_points": p1,
-            "source": "ai",
-        },
-        {
-            "description": "Technical Precision & Terminology: Uses domain-specific academic terminology without vague assertions.",
-            "max_points": p2,
-            "source": "ai",
-        },
-        {
-            "description": "Critical Analysis & Application: Evaluates constraints, mechanics, or edge cases accurately.",
-            "max_points": p3,
-            "source": "ai",
-        },
-    ]
-    return {"criteria": criteria}
+    context = f"Question: {question_text}\n"
+    if student_hint:
+        context += f"Hint: {student_hint}\n"
+    if key_parts:
+        context += "Key Topics: " + ", ".join(kp.get("title", "") for kp in key_parts)
+
+    try:
+        rubric = engine.generate_rubric(
+            lecture_title=question_text[:60],
+            lecture_content=context,
+        )
+        criteria = []
+        for c in rubric.criteria:
+            criteria.append({
+                "description": f"{c.name}: {c.description}",
+                "max_points": round(max_marks * c.weight, 2),
+                "source": "ai",
+            })
+        return {"criteria": criteria}
+    except Exception:
+        p1 = round(max_marks * 0.40, 2)
+        p2 = round(max_marks * 0.30, 2)
+        p3 = round(max_marks - p1 - p2, 2)
+
+        criteria = [
+            {
+                "description": f"Core Conceptual Understanding: Accurately explains fundamental principles addressed in '{question_text[:50]}...'",
+                "max_points": p1,
+                "source": "ai",
+            },
+            {
+                "description": "Technical Precision & Terminology: Uses domain-specific academic terminology without vague assertions.",
+                "max_points": p2,
+                "source": "ai",
+            },
+            {
+                "description": "Critical Analysis & Application: Evaluates constraints, mechanics, or edge cases accurately.",
+                "max_points": p3,
+                "source": "ai",
+            },
+        ]
+        return {"criteria": criteria}
 
 
 def grade_submission(
@@ -178,8 +229,12 @@ def grade_submission(
     student_submission_text: str,
 ) -> Dict[str, Any]:
     """
-    Evaluates student submission against assessment questions.
+    Evaluates student submission against assessment questions using live AI agents.
     """
+    from src.services.engine_adapter import ai_engine
+    from src.ai.schemas import Question, QuestionType, AssessmentRubric, RubricCriterion
+    engine = ai_engine()
+
     cleaned = student_submission_text.strip()
     total_score = 0.0
     question_results = []
@@ -188,36 +243,97 @@ def grade_submission(
         q_id = q.get("id")
         q_text = q.get("text", "")
         max_marks = float(q.get("max_marks", 10.0))
-        criteria = q.get("criteria", [])
+        raw_criteria = q.get("criteria", [])
 
-        # Word overlap evaluation
-        q_words = set(w.lower() for w in q_text.split() if len(w) > 4)
-        sub_words = set(w.lower() for w in cleaned.split() if len(w) > 3)
-        overlap = q_words.intersection(sub_words)
-        cov = len(overlap) / max(len(q_words), 1)
+        # Build domain schemas
+        rubric_criteria = []
+        crit_weight = 1.0 / max(len(raw_criteria), 1)
+        for c in raw_criteria:
+            c_max = float(c.get("max_points", max_marks * crit_weight))
+            rubric_criteria.append(
+                RubricCriterion(
+                    name=c.get("description", "Criterion")[:40],
+                    description=c.get("description", "Criterion expectation"),
+                    weight=crit_weight,
+                    max_score=c_max,
+                )
+            )
 
-        score = round(max_marks * min(1.0, 0.4 + cov * 0.6) if cleaned else 0.0, 2)
-        total_score += score
+        if not rubric_criteria:
+            rubric_criteria = [
+                RubricCriterion(name="Core Understanding", description="Concepts", weight=0.5, max_score=max_marks * 0.5),
+                RubricCriterion(name="Technical Precision", description="Terms", weight=0.5, max_score=max_marks * 0.5),
+            ]
 
-        crit_scores = []
-        for c in criteria:
-            c_max = float(c.get("max_points", max_marks / max(len(criteria), 1)))
-            crit_scores.append({
-                "description": c.get("description", "Criterion"),
-                "score": round(c_max * (score / max_marks) if max_marks > 0 else 0.0, 2),
+        rubric = AssessmentRubric(
+            rubric_id=f"RUB-{abs(hash(q_text)) % 10000:04d}",
+            title=f"Rubric: {q_text[:30]}",
+            criteria=rubric_criteria,
+            total_marks=max_marks,
+        )
+
+        domain_q = Question(
+            id=str(q_id or "Q1"),
+            question_type=QuestionType.SHORT_ANSWER,
+            prompt=q_text,
+            reference_answer=q.get("student_hint") or q_text,
+            max_points=max_marks,
+            learning_objective=q.get("tested_key_point_titles", ["Concept"])[0] if q.get("tested_key_point_titles") else "Understand topic",
+        )
+
+        try:
+            report = engine.grade_exam_question(
+                question=domain_q,
+                rubric=rubric,
+                student_answer=cleaned,
+            )
+            score = report.total_score
+            total_score += score
+
+            crit_scores = []
+            for ev in report.evaluations:
+                crit_scores.append({
+                    "description": ev.criterion_name,
+                    "score": ev.score_awarded,
+                })
+
+            citation = report.evaluations[0].evidence_citation if report.evaluations else f"Excerpt: '{cleaned[:50]}...'"
+            question_results.append({
+                "question_id": q_id,
+                "score": score,
+                "max_score": max_marks,
+                "feedback": report.summary_feedback,
+                "evidence_citation": citation,
+                "criterion_scores": crit_scores,
             })
+        except Exception:
+            q_words = set(w.lower() for w in q_text.split() if len(w) > 4)
+            sub_words = set(w.lower() for w in cleaned.split() if len(w) > 3)
+            overlap = q_words.intersection(sub_words)
+            cov = len(overlap) / max(len(q_words), 1)
 
-        sentences = [s.strip() for s in cleaned.split(".") if len(s.strip()) > 5]
-        citation = f"Student stated: '{sentences[0]}'" if sentences else "No substantial response provided."
+            score = round(max_marks * min(1.0, 0.4 + cov * 0.6) if cleaned else 0.0, 2)
+            total_score += score
 
-        question_results.append({
-            "question_id": q_id,
-            "score": score,
-            "max_score": max_marks,
-            "feedback": f"Demonstrated grasp of {len(overlap)} key technical terms.",
-            "evidence_citation": citation,
-            "criterion_scores": crit_scores,
-        })
+            crit_scores = []
+            for c in raw_criteria:
+                c_max = float(c.get("max_points", max_marks / max(len(raw_criteria), 1)))
+                crit_scores.append({
+                    "description": c.get("description", "Criterion"),
+                    "score": round(c_max * (score / max_marks) if max_marks > 0 else 0.0, 2),
+                })
+
+            sentences = [s.strip() for s in cleaned.split(".") if len(s.strip()) > 5]
+            citation = f"Student stated: '{sentences[0]}'" if sentences else "No substantial response provided."
+
+            question_results.append({
+                "question_id": q_id,
+                "score": score,
+                "max_score": max_marks,
+                "feedback": f"Demonstrated grasp of {len(overlap)} key technical terms.",
+                "evidence_citation": citation,
+                "criterion_scores": crit_scores,
+            })
 
     return {
         "ai_total": round(total_score, 2),
