@@ -184,6 +184,15 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleLaunchPlatform = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!currentUser) {
+      if (onOpenAuth) onOpenAuth();
+      return;
+    }
+    if (onEnterApp) onEnterApp();
+  };
+
   return (
     <div className="landing-wrapper">
       {/* Chalk scroll progress indicator along top edge */}
@@ -268,7 +277,7 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
             </button>
           )}
 
-          <button onClick={onEnterApp} className="btn btn-primary btn-sm">
+          <button onClick={handleLaunchPlatform} className="btn btn-primary btn-sm">
             <span>Launch platform</span>
             <ArrowRight size={13} />
           </button>
@@ -277,32 +286,34 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
 
       {/* 1 & 2. Hero Section */}
       <header className="hero-section">
-        {/* Headline: Word-by-word reveal + 2. Wavy underline under "one student" */}
+        {/* Headline: Word-by-word reveal + Wavy underline */}
         <h1 className="hero-title" id="hero-headline">
-          <span className="word" style={{ animationDelay: '0.12s' }}>Nurturing</span>{' '}
-          <span className="word" style={{ animationDelay: '0.18s' }}>Understanding,</span>{' '}
-          <span className="word" style={{ animationDelay: '0.24s' }}>Guided</span>{' '}
+          <span className="word" style={{ animationDelay: '0.10s' }}>Didactic</span>{' '}
+          <span className="word" style={{ animationDelay: '0.16s' }}>Pedagogy:</span>{' '}
+          <span className="word" style={{ animationDelay: '0.22s' }}>Nurturing</span>{' '}
           <span className="wavy-wrapper">
-            <span className="word" style={{ animationDelay: '0.30s' }}>One</span>{' '}
-            <span className="word" style={{ animationDelay: '0.36s' }}>Student</span>
-            {/* 2. Wavy underline drawing under "one student" */}
+            <span className="word" style={{ animationDelay: '0.28s' }}>Understanding,</span>{' '}
+            <span className="word" style={{ animationDelay: '0.34s' }}>Guided</span>
+            {/* Wavy underline drawing */}
             <svg className="wavy-svg" viewBox="0 0 160 12" preserveAspectRatio="none">
               <path d="M 0,7 Q 10,0 20,7 T 40,7 T 60,7 T 80,7 T 100,7 T 120,7 T 140,7 T 160,7" />
             </svg>
           </span>{' '}
-          <span className="word" style={{ animationDelay: '0.42s' }}>At</span>{' '}
-          <span className="word" style={{ animationDelay: '0.48s' }}>A</span>{' '}
-          <span className="word" style={{ animationDelay: '0.54s' }}>Time.</span>
+          <span className="word" style={{ animationDelay: '0.40s' }}>One</span>{' '}
+          <span className="word" style={{ animationDelay: '0.46s' }}>Student</span>{' '}
+          <span className="word" style={{ animationDelay: '0.52s' }}>At</span>{' '}
+          <span className="word" style={{ animationDelay: '0.58s' }}>A</span>{' '}
+          <span className="word" style={{ animationDelay: '0.64s' }}>Time.</span>
         </h1>
 
         <p className="hero-lead">
-          Didactic AI transforms lecture notes into comprehensive assessments, synthesizes transparent
-          grading rubrics, and evaluates student answer sheets with objective criteria and decomposed feedback.
+          Rooted in didactic instructional design, Didactic AI transforms curriculum notes into rigorous examinations,
+          synthesizes objective multi-criteria rubrics, and evaluates student answer sheets with transparent, evidence-grounded feedback.
         </p>
 
         <div className="hero-actions">
-          <button onClick={onEnterApp} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '0.95rem' }}>
-            <span>Enter workspace</span>
+          <button onClick={handleLaunchPlatform} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '0.95rem' }}>
+            <span>Launch platform</span>
             <ArrowRight size={15} />
           </button>
           <button
@@ -317,7 +328,7 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
 
       {/* Hero Card (Fig. 1 Evidence Citations) */}
       <div className="fig1-container">
-        <div className="cartesia-card fig1-card" id="hero-fig1" onClick={onEnterApp} style={{ cursor: 'pointer' }}>
+        <div className="cartesia-card fig1-card" id="hero-fig1" onClick={handleLaunchPlatform} style={{ cursor: 'pointer' }}>
           <div className="fig1-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="fig1-badge">Fig. 1 · Evidence Citations</span>
@@ -673,8 +684,8 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
           <p style={{ color: 'var(--text-muted)', fontSize: '0.98rem', marginBottom: 22, lineHeight: 1.55 }}>
             Transforming evaluations into meaningful conversations: AI built to help teachers teach and students thrive.
           </p>
-          <button onClick={onEnterApp} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '0.92rem' }}>
-            <span>Enter platform</span>
+          <button onClick={handleLaunchPlatform} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '0.92rem' }}>
+            <span>Launch platform</span>
             <ArrowRight size={14} />
           </button>
         </div>

@@ -534,122 +534,14 @@ export default function AssessmentTab({
 
   return (
     <div>
-      {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>
-            {assessmentType === 'assignment' ? 'Assignment & Coursework Project Studio' : 'Assessment & Examination Studio'}
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-            {assessmentType === 'assignment'
-              ? 'Generate multi-part assignments, problem sets, and projects with instructions, deliverables, deadlines, and multi-criteria rubrics.'
-              : 'Generate and manage timed exams, quizzes, and assessments with integrated rubrics directly from your curriculum notes.'}
-          </p>
-        </div>
 
-        {/* Generator Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            onClick={handleGenerateAssessment}
-            disabled={loading || (!lectureContent && !activeNoteId)}
-            className="btn btn-primary btn-sm"
-          >
-            {loading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
-            <span>{loading ? 'Synthesizing...' : 'Generate Assessment'}</span>
-          </button>
-
-          {questions.length > 0 && (
-            <button
-              onClick={() => setActiveTab('grading')}
-              className="btn btn-primary btn-sm"
-              style={{ background: 'var(--accent)' }}
-            >
-              <span>Proceed to Student Grading</span>
-              <ArrowRight size={13} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Studio Mode Selector (Exam vs Assignment) & Quick Rubric Builder */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 10,
-          marginBottom: 18,
-          padding: '10px 14px',
-          background: 'var(--surface)',
-          borderRadius: 8,
-          border: '1px solid var(--border)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, marginRight: 4 }}>
-            Studio Mode:
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setAssessmentType('exam');
-              if (!assessmentTitle || /assignment|coursework|project/i.test(assessmentTitle)) {
-                setAssessmentTitle(lectureTitle ? `Exam: ${lectureTitle}` : 'Examination Paper');
-              }
-            }}
-            className={`btn btn-sm ${assessmentType === 'exam' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', padding: '6px 14px' }}
-          >
-            <FileText size={13} />
-            <span>📝 Timed Exam / Quiz</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setAssessmentType('assignment');
-              if (!assessmentTitle || /exam|assessment/i.test(assessmentTitle)) {
-                setAssessmentTitle(lectureTitle ? `Coursework Assignment: ${lectureTitle}` : 'Coursework Assignment');
-              }
-            }}
-            className={`btn btn-sm ${assessmentType === 'assignment' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', padding: '6px 14px' }}
-          >
-            <BookOpen size={13} />
-            <span>📁 Assignment / Coursework Project</span>
-          </button>
-        </div>
-
-        <div>
-          <button
-            type="button"
-            onClick={() => setIsRubricModalOpen(true)}
-            className="btn btn-secondary btn-sm"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: '0.8rem',
-              padding: '6px 14px',
-              border: '1px solid var(--border)',
-              background: 'var(--surface)',
-              color: 'var(--text)',
-            }}
-            title="Paste any question prompt and generate normalized rubrics with AI"
-          >
-            <Sparkles size={13} />
-            <span>✨ Build Rubric for Custom Question</span>
-          </button>
-        </div>
-      </div>
 
       {/* Didactic AI Multi-Turn Chatbot */}
       <div
         className="cartesia-card"
         style={{
-          marginBottom: 20,
-          padding: '16px 20px',
+          marginBottom: 16,
+          padding: '14px 22px',
           background: 'var(--surface)',
           border: '1px solid var(--border)',
         }}
@@ -778,23 +670,23 @@ export default function AssessmentTab({
           </div>
         </div>
 
-        {/* Message Stream - Made huge, spacious & comfortable */}
+        {/* Message Stream - Responsive & fits within viewport with comfortable width & height */}
         <div
           ref={chatContainerRef}
           className="custom-scroll"
           style={{
-            height: 480,
-            minHeight: 380,
-            maxHeight: 560,
+            height: 'clamp(200px, 30vh, 280px)',
+            minHeight: 180,
+            maxHeight: 300,
             overflowY: 'auto',
             display: 'flex',
             flexDirection: 'column',
-            gap: 12,
-            padding: '16px 20px',
+            gap: 10,
+            padding: '14px 20px',
             background: 'var(--bg)',
             border: '1px solid var(--border)',
-            borderRadius: 10,
-            marginBottom: 14,
+            borderRadius: 8,
+            marginBottom: 12,
           }}
         >
           {chatMessages.map((msg) => {
@@ -830,8 +722,8 @@ export default function AssessmentTab({
 
                 <div
                   style={{
-                    maxWidth: '85%',
-                    padding: '12px 16px',
+                    maxWidth: '90%',
+                    padding: '12px 18px',
                     borderRadius: 10,
                     fontSize: '0.88rem',
                     lineHeight: 1.55,
@@ -978,8 +870,8 @@ export default function AssessmentTab({
               disabled={isUploadingChatFile || isChatLoading || loading}
               className="btn btn-secondary btn-sm"
               style={{
-                height: 52,
-                width: 52,
+                height: 44,
+                width: 44,
                 padding: 0,
                 display: 'flex',
                 alignItems: 'center',
@@ -992,7 +884,7 @@ export default function AssessmentTab({
               }}
               title="Attach and upload lecture document (PDF, PPTX, DOCX)"
             >
-              {isUploadingChatFile ? <Loader2 size={18} className="spin" /> : <Paperclip size={18} />}
+              {isUploadingChatFile ? <Loader2 size={16} className="spin" /> : <Paperclip size={16} />}
             </button>
 
             <textarea
@@ -1002,7 +894,7 @@ export default function AssessmentTab({
               onChange={(e) => {
                 setChatInput(e.target.value);
                 e.target.style.height = 'auto';
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 220)}px`;
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -1014,16 +906,16 @@ export default function AssessmentTab({
               className="input-textarea"
               style={{
                 flex: 1,
-                minHeight: 52,
-                maxHeight: 220,
+                minHeight: 44,
+                maxHeight: 180,
                 resize: 'none',
-                fontSize: '0.88rem',
-                padding: '12px 16px',
+                fontSize: '0.86rem',
+                padding: '10px 14px',
                 borderRadius: 8,
                 background: 'var(--bg)',
                 border: '1px solid var(--border)',
                 color: 'var(--text)',
-                lineHeight: 1.5,
+                lineHeight: 1.45,
                 wordBreak: 'break-word',
                 whiteSpace: 'pre-wrap',
                 overflowY: 'auto',
@@ -1037,12 +929,12 @@ export default function AssessmentTab({
               disabled={!chatInput.trim() || isChatLoading || loading}
               className="btn btn-primary btn-sm"
               style={{
-                height: 52,
-                padding: '0 22px',
+                height: 44,
+                padding: '0 20px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8,
-                fontSize: '0.88rem',
+                gap: 7,
+                fontSize: '0.86rem',
                 fontWeight: 600,
                 background: 'var(--accent)',
                 color: 'var(--on-accent)',
@@ -1053,7 +945,7 @@ export default function AssessmentTab({
                 borderRadius: 8,
               }}
             >
-              {isChatLoading ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
+              {isChatLoading ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
               <span>Send</span>
             </button>
           </div>

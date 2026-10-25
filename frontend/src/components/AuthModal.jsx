@@ -72,13 +72,35 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
         </button>
 
         {/* Modal Header */}
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 16 }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em' }}>
             {isRegister ? 'Create instructor account' : 'Instructor Sign In'}
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>
             Sign in to your instructor profile to manage curriculum, author assessments, and grade student submissions.
           </p>
+        </div>
+
+        {/* Guest Access Restriction Notice */}
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '10px 14px',
+            borderRadius: 8,
+            background: 'var(--surface-alt)',
+            border: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: '0.8rem',
+            color: 'var(--text-muted)',
+            lineHeight: 1.45,
+          }}
+        >
+          <Lock size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <span>
+            <strong style={{ color: 'var(--text)' }}>Instructor Access Required:</strong> Guest access is restricted. Please sign in or register an account to enter the workspace.
+          </span>
         </div>
 
         {/* Form */}

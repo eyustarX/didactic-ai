@@ -14,7 +14,7 @@ import { SAMPLE_LECTURE_TITLE, SAMPLE_LECTURE_CONTENT } from './data/sampleData'
 
 export default function App() {
   const [view, setView] = useState('landing'); // 'landing' | 'app'
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('assessment');
   const [collapsed, setCollapsed] = useState(() => {
     return typeof window !== 'undefined' && window.innerWidth <= 860;
   });
@@ -97,13 +97,30 @@ export default function App() {
     setAssessment(null);
     setRubric(null);
     setActiveNoteId(null);
+    setView('landing');
   };
 
-  if (view === 'landing') {
+  const handleEnterWorkspace = () => {
+    if (!currentUser) {
+      setIsAuthOpen(true);
+      return;
+    }
+    setView('app');
+  };
+
+  // Restrict guest access: Guests cannot use the app
+  useEffect(() => {
+    if (view === 'app' && !currentUser) {
+      setView('landing');
+      setIsAuthOpen(true);
+    }
+  }, [view, currentUser]);
+
+  if (view === 'landing' || !currentUser) {
     return (
       <>
         <LandingPage
-          onEnterApp={() => setView('app')}
+          onEnterApp={handleEnterWorkspace}
           currentUser={currentUser}
           onOpenAuth={() => setIsAuthOpen(true)}
         />
@@ -111,7 +128,10 @@ export default function App() {
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
           currentUser={currentUser}
-          onAuthSuccess={(user) => setCurrentUser(user)}
+          onAuthSuccess={(user) => {
+            setCurrentUser(user);
+            setView('app');
+          }}
         />
       </>
     );

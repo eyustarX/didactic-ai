@@ -1,7 +1,5 @@
 import React from 'react';
 import {
-  LayoutDashboard,
-  FileText,
   FileCheck,
   GraduationCap,
   Zap,
@@ -15,8 +13,6 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'curriculum', label: 'Curriculum & Ingest', icon: FileText },
   { id: 'assessment', label: 'Assessment Studio', icon: FileCheck },
   { id: 'assessments_library', label: 'Assessments Library', icon: Layers },
   { id: 'grading', label: 'Exam & Paper Grading', icon: GraduationCap },

@@ -539,9 +539,9 @@ body {
 }
 
 .content-body {
-  padding: 32px;
+  padding: 28px 32px;
   flex: 1;
-  max-width: 1200px;
+  max-width: 1240px;
   width: 100%;
   margin: 0 auto;
 }
