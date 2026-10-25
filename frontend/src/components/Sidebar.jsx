@@ -16,7 +16,7 @@ const NAV_ITEMS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'curriculum', label: 'Curriculum & Ingest', icon: FileText },
   { id: 'assessment', label: 'Assessment', icon: FileCheck },
-  { id: 'grading', label: 'Grading', icon: GraduationCap },
+  { id: 'grading', label: 'Exam & Paper Grading', icon: GraduationCap },
  ];
 
 export default function Sidebar({

@@ -7,13 +7,20 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from src.core.config import settings
 
-# Configure engine connection args (SQLite requires check_same_thread=False)
+# Configure database URL and engine connection args
+raw_url = settings.database_url
+# Automatically adapt standard postgresql:// from Neon/Supabase to psycopg2 driver
+if raw_url.startswith("postgresql://"):
+    db_url = raw_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+else:
+    db_url = raw_url
+
 connect_args = {}
-if settings.database_url.startswith("sqlite"):
+if db_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
 engine = create_engine(
-    settings.database_url,
+    db_url,
     connect_args=connect_args,
     pool_pre_ping=True,
 )

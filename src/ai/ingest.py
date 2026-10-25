@@ -183,22 +183,65 @@ def extract_from_docx(source: Union[bytes, str, io.BytesIO]) -> str:
     return "\n\n".join(paragraphs)
 
 
-def extract_document_text(source: Union[bytes, str, io.BytesIO], filename: str) -> str:
-    """Extracts cleaned text from PDF, PPTX, DOCX, or TXT."""
-    ext = Path(filename).suffix.lower()
+class DocumentExtractionResult(tuple):
+    """
+    Polymorphic extraction result that behaves as a 3-tuple (full_text, sections, warnings)
+    when unpacked, and as a string when evaluated as str().
+    """
+
+    def __new__(cls, full_text: str, sections: List[Dict[str, Any]], warnings: List[str]):
+        return super().__new__(cls, (full_text, sections, warnings))
+
+    def __str__(self) -> str:
+        return self[0]
+
+    @property
+    def full_text(self) -> str:
+        return self[0]
+
+    @property
+    def sections(self) -> List[Dict[str, Any]]:
+        return self[1]
+
+    @property
+    def warnings(self) -> List[str]:
+        return self[2]
+
+
+def extract_document_text(
+    source: Union[bytes, str, io.BytesIO],
+    filename: str,
+    file_type: Optional[str] = None,
+) -> DocumentExtractionResult:
+    """
+    Extracts cleaned text and section chunks from PDF, PPTX, DOCX, or TXT.
+    Compatible with both (source, filename) and (source, filename, file_type).
+    """
+    ext = Path(filename).suffix.lower() if filename else f".{file_type or 'txt'}"
+    sections: List[Dict[str, Any]] = []
+    warnings: List[str] = []
+    full_text = ""
+
     if ext == ".pdf":
         pages = extract_text_from_pdf(source)
-        return "\n\n".join(t for _, t in pages)
+        full_text = "\n\n".join(t for _, t in pages)
+        sections = [{"source_ref": f"Page {p}", "text": t} for p, t in pages]
     elif ext in (".pptx", ".ppt"):
-        _, full_text, _ = extract_from_pptx(source)
-        return full_text
+        pptx_sections, full_text, notes = extract_from_pptx(source)
+        sections = pptx_sections
     elif ext in (".docx", ".doc"):
-        return extract_from_docx(source)
+        full_text = extract_from_docx(source)
+        paragraphs = [p for p in full_text.split("\n\n") if p.strip()]
+        sections = [{"source_ref": f"Section {i+1}", "text": p} for i, p in enumerate(paragraphs)]
     else:
         if isinstance(source, bytes):
-            return source.decode("utf-8", errors="replace")
+            full_text = source.decode("utf-8", errors="replace")
         elif hasattr(source, "read"):
             content = source.read()
-            return content.decode("utf-8", errors="replace") if isinstance(content, bytes) else str(content)
+            full_text = content.decode("utf-8", errors="replace") if isinstance(content, bytes) else str(content)
         else:
-            return Path(source).read_text(encoding="utf-8", errors="replace")
+            full_text = Path(source).read_text(encoding="utf-8", errors="replace")
+        sections = [{"source_ref": "text", "text": full_text}]
+
+    return DocumentExtractionResult(full_text, sections, warnings)
+

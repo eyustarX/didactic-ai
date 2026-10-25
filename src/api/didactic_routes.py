@@ -83,10 +83,17 @@ class KeyPointsUpdateRequest(BaseModel):
     key_points: List[KeyPointUpdateItem]
 
 
+class CopilotChatReq(BaseModel):
+    messages: List[Dict[str, Any]]
+    lecture_note_id: Optional[str] = None
+    lecture_title: Optional[str] = None
+
+
 class AssessmentGenerateReq(BaseModel):
     lecture_note_id: str
     question_count: int = 3
     title: Optional[str] = None
+    prompt: Optional[str] = None
 
 
 class QuestionEditItem(BaseModel):
@@ -122,6 +129,28 @@ class StudentCreateReq(BaseModel):
 
 class SubmissionConfirmReq(BaseModel):
     total_score: float
+
+
+class ManualQuestionScoreItem(BaseModel):
+    question_id: Optional[str] = None
+    points: float = 0.0
+    feedback: Optional[str] = ""
+    matched_student_answer: Optional[str] = ""
+
+
+class ManualSubmissionReq(BaseModel):
+    student_name: str
+    student_number: Optional[str] = None
+    total_score: Optional[float] = None
+    summary_feedback: Optional[str] = None
+    question_scores: Optional[List[ManualQuestionScoreItem]] = None
+
+
+class RubricFromQuestionReq(BaseModel):
+    question_text: str
+    max_marks: float = 10.0
+    student_hint: Optional[str] = None
+    lecture_note_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -487,7 +516,9 @@ def generate_assessment_endpoint(
     if not ticked_parts:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No key parts are ticked for assessment.")
 
-    ai_data = ai_generate_assessment(note.name, ticked_parts, question_count=req.question_count)
+    ai_data = ai_generate_assessment(
+        note.name, ticked_parts, question_count=req.question_count, custom_instructions=req.prompt
+    )
     title = req.title or ai_data.get("title") or f"Assessment: {note.name}"
 
     assessment = Assessment(
@@ -521,11 +552,70 @@ def generate_assessment_endpoint(
             if kp_obj.title in tested_titles or not tested_titles:
                 q.key_points.append(kp_obj)
 
+        # Auto-generate rubric for each question
+        kp_list = [{"title": kp.title, "summary": kp.summary} for kp in q.key_points]
+        try:
+            rubric_data = ai_generate_rubric(
+                question_text=q.text,
+                student_hint=q.student_hint,
+                key_parts=kp_list,
+                max_marks=q.max_marks,
+            )
+            rubric = Rubric(question_id=q.id, status="ai_draft")
+            session.add(rubric)
+            session.flush()
+
+            for c_idx, crit in enumerate(rubric_data.get("criteria", [])):
+                c_obj = RubricCriterion(
+                    rubric_id=rubric.id,
+                    position=c_idx,
+                    description=crit["description"],
+                    max_points=float(crit.get("max_points", q.max_marks / max(len(rubric_data.get("criteria", [])), 1))),
+                    source=crit.get("source", "ai"),
+                )
+                session.add(c_obj)
+        except Exception as r_err:
+            import logging
+            logging.getLogger(__name__).warning(f"Could not auto-generate rubric for question {q.id}: {r_err}")
+
     assessment.max_score = total_max
     session.commit()
     session.refresh(assessment)
 
     return get_assessment_detail_response(assessment)
+
+
+@router.post("/assessments/copilot-chat")
+def copilot_chat_endpoint(
+    req: CopilotChatReq,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    from src.services.engine_adapter import ai_engine
+    engine = ai_engine()
+
+    lecture_title = req.lecture_title or "Lecture Document"
+    lecture_content = ""
+
+    if req.lecture_note_id:
+        note = (
+            session.query(LectureNote)
+            .filter(LectureNote.id == req.lecture_note_id, LectureNote.lecturer_id == lecturer_id)
+            .first()
+        )
+        if note:
+            lecture_title = note.name or lecture_title
+            lecture_content = note.extracted_text or ""
+
+    if not lecture_content and req.lecture_title:
+        lecture_content = f"Material covering {req.lecture_title}."
+
+    result = engine.copilot_chat(
+        messages=req.messages,
+        lecture_title=lecture_title,
+        lecture_content=lecture_content,
+    )
+    return result
 
 
 @router.get("/assessments")
@@ -796,6 +886,27 @@ def regenerate_single_question_rubric(
     }
 
 
+@router.post("/rubrics/generate-from-question")
+def generate_rubric_from_question_endpoint(
+    req: RubricFromQuestionReq,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    kp_list = []
+    if req.lecture_note_id:
+        note = session.query(LectureNote).filter(LectureNote.id == req.lecture_note_id).first()
+        if note:
+            kp_list = [{"title": kp.title, "summary": kp.summary} for kp in note.key_points if kp.included]
+
+    rubric_data = ai_generate_rubric(
+        question_text=req.question_text,
+        student_hint=req.student_hint,
+        key_parts=kp_list,
+        max_marks=float(req.max_marks),
+    )
+    return rubric_data
+
+
 @router.put("/questions/{question_id}/rubric")
 def update_question_rubric(
     question_id: str,
@@ -1013,7 +1124,7 @@ async def grade_student_submission(
 ):
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
+        .filter(Assessment.id == assessment_id)
         .first()
     )
     if not assessment:
@@ -1021,16 +1132,16 @@ async def grade_student_submission(
 
     student = None
     if student_id:
-        student = session.query(Student).filter(Student.id == student_id, Student.lecturer_id == lecturer_id).first()
+        student = session.query(Student).filter(Student.id == student_id).first()
     if not student and student_number:
         student = (
             session.query(Student)
-            .filter(Student.student_number == student_number.strip(), Student.lecturer_id == lecturer_id)
+            .filter(Student.student_number == student_number.strip())
             .first()
         )
         if not student:
             student = Student(
-                lecturer_id=lecturer_id,
+                lecturer_id=assessment.lecturer_id or lecturer_id,
                 student_number=student_number.strip(),
                 name=(student_name or student_number).strip(),
             )
@@ -1161,6 +1272,135 @@ def confirm_submission_score(
     }
 
 
+@router.post("/assessments/{assessment_id}/manual-submission")
+def create_manual_submission(
+    assessment_id: str,
+    req: ManualSubmissionReq,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    import uuid
+    assessment = (
+        session.query(Assessment)
+        .filter(Assessment.id == assessment_id)
+        .first()
+    )
+    if not assessment:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
+
+    student_num = (req.student_number or f"STU-{uuid.uuid4().hex[:6].upper()}").strip()
+    student = (
+        session.query(Student)
+        .filter(Student.student_number == student_num)
+        .first()
+    )
+    if not student:
+        student = Student(
+            lecturer_id=assessment.lecturer_id or lecturer_id,
+            student_number=student_num,
+            name=req.student_name.strip(),
+        )
+        session.add(student)
+        session.flush()
+
+    calculated_total = 0.0
+    if req.question_scores:
+        calculated_total = sum(float(qs.points) for qs in req.question_scores)
+    elif req.total_score is not None:
+        calculated_total = float(req.total_score)
+
+    existing_sub = (
+        session.query(Submission)
+        .filter(Submission.student_id == student.id, Submission.assessment_id == assessment.id)
+        .first()
+    )
+
+    if existing_sub:
+        submission = existing_sub
+        submission.ai_total = calculated_total
+        submission.total_score = calculated_total
+        submission.score = calculated_total
+        submission.status = "confirmed"
+        submission.graded_at = datetime.now(timezone.utc)
+        submission.question_scores.clear()
+    else:
+        submission = Submission(
+            kind="exam",
+            student_id=student.id,
+            assessment_id=assessment.id,
+            ai_total=calculated_total,
+            total_score=calculated_total,
+            score=calculated_total,
+            max_score=assessment.max_score,
+            status="confirmed",
+            graded_at=datetime.now(timezone.utc),
+        )
+        session.add(submission)
+        session.flush()
+
+    q_results = []
+    if req.question_scores:
+        for qs in req.question_scores:
+            target_qid = qs.question_id
+            target_q = None
+            if target_qid:
+                target_q = session.query(Question).filter(Question.id == target_qid).first()
+            if not target_q and assessment.questions:
+                target_q = assessment.questions[0]
+
+            if target_q:
+                sc = SubmissionQuestionScore(
+                    submission_id=submission.id,
+                    question_id=target_q.id,
+                    points=float(qs.points),
+                    feedback=f"{qs.feedback or 'Manually scored by instructor.'}\n[Matched excerpt: {(qs.matched_student_answer or 'Recorded by instructor')[:120]}]",
+                )
+                session.add(sc)
+                q_results.append({
+                    "question_id": target_q.id,
+                    "question_text": target_q.text,
+                    "points_awarded": float(qs.points),
+                    "max_points": target_q.max_marks,
+                    "matched_student_answer": qs.matched_student_answer or "Student answer recorded by instructor",
+                    "feedback": qs.feedback or "Manually verified by instructor.",
+                })
+    else:
+        for q in assessment.questions:
+            q_results.append({
+                "question_id": q.id,
+                "question_text": q.text,
+                "points_awarded": round(calculated_total / max(len(assessment.questions), 1), 1),
+                "max_points": q.max_marks,
+                "matched_student_answer": "Student answer recorded by instructor",
+                "feedback": req.summary_feedback or "Score recorded directly by instructor.",
+            })
+
+    if assessment.status != "locked":
+        assessment.status = "locked"
+
+    session.commit()
+    session.refresh(submission)
+
+    pct = round((submission.total_score / assessment.max_score) * 100, 1) if assessment.max_score > 0 else 0.0
+
+    return {
+        "submission_id": str(submission.id),
+        "id": str(submission.id),
+        "student_id": student.id,
+        "student_number": student.student_number,
+        "student_name": student.name,
+        "assessment_id": assessment.id,
+        "assessment_title": assessment.title,
+        "ai_total": submission.ai_total,
+        "total_score": submission.total_score,
+        "max_score": assessment.max_score,
+        "percentage": pct,
+        "status": submission.status,
+        "summary_feedback": req.summary_feedback or f"Overall score: {submission.total_score}/{assessment.max_score} recorded by instructor.",
+        "question_results": q_results,
+    }
+
+
 @router.get("/assessments/{assessment_id}/submissions")
 def list_assessment_submissions(
     assessment_id: str,
@@ -1169,7 +1409,7 @@ def list_assessment_submissions(
 ):
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
+        .filter(Assessment.id == assessment_id)
         .first()
     )
     if not assessment:
@@ -1178,6 +1418,38 @@ def list_assessment_submissions(
     subs = []
     for s in assessment.submissions:
         pct = round((s.total_score / assessment.max_score) * 100, 1) if assessment.max_score > 0 else 0.0
+
+        q_results = []
+        if s.question_scores:
+            for qs in s.question_scores:
+                q_text = qs.question.text if qs.question else "Question"
+                q_max = qs.question.max_marks if qs.question else 10.0
+                fb = qs.feedback or ""
+                ans = "Student answer recorded"
+                if "\n[Matched excerpt: " in fb:
+                    parts = fb.split("\n[Matched excerpt: ")
+                    fb = parts[0]
+                    ans = parts[1].rstrip("]")
+
+                q_results.append({
+                    "question_id": qs.question_id,
+                    "question_text": q_text,
+                    "points_awarded": qs.points,
+                    "max_points": q_max,
+                    "matched_student_answer": ans,
+                    "feedback": fb or "Evaluation recorded.",
+                })
+        else:
+            for q in assessment.questions:
+                q_results.append({
+                    "question_id": q.id,
+                    "question_text": q.text,
+                    "points_awarded": round(s.total_score / max(len(assessment.questions), 1), 1),
+                    "max_points": q.max_marks,
+                    "matched_student_answer": (s.extracted_text[:120] if s.extracted_text else "Recorded response"),
+                    "feedback": f"Evaluated against rubric for {assessment.title}.",
+                })
+
         subs.append({
             "id": str(s.id),
             "student_id": s.student.id if s.student else None,
@@ -1189,6 +1461,8 @@ def list_assessment_submissions(
             "percentage": pct,
             "status": s.status,
             "graded_at": s.graded_at.isoformat() if s.graded_at else None,
+            "summary_feedback": f"Overall grade: {s.total_score}/{assessment.max_score} ({pct}%).",
+            "question_results": q_results,
         })
     return subs
 
@@ -1224,6 +1498,68 @@ def export_excel_data(
         "max_score": assessment.max_score,
         "rows": confirmed_rows,
     }
+
+
+@router.get("/assessments/{assessment_id}/export-pdf")
+def export_assessment_pdf(
+    assessment_id: str,
+    solutions: bool = Query(False, description="Include official answer key and rubrics"),
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    from fastapi.responses import Response
+    from src.services.pdf_service import generate_assessment_exam_pdf
+
+    assessment = (
+        session.query(Assessment)
+        .filter(Assessment.id == assessment_id)
+        .first()
+    )
+    if not assessment:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
+
+    detail_data = get_assessment_detail_response(assessment)
+    if assessment.lecture_note and assessment.lecture_note.name:
+        detail_data["course_name"] = assessment.lecture_note.name
+
+    pdf_bytes = generate_assessment_exam_pdf(detail_data, include_solutions=solutions)
+
+    suffix = "Solution_Key" if solutions else "Exam_Paper"
+    safe_title = "".join(c for c in assessment.title if c.isalnum() or c in (" ", "-", "_")).strip()
+    safe_title = safe_title.replace(" ", "_") or "Assessment"
+    filename = f"{safe_title}_{suffix}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+class CustomPdfExportReq(BaseModel):
+    assessment_data: Dict[str, Any]
+    solutions: bool = False
+
+
+@router.post("/assessments/export-pdf-custom")
+def export_custom_assessment_pdf(req: CustomPdfExportReq):
+    from fastapi.responses import Response
+    from src.services.pdf_service import generate_assessment_exam_pdf
+
+    data = req.assessment_data or {}
+    pdf_bytes = generate_assessment_exam_pdf(data, include_solutions=req.solutions)
+
+    suffix = "Solution_Key" if req.solutions else "Exam_Paper"
+    title = data.get("title") or "Assessment"
+    safe_title = "".join(c for c in title if c.isalnum() or c in (" ", "-", "_")).strip()
+    safe_title = safe_title.replace(" ", "_") or "Assessment"
+    filename = f"{safe_title}_{suffix}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 def get_assessment_detail_response(a: Assessment) -> Dict[str, Any]:

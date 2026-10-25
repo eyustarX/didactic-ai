@@ -251,3 +251,119 @@ def test_excel_export_confirmed_only(db_session):
     assert confirmed_rows[0]["total_score"] == 92.0
     assert confirmed_rows[0]["max_score"] == 100.0
     assert confirmed_rows[0]["percentage"] == "92.0%"
+
+
+# ---------------------------------------------------------------------------
+# 6. Test PDF Exam Paper Generation & Question Text Sanitization
+# ---------------------------------------------------------------------------
+
+def test_sanitize_exam_question_text():
+    from src.ai.engine import sanitize_exam_question_text
+
+    raw_q = "Which keyword in modern JavaScript declares an immutable constant, according to the lecture notes?"
+    clean_q = sanitize_exam_question_text(raw_q, lecture_title="chapter 4-JavaScript.pdf")
+    assert "according to the lecture notes" not in clean_q
+    assert "chapter 4" not in clean_q
+    assert clean_q == "Which keyword in modern JavaScript declares an immutable constant?"
+
+    raw_ans = "According to the lecture, 'var', 'let', and 'const' differ in their scoping."
+    clean_ans = sanitize_exam_question_text(raw_ans, lecture_title="ch-2")
+    assert "According to the lecture" not in clean_ans
+
+
+def test_generate_exam_pdf_student_and_solution_modes():
+    from src.services.pdf_service import generate_assessment_exam_pdf
+
+    sample_assessment = {
+        "title": "Algorithms & Complexity Exam",
+        "course_name": "CS 301 - Data Structures",
+        "max_score": 10.0,
+        "questions": [
+            {
+                "text": "What is the worst-case complexity of QuickSort?\nA) O(n)\nB) O(n log n)\nC) O(n^2)\nD) O(1)",
+                "max_marks": 2.0,
+                "student_hint": "Official Answer Key: C) O(n^2)\nLearning Objective: Analyze algorithmic complexity.",
+                "rubric": {
+                    "criteria": [
+                        {"name": "Correctness", "max_score": 2.0, "description": "Selects O(n^2)"}
+                    ]
+                },
+            },
+            {
+                "text": "Explain why MergeSort requires O(n) auxiliary space.",
+                "max_marks": 8.0,
+                "student_hint": "Official Answer Key: MergeSort requires auxiliary buffers to merge sub-arrays.",
+                "rubric": {
+                    "criteria": [
+                        {"name": "Memory Analysis", "max_score": 8.0, "description": "Explains buffer allocation."}
+                    ]
+                },
+            },
+        ],
+    }
+
+    # Test 1: Student Exam Paper
+    pdf_student = generate_assessment_exam_pdf(sample_assessment, include_solutions=False)
+    assert isinstance(pdf_student, bytes)
+    assert len(pdf_student) > 1000
+    assert pdf_student[:4] == b"%PDF"
+
+    # Test 2: Solution Key Paper
+    pdf_solution = generate_assessment_exam_pdf(sample_assessment, include_solutions=True)
+    assert isinstance(pdf_solution, bytes)
+    assert len(pdf_solution) > 1000
+    assert pdf_solution[:4] == b"%PDF"
+
+
+def test_dedicated_assessment_submissions_isolation(db_session):
+    """Verify that submissions belonging to Assessment A do not bleed into Assessment B."""
+    note = LectureNote(name="Data Structures", file_type="pdf", ingest_status="done")
+    db_session.add(note)
+    db_session.flush()
+
+    ass_a = Assessment(lecture_note_id=note.id, title="Class A Exam", max_score=100.0)
+    ass_b = Assessment(lecture_note_id=note.id, title="Class B Exam", max_score=100.0)
+    db_session.add_all([ass_a, ass_b])
+    db_session.flush()
+
+    stu_a = Student(student_number="STU-A1", name="Alice Class A")
+    stu_b = Student(student_number="STU-B1", name="Bob Class B")
+    db_session.add_all([stu_a, stu_b])
+    db_session.flush()
+
+    sub_a = Submission(student_id=stu_a.id, assessment_id=ass_a.id, total_score=95.0, status="confirmed")
+    sub_b = Submission(student_id=stu_b.id, assessment_id=ass_b.id, total_score=82.0, status="confirmed")
+    db_session.add_all([sub_a, sub_b])
+    db_session.commit()
+
+    # Query Class A submissions
+    class_a_subs = db_session.query(Submission).filter(Submission.assessment_id == ass_a.id).all()
+    class_b_subs = db_session.query(Submission).filter(Submission.assessment_id == ass_b.id).all()
+
+    assert len(class_a_subs) == 1
+    assert class_a_subs[0].student.name == "Alice Class A"
+    assert len(class_b_subs) == 1
+    assert class_b_subs[0].student.name == "Bob Class B"
+    assert class_a_subs[0].id != class_b_subs[0].id
+
+
+def test_generate_rubric_from_custom_question():
+    """Verify generating rubrics for a custom question prompt without existing DB record."""
+    from fastapi.testclient import TestClient
+    from src.main import app
+    client = TestClient(app)
+
+    resp = client.post(
+        "/rubrics/generate-from-question",
+        json={
+            "question_text": "Implement a binary search tree insertion method and prove its worst-case complexity.",
+            "max_marks": 20.0,
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "criteria" in data
+    assert len(data["criteria"]) >= 2
+    total_pts = sum(c.get("max_points", 0) for c in data["criteria"])
+    assert abs(total_pts - 20.0) < 0.1
+

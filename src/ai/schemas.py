@@ -55,6 +55,7 @@ class CurriculumAnalysis(BaseModel):
 class QuestionType(str, Enum):
     MULTIPLE_CHOICE = "multiple_choice"
     SHORT_ANSWER = "short_answer"
+    FILL_IN_THE_BLANK = "fill_in_the_blank"
     ESSAY = "essay"
     CODE_ANALYSIS = "code_analysis"
 

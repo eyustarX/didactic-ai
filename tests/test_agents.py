@@ -14,6 +14,7 @@ from src.ai.schemas import (
     RubricCriterion,
 )
 from src.ai.rag import LectureRetriever, create_retriever
+from src.ai.engine import MockLLMProvider, BaseLLMProvider
 from src.ai.agents import (
     AssessmentAgent,
     AuditorAgent,
@@ -24,6 +25,7 @@ from src.ai.agents import (
     RubricAgent,
     classify_bloom_level,
     create_coordinator,
+    create_live_coordinator,
     extract_topic_from_chunk,
 )
 
@@ -837,6 +839,108 @@ def test_create_coordinator_factory(os_lecture_document):
     assert isinstance(coord, MultiAgentCoordinator)
     assert coord.retriever.is_indexed
     assert coord.retriever.chunk_count == len(os_lecture_document.chunks)
+
+
+def test_rubric_agent_with_llm_provider(retriever, sample_curriculum):
+    """Verifies RubricAgent executes via provider and enforces mathematical normalization."""
+    mock_provider = MockLLMProvider()
+    agent = RubricAgent(retriever=retriever, provider=mock_provider)
+    rubric = agent.generate_rubric(sample_curriculum, total_marks=20.0)
+
+    assert isinstance(rubric, AssessmentRubric)
+    assert len(rubric.criteria) == 3
+    assert abs(sum(c.weight for c in rubric.criteria) - 1.0) < 1e-4
+    assert abs(sum(c.max_score for c in rubric.criteria) - 20.0) < 1e-2
+
+
+def test_assessment_agent_with_llm_provider(retriever, sample_curriculum):
+    """Verifies AssessmentAgent executes via provider and normalizes question point allocations."""
+    mock_provider = MockLLMProvider()
+    agent = AssessmentAgent(retriever=retriever, provider=mock_provider)
+    assessment = agent.generate_assessment(sample_curriculum, question_count=3, total_points=15.0)
+
+    assert isinstance(assessment, GeneratedAssessment)
+    assert len(assessment.questions) == 3
+    assert abs(assessment.total_points - 15.0) < 1e-2
+    for q in assessment.questions:
+        assert q.max_points > 0
+        assert len(q.prompt) > 0
+        assert len(q.reference_answer) > 0
+
+
+def test_grading_agent_with_llm_provider(retriever, sample_rubric_and_question):
+    """Verifies GradingAgent executes via provider for both question and assignment grading."""
+    rubric, question = sample_rubric_and_question
+    mock_provider = MockLLMProvider()
+    agent = GradingAgent(retriever=retriever, provider=mock_provider)
+
+    # 1. Question grading
+    student_ans = "A mutex has thread ownership while semaphore is a signaling mechanism."
+    report_q = agent.grade_question_submission(question=question, rubric=rubric, student_answer=student_ans)
+    assert isinstance(report_q, GradingReport)
+    assert report_q.total_score > 0
+    assert report_q.max_possible_score == sum(c.max_score for c in rubric.criteria)
+
+    # 2. Assignment grading
+    report_assign = agent.grade_assignment_submission(
+        assignment_title="Concurrency Lab",
+        assignment_instructions="Compare mutex and semaphore.",
+        rubric=rubric,
+        student_submission=student_ans,
+    )
+    assert isinstance(report_assign, GradingReport)
+    assert report_assign.total_score > 0
+
+
+def test_agent_automatic_fallback_on_provider_error(retriever, sample_curriculum, sample_rubric_and_question):
+    """
+    CRITICAL RESILIENCE TEST:
+    Verifies that if an LLM provider throws an exception (simulating API rate limits or network timeout),
+    the agents catch it gracefully and fall back to deterministic heuristics without crashing!
+    """
+    class FailingProvider(BaseLLMProvider):
+        def generate_rubric(self, lecture_title, lecture_content):
+            raise ConnectionError("Simulated LLM API 503 Service Unavailable")
+
+        def generate_assessment(self, lecture_title, lecture_content, question_count=3):
+            raise TimeoutError("Simulated LLM API Rate Limit 429")
+
+        def grade_exam_question(self, question, rubric, student_answer):
+            raise RuntimeError("Simulated Bedrock/Gemini Quota Exceeded")
+
+        def grade_assignment(self, assignment_title, assignment_instructions, rubric, student_submission):
+            raise RuntimeError("Simulated Cloud Auth Failure")
+
+    failing_provider = FailingProvider()
+
+    # 1. RubricAgent fallback
+    rubric_agent = RubricAgent(retriever=retriever, provider=failing_provider)
+    rubric = rubric_agent.generate_rubric(sample_curriculum, total_marks=10.0)
+    assert isinstance(rubric, AssessmentRubric)
+    assert abs(sum(c.weight for c in rubric.criteria) - 1.0) < 1e-4
+
+    # 2. AssessmentAgent fallback
+    assessment_agent = AssessmentAgent(retriever=retriever, provider=failing_provider)
+    assessment = assessment_agent.generate_assessment(sample_curriculum, question_count=2, total_points=10.0)
+    assert isinstance(assessment, GeneratedAssessment)
+    assert len(assessment.questions) == 2
+
+    # 3. GradingAgent fallback
+    rubric_sample, question_sample = sample_rubric_and_question
+    grading_agent = GradingAgent(retriever=retriever, provider=failing_provider)
+    ans = "A mutex has thread ownership and semaphores use wait and signal."
+    report = grading_agent.grade_question_submission(question=question_sample, rubric=rubric_sample, student_answer=ans)
+    assert isinstance(report, GradingReport)
+    assert report.total_score > 0
+
+
+def test_create_live_coordinator_factory(os_lecture_document):
+    """Verifies create_live_coordinator factory initializes with GeminiLiveProvider or Mock."""
+    coord = create_live_coordinator(chunks=os_lecture_document.chunks)
+    assert isinstance(coord, MultiAgentCoordinator)
+    assert coord.retriever.is_indexed
+    assert coord.provider is not None
+
 
 
 

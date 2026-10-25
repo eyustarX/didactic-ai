@@ -57,7 +57,7 @@ from src.ai.ingest import (
 )
 
 # ---------------------------------------------------------------------------
-# Didactic Core Service Adapters
+# Didactic Service Adapters (for FastAPI routes)
 # ---------------------------------------------------------------------------
 from src.ai.didactic_service import (
     AssessmentOutput,
@@ -94,6 +94,7 @@ from src.ai.agents import (
     MultiAgentCoordinator,
     RubricAgent,
     create_coordinator,
+    create_live_coordinator,
 )
 
 # ---------------------------------------------------------------------------
@@ -290,6 +291,7 @@ __all__ = [
     "AuditorAgent",
     "MultiAgentCoordinator",
     "create_coordinator",
+    "create_live_coordinator",
     # Analytics
     "CohortAnalyticsEngine",
     "analyze_cohort",

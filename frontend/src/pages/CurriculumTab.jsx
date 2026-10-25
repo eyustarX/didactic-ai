@@ -37,6 +37,8 @@ export default function CurriculumTab({
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingUploads, setIsLoadingUploads] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [noteToDelete, setNoteToDelete] = useState(null);
+  const [isDeletingNote, setIsDeletingNote] = useState(false);
 
   // Load previous uploads on mount
   useEffect(() => {
@@ -106,21 +108,23 @@ export default function CurriculumTab({
     }
   };
 
-  const handleDeleteUpload = async (e, noteId) => {
-    e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this lecture note?')) return;
-
+  const confirmDeleteNote = async () => {
+    if (!noteToDelete) return;
+    setIsDeletingNote(true);
     setDeleteError(null);
     try {
-      await deleteLectureNote(noteId, currentUser?.id);
-      if (activeNoteId === noteId) {
+      await deleteLectureNote(noteToDelete.id, currentUser?.id);
+      if (activeNoteId === noteToDelete.id) {
         if (setActiveNoteId) setActiveNoteId(null);
         setLectureTitle('');
         setLectureContent('');
       }
+      setNoteToDelete(null);
       await loadUploads();
     } catch (err) {
-      setDeleteError(err.message || 'Cannot delete lecture note');
+      setDeleteError(err.message || 'Cannot delete lecture note from database');
+    } finally {
+      setIsDeletingNote(false);
     }
   };
 
@@ -270,10 +274,13 @@ export default function CurriculumTab({
                     </div>
 
                     <button
-                      onClick={(e) => handleDeleteUpload(e, note.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNoteToDelete(note);
+                      }}
                       className="btn btn-ghost btn-sm"
                       style={{ padding: '4px', color: 'var(--text-muted)', flexShrink: 0 }}
-                      title="Delete upload"
+                      title="Delete upload from database"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -326,6 +333,108 @@ export default function CurriculumTab({
           />
         </div>
       </div>
+
+      {/* Database Deletion Confirmation Modal */}
+      {noteToDelete && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: 16,
+          }}
+          onClick={() => {
+            if (!isDeletingNote) setNoteToDelete(null);
+          }}
+        >
+          <div
+            className="cartesia-card"
+            style={{
+              maxWidth: 480,
+              width: '100%',
+              padding: 24,
+              background: 'var(--card)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+              borderRadius: 12,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 8,
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#ef4444',
+                  flexShrink: 0,
+                }}
+              >
+                <Trash2 size={22} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                  Delete Lecture Note from Database
+                </h3>
+                <span style={{ fontSize: '0.74rem', color: '#10b981', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }}></span>
+                  Neon PostgreSQL Cloud Database
+                </span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: 18 }}>
+              Are you sure you want to permanently delete <strong style={{ color: 'var(--text)' }}>"{noteToDelete.name}"</strong>? 
+              This will permanently delete this document and its extracted curriculum key points from the <strong>Neon PostgreSQL Cloud Database</strong>.
+              This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setNoteToDelete(null)}
+                disabled={isDeletingNote}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '8px 16px', fontSize: '0.82rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteNote}
+                disabled={isDeletingNote}
+                className="btn btn-danger btn-sm"
+                style={{
+                  padding: '8px 18px',
+                  fontSize: '0.82rem',
+                  background: '#ef4444',
+                  color: '#fff',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: isDeletingNote ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isDeletingNote ? <Loader2 size={13} className="spin" /> : <Trash2 size={13} />}
+                <span>{isDeletingNote ? 'Deleting from Cloud DB...' : 'Delete from Database'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
