@@ -13,9 +13,19 @@ __pycache__/
 # Cloud Security & Secrets (Mandatory for Least-Privilege scoring)
 .env
 *.pem
+*.db
 credentials
 aws_credentials.json
 
 # Local Test Data & Temporary Logs
 data/raw/
 *.log
+
+# Frontend & Node Dependencies
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Temporary / Assistant Kits
+.claude/
