@@ -55,6 +55,7 @@ export default function AssessmentTab({
   currentUser,
 }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [questionCount, setQuestionCount] = useState(3);
   const [assessmentTitle, setAssessmentTitle] = useState('');
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
@@ -224,7 +225,6 @@ export default function AssessmentTab({
     setAssessmentTitle(lectureTitle ? `Assessment: ${lectureTitle}` : 'New Assessment');
     setActiveQuestionIndex(0);
     setError(null);
-    setDeleteError(null);
   };
 
   const handleGenerateAssessment = async (overridePrompt, overrideCount) => {
@@ -235,7 +235,6 @@ export default function AssessmentTab({
 
     setLoading(true);
     setError(null);
-    setDeleteError(null);
 
     const promptToUse = typeof overridePrompt === 'string' ? overridePrompt : copilotPrompt;
     const count = parseInt(overrideCount || questionCount, 10) || 3;
