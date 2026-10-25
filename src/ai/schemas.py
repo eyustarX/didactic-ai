@@ -131,3 +131,36 @@ class GradingReport(BaseModel):
     summary_feedback: str = Field(..., description="High-level feedback for the student")
     evaluations: List[CriterionEvaluation] = Field(..., description="Decomposed per-criterion breakdown")
     areas_to_review: List[str] = Field(default_factory=list, description="Specific topics to revisit")
+
+
+# ---------------------------------------------------------
+# Cohort Analytics Schemas
+# ---------------------------------------------------------
+
+class CohortMisconception(BaseModel):
+    topic: str = Field(..., description="Concept or topic students struggled with")
+    affected_students_count: int = Field(..., ge=0, description="Number of students exhibiting this misconception")
+    affected_percentage: float = Field(..., ge=0.0, le=100.0, description="Percentage of the cohort affected")
+    sample_gaps: List[str] = Field(default_factory=list, description="Representative gap descriptions from grading reports")
+    source_page: Optional[int] = Field(default=None, description="Recommended slide page to review from RAG")
+
+
+class CriterionMastery(BaseModel):
+    criterion_name: str = Field(..., description="Rubric criterion name")
+    average_score: float = Field(..., ge=0.0, description="Mean raw score achieved across the cohort")
+    max_score: float = Field(..., gt=0.0, description="Max score possible for this criterion")
+    mastery_percentage: float = Field(..., ge=0.0, le=100.0, description="Cohort average percentage score on this criterion")
+    mastery_level: str = Field(..., description="Mastery tier: High (>=80%), Moderate (60-79%), Low (<60%)")
+
+
+class CohortAnalyticsReport(BaseModel):
+    total_submissions: int = Field(..., ge=0, description="Total number of graded student submissions")
+    class_average: float = Field(..., ge=0.0, le=100.0, description="Mean class percentage")
+    class_median: float = Field(..., ge=0.0, le=100.0, description="Median class percentage")
+    min_score: float = Field(..., ge=0.0, le=100.0, description="Lowest percentage score in cohort")
+    max_score: float = Field(..., ge=0.0, le=100.0, description="Highest percentage score in cohort")
+    standard_deviation: float = Field(..., ge=0.0, description="Standard deviation of class percentages")
+    criterion_masteries: List[CriterionMastery] = Field(default_factory=list, description="Per-criterion cohort mastery breakdown")
+    top_misconceptions: List[CohortMisconception] = Field(default_factory=list, description="Most frequent class-wide conceptual gaps")
+    recommended_lecture_recap: List[str] = Field(default_factory=list, description="Actionable slide-by-slide teaching prescriptions for the lecturer")
+

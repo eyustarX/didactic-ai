@@ -131,6 +131,20 @@ class LectureRetriever:
 
         self._indexed = True
 
+    def index_chunks(self, chunks: List[DocumentChunk], filename: str = "document.pdf") -> None:
+        """
+        Indexes an arbitrary list of DocumentChunk objects directly.
+        Wraps them in an IngestedDocument and builds the TF-IDF index.
+        """
+        full_text = "\n\n".join(c.content for c in chunks)
+        doc = IngestedDocument(
+            filename=filename,
+            total_pages=len(chunks),
+            full_text=full_text,
+            chunks=chunks,
+        )
+        self.index_document(doc)
+
     def retrieve(self, query: str, top_k: int = 3) -> List[RetrievalResult]:
         """
         Retrieves the top-k most relevant lecture chunks for a given query.

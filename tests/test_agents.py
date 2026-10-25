@@ -16,11 +16,14 @@ from src.ai.schemas import (
 from src.ai.rag import LectureRetriever, create_retriever
 from src.ai.agents import (
     AssessmentAgent,
+    AuditorAgent,
     BaseAgent,
     CurriculumAgent,
     GradingAgent,
+    MultiAgentCoordinator,
     RubricAgent,
     classify_bloom_level,
+    create_coordinator,
     extract_topic_from_chunk,
 )
 
@@ -537,6 +540,305 @@ def test_grading_agent_calibrated_scoring(grading_agent, sample_rubric_and_quest
     assert report_good.total_score > report_poor.total_score
     assert report_good.percentage >= 75.0
     assert report_poor.percentage <= 40.0
+
+
+# ---------------------------------------------------------------------------
+# Tests: AuditorAgent (Agent 5)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def auditor_agent(retriever):
+    return AuditorAgent(retriever=retriever)
+
+
+def test_auditor_agent_verifies_valid_evidence(auditor_agent, grading_agent, sample_rubric_and_question):
+    rubric, _ = sample_rubric_and_question
+    student_submission = (
+        "A mutex is a mutual exclusion lock with thread ownership. Only the acquiring thread can unlock it."
+    )
+    mutex_question = Question(
+        id="Q-AUDIT-01",
+        question_type=QuestionType.SHORT_ANSWER,
+        prompt="Explain mutex locks.",
+        reference_answer="A mutex ensures mutual exclusion with thread ownership semantics.",
+        max_points=10.0,
+        learning_objective="Understand mutex mechanisms (Slide 3)",
+    )
+
+    report = grading_agent.grade_question_submission(
+        question=mutex_question,
+        rubric=rubric,
+        student_answer=student_submission,
+    )
+
+    audited = auditor_agent.audit_grading_report(
+        report=report,
+        student_submission=student_submission,
+        assessment_question=mutex_question,
+    )
+
+    assert isinstance(audited, GradingReport)
+    assert audited.percentage == report.percentage
+    assert audited.total_score == report.total_score
+    # No unverified flags should exist
+    assert not any("[AUDIT FLAG: Unverified Quote]" in ev.evidence_citation for ev in audited.evaluations)
+    assert "[AUDIT WARNING" not in audited.summary_feedback
+
+
+def test_auditor_agent_flags_hallucinated_evidence(auditor_agent):
+    student_submission = "A mutex is a simple locking primitive."
+    rubric_criterion = RubricCriterion(
+        name="Conceptual Accuracy",
+        description="Core conceptual accuracy",
+        weight=1.0,
+        max_score=10.0,
+    )
+
+    # Fabricate a grading report with a hallucinated quote
+    fake_evaluation = CriterionEvaluation(
+        criterion_name="Conceptual Accuracy",
+        score_awarded=8.0,
+        max_score=10.0,
+        strengths=["Good response."],
+        gaps=[],
+        evidence_citation="Student stated: 'Quantum entanglement prevents deadlocks across CPU threads'",
+    )
+    report = GradingReport(
+        submission_id="SUB-FAKE-01",
+        student_id="STU-FAKE",
+        total_score=8.0,
+        max_possible_score=10.0,
+        percentage=80.0,
+        summary_feedback="Acceptable submission.",
+        evaluations=[fake_evaluation],
+        areas_to_review=[],
+    )
+
+    audited = auditor_agent.audit_grading_report(
+        report=report,
+        student_submission=student_submission,
+    )
+
+    # Auditor must flag the fabricated quote
+    assert "[AUDIT FLAG: Unverified Quote]" in audited.evaluations[0].evidence_citation
+    assert "[AUDIT WARNING: Flagged 1 unverified evidence citation(s)]" in audited.summary_feedback
+
+
+def test_auditor_agent_verifies_mathematical_bounds(auditor_agent):
+    student_submission = "A mutex locks critical sections."
+    # Fabricate a report with out-of-bounds score (15.0 awarded out of 10.0 max)
+    out_of_bounds_eval = CriterionEvaluation(
+        criterion_name="Conceptual Accuracy",
+        score_awarded=15.0,  # Exceeds max_score!
+        max_score=10.0,
+        strengths=["Great points."],
+        gaps=[],
+        evidence_citation="Student stated: 'A mutex locks critical sections'",
+    )
+    report = GradingReport(
+        submission_id="SUB-BOUNDS-01",
+        student_id="STU-BOUNDS",
+        total_score=10.0,
+        max_possible_score=10.0,
+        percentage=100.0,
+        summary_feedback="High score.",
+        evaluations=[out_of_bounds_eval],
+        areas_to_review=[],
+    )
+
+    audited = auditor_agent.audit_grading_report(
+        report=report,
+        student_submission=student_submission,
+    )
+
+    # Must clamp score_awarded to max_score
+    assert audited.evaluations[0].score_awarded == 10.0
+    assert audited.total_score == 10.0
+    assert audited.percentage == 100.0
+    assert audited.total_score <= audited.max_possible_score
+
+
+def test_auditor_agent_generates_remediation_question(auditor_agent, sample_rubric_and_question):
+    rubric, _ = sample_rubric_and_question
+    student_submission = "Deadlock happens sometimes when things get stuck."
+
+    deadlock_question = Question(
+        id="Q-REMED-01",
+        question_type=QuestionType.SHORT_ANSWER,
+        prompt="Explain the four Coffman conditions required for deadlock.",
+        reference_answer="Deadlock requires mutual exclusion, hold and wait, no preemption, and circular wait.",
+        max_points=10.0,
+        learning_objective="Analyze deadlock conditions and prevention strategies (Slide 4, Bloom: analyze)",
+    )
+
+    gaps = ["Failed to identify the four Coffman conditions."]
+    evaluations = [
+        CriterionEvaluation(
+            criterion_name=c.name,
+            score_awarded=c.max_score * 0.3,
+            max_score=c.max_score,
+            strengths=["Attempted response."],
+            gaps=gaps,
+            evidence_citation="Student stated: 'Deadlock happens sometimes'",
+        )
+        for c in rubric.criteria
+    ]
+    raw_total = sum(e.score_awarded for e in evaluations)
+    raw_max = sum(e.max_score for e in evaluations)
+
+    report = GradingReport(
+        submission_id="SUB-REMED-01",
+        student_id="STU-REMED",
+        total_score=round(raw_total, 2),
+        max_possible_score=round(raw_max, 2),
+        percentage=round((raw_total / raw_max) * 100, 1),
+        summary_feedback="Substandard response. Critical gaps detected.",
+        evaluations=evaluations,
+        areas_to_review=["Review lecture Slide 4 regarding deadlock prevention."],
+    )
+
+    audited = auditor_agent.audit_grading_report(
+        report=report,
+        student_submission=student_submission,
+        assessment_question=deadlock_question,
+    )
+
+    # Must append a tailored remediation practice question referencing course slides
+    assert any("[REMEDIATION PRACTICE]" in area for area in audited.areas_to_review)
+    remediation = next(area for area in audited.areas_to_review if "[REMEDIATION PRACTICE]" in area)
+    assert "Slide 4" in remediation or "Deadlock" in remediation
+
+
+def test_auditor_agent_provides_enrichment_for_perfect_score(auditor_agent):
+    student_submission = "Perfect comprehensive analysis of mutexes and semaphores."
+    evaluations = [
+        CriterionEvaluation(
+            criterion_name="Mastery",
+            score_awarded=10.0,
+            max_score=10.0,
+            strengths=["Flawless technical precision."],
+            gaps=[],
+            evidence_citation="Student stated: 'Perfect comprehensive analysis'",
+        )
+    ]
+    report = GradingReport(
+        submission_id="SUB-PERFECT-01",
+        student_id="STU-PERFECT",
+        total_score=10.0,
+        max_possible_score=10.0,
+        percentage=100.0,
+        summary_feedback="Outstanding performance.",
+        evaluations=evaluations,
+        areas_to_review=[],
+    )
+
+    audited = auditor_agent.audit_grading_report(
+        report=report,
+        student_submission=student_submission,
+    )
+
+    assert any("[ENRICHMENT CHALLENGE]" in area for area in audited.areas_to_review)
+
+
+# ---------------------------------------------------------------------------
+# Tests: MultiAgentCoordinator (The Conductor)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def coordinator(retriever):
+    return MultiAgentCoordinator(retriever=retriever)
+
+
+def test_coordinator_initialization(coordinator):
+    assert isinstance(coordinator.curriculum_agent, CurriculumAgent)
+    assert isinstance(coordinator.rubric_agent, RubricAgent)
+    assert isinstance(coordinator.assessment_agent, AssessmentAgent)
+    assert isinstance(coordinator.grading_agent, GradingAgent)
+    assert isinstance(coordinator.auditor_agent, AuditorAgent)
+
+
+def test_coordinator_analyze_lecture_and_create_rubric(coordinator, os_lecture_document):
+    curriculum, rubric = coordinator.analyze_lecture_and_create_rubric(
+        document=os_lecture_document,
+        target_criteria_count=3,
+        total_marks=10.0,
+    )
+
+    assert isinstance(curriculum, CurriculumAnalysis)
+    assert isinstance(rubric, AssessmentRubric)
+    assert len(curriculum.objectives) > 0
+    assert len(rubric.criteria) == 3
+    assert abs(sum(c.weight for c in rubric.criteria) - 1.0) < 1e-4
+
+
+def test_coordinator_generate_assessment(coordinator, sample_curriculum):
+    assessment = coordinator.generate_assessment(
+        curriculum=sample_curriculum,
+        question_count=3,
+        total_points=15.0,
+    )
+
+    assert isinstance(assessment, GeneratedAssessment)
+    assert len(assessment.questions) == 3
+    assert abs(sum(q.max_points for q in assessment.questions) - 15.0) < 1e-3
+
+
+def test_coordinator_grade_and_audit_question(coordinator, sample_rubric_and_question):
+    rubric, _ = sample_rubric_and_question
+    question = Question(
+        id="Q-COORD-01",
+        question_type=QuestionType.SHORT_ANSWER,
+        prompt="Explain mutex locks and thread ownership.",
+        reference_answer="A mutex ensures mutual exclusion with thread ownership semantics.",
+        max_points=10.0,
+        learning_objective="Understand mutex primitives (Slide 3)",
+    )
+    student_answer = "A mutex is a mutual exclusion lock with thread ownership. Only the acquiring thread unlocks it."
+
+    audited_report = coordinator.grade_and_audit_question(
+        question=question,
+        rubric=rubric,
+        student_answer=student_answer,
+        student_id="STU-COORD-01",
+    )
+
+    assert isinstance(audited_report, GradingReport)
+    assert audited_report.percentage >= 70.0
+    assert audited_report.total_score <= audited_report.max_possible_score
+    # Citation must be verified without flags
+    assert not any("[AUDIT FLAG" in ev.evidence_citation for ev in audited_report.evaluations)
+
+
+def test_coordinator_grade_and_audit_assignment(coordinator, sample_rubric_and_question):
+    rubric, _ = sample_rubric_and_question
+    title = "Concurrency Control Lab"
+    instructions = "Explain mutex vs semaphore and describe deadlock prevention."
+    submission = (
+        "In this lab, we analyze mutex locks and binary semaphores. A mutex has thread ownership, "
+        "while semaphores use wait() and signal() for signaling. To prevent deadlocks, the operating system "
+        "imposes strict resource ordering to break the circular wait condition."
+    )
+
+    audited_report = coordinator.grade_and_audit_assignment(
+        assignment_title=title,
+        assignment_instructions=instructions,
+        rubric=rubric,
+        student_submission=submission,
+        student_id="STU-COORD-02",
+    )
+
+    assert isinstance(audited_report, GradingReport)
+    assert audited_report.percentage >= 70.0
+    assert len(audited_report.evaluations) == len(rubric.criteria)
+
+
+def test_create_coordinator_factory(os_lecture_document):
+    coord = create_coordinator(chunks=os_lecture_document.chunks)
+    assert isinstance(coord, MultiAgentCoordinator)
+    assert coord.retriever.is_indexed
+    assert coord.retriever.chunk_count == len(os_lecture_document.chunks)
+
+
 
 
 
