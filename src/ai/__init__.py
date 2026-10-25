@@ -13,7 +13,7 @@ Core AI/ML Engine for university lecturers:
 import io
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 # ---------------------------------------------------------------------------
 # Version & Metadata
@@ -49,8 +49,28 @@ from src.ai.schemas import (
 from src.ai.ingest import (
     chunk_document,
     clean_text,
+    extract_document_text,
+    extract_from_docx,
+    extract_from_pptx,
     extract_text_from_pdf,
     ingest_pdf,
+)
+
+# ---------------------------------------------------------------------------
+# Didactic Core Service Adapters
+# ---------------------------------------------------------------------------
+from src.ai.didactic_service import (
+    AssessmentOutput,
+    AssessmentQuestionItem,
+    KeyPartItem,
+    KeyPartsList,
+    QuestionGradingResult,
+    RubricCriterionItem,
+    RubricOutput,
+    SubmissionGradingOutput,
+    extract_key_parts,
+    generate_assessment,
+    generate_rubric,
 )
 
 # ---------------------------------------------------------------------------
@@ -160,22 +180,28 @@ def create_assessment(
     )
 
 
-def grade_submission(
-    coordinator: MultiAgentCoordinator,
-    rubric: AssessmentRubric,
-    student_answer: str,
-    question: Optional[Question] = None,
-    assignment_title: Optional[str] = None,
-    assignment_instructions: Optional[str] = None,
-    student_id: str = "STUDENT-001",
-    submission_id: Optional[str] = None,
-) -> GradingReport:
+def grade_submission(*args, **kwargs) -> Any:
     """
     High-Level Cloud Facade 3:
     Grades an exam question or assignment submission, runs anti-hallucination
     evidence verification, clamps score bounds, and generates a personalized
     remediation practice question.
+
+    Supports both MultiAgentCoordinator calls and FastAPI service calls.
     """
+    if (args and isinstance(args[0], list)) or "questions" in kwargs:
+        from src.ai.didactic_service import grade_submission as _ds_grade
+        return _ds_grade(*args, **kwargs)
+
+    coordinator = args[0] if len(args) > 0 else kwargs.get("coordinator")
+    rubric = args[1] if len(args) > 1 else kwargs.get("rubric")
+    student_answer = args[2] if len(args) > 2 else kwargs.get("student_answer")
+    question = kwargs.get("question")
+    assignment_title = kwargs.get("assignment_title")
+    assignment_instructions = kwargs.get("assignment_instructions")
+    student_id = kwargs.get("student_id", "STUDENT-001")
+    submission_id = kwargs.get("submission_id")
+
     if question is not None:
         return coordinator.grade_and_audit_question(
             question=question,
@@ -235,7 +261,22 @@ __all__ = [
     "clean_text",
     "chunk_document",
     "extract_text_from_pdf",
+    "extract_from_pptx",
+    "extract_from_docx",
+    "extract_document_text",
     "ingest_pdf",
+    # Didactic Adapters
+    "KeyPartItem",
+    "KeyPartsList",
+    "AssessmentQuestionItem",
+    "AssessmentOutput",
+    "RubricCriterionItem",
+    "RubricOutput",
+    "QuestionGradingResult",
+    "SubmissionGradingOutput",
+    "extract_key_parts",
+    "generate_assessment",
+    "generate_rubric",
     # RAG
     "LectureRetriever",
     "RetrievalResult",
