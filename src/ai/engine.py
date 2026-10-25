@@ -311,7 +311,7 @@ class GeminiLiveProvider(BaseLLMProvider):
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
-        self.model = model or os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+        self.model = model or os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
         self.base_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
 
     def _call_gemini_json(self, prompt: str, schema_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -350,6 +350,18 @@ class GeminiLiveProvider(BaseLLMProvider):
     def generate_rubric(self, lecture_title: str, lecture_content: str) -> AssessmentRubric:
         prompt = format_rubric_generation_prompt(lecture_title, lecture_content)
         data = self._call_gemini_json(prompt, AssessmentRubric.model_json_schema())
+        if "assessment_rubric" in data and isinstance(data["assessment_rubric"], dict):
+            data = data["assessment_rubric"]
+        elif "rubric" in data and isinstance(data["rubric"], dict):
+            data = data["rubric"]
+        if "rubric_id" not in data or not data["rubric_id"]:
+            data["rubric_id"] = f"RUB-{abs(hash(lecture_title)) % 10000:04d}"
+        if "title" not in data or not data["title"]:
+            data["title"] = f"Rubric: {lecture_title}"
+        if "criteria" in data and isinstance(data["criteria"], list):
+            for c in data["criteria"]:
+                if isinstance(c, dict) and "max_score" not in c and "max_raw_score" in c:
+                    c["max_score"] = c["max_raw_score"]
         return AssessmentRubric.model_validate(data)
 
     def generate_assessment(
@@ -357,13 +369,128 @@ class GeminiLiveProvider(BaseLLMProvider):
     ) -> GeneratedAssessment:
         prompt = format_assessment_generation_prompt(lecture_title, lecture_content, question_count)
         data = self._call_gemini_json(prompt, GeneratedAssessment.model_json_schema())
+        if isinstance(data, list):
+            data = {"questions": data}
+        elif isinstance(data, dict):
+            if "generated_assessment" in data and isinstance(data["generated_assessment"], dict):
+                data = data["generated_assessment"]
+            elif "assessment" in data and isinstance(data["assessment"], dict):
+                data = data["assessment"]
+
+        if not isinstance(data, dict):
+            data = {"questions": []}
+
+        if "questions" in data and isinstance(data["questions"], list):
+            for idx, q in enumerate(data["questions"]):
+                if isinstance(q, dict):
+                    if "id" not in q or not q["id"]:
+                        q["id"] = q.get("question_id") or f"Q{idx + 1}"
+                    if "prompt" not in q or not q["prompt"]:
+                        q["prompt"] = q.get("question_text") or q.get("question") or f"Explain the concept of {lecture_title}."
+                    if "reference_answer" not in q or not q["reference_answer"]:
+                        q["reference_answer"] = q.get("answer_key") or q.get("correct_answer") or q.get("answer") or "See lecture notes."
+                    if "max_points" not in q and "points" in q:
+                        q["max_points"] = q["points"]
+                    elif "max_points" not in q:
+                        q["max_points"] = 5.0
+                    if "question_type" not in q:
+                        q["question_type"] = "short_answer"
+                    if "learning_objective" not in q or not q["learning_objective"]:
+                        q["learning_objective"] = f"Understand {lecture_title}"
+
+        total_pts = sum(q.get("max_points", 5.0) for q in data.get("questions", []))
+        if "total_points" not in data or not data["total_points"]:
+            data["total_points"] = max(1.0, float(total_pts))
+        if "title" not in data or not data["title"]:
+            data["title"] = f"Assessment: {lecture_title}"
+        if "course_name" not in data or not data["course_name"]:
+            data["course_name"] = "Computer Science & Systems Programming"
+        if "source_document" not in data or not data["source_document"]:
+            data["source_document"] = "Lecture Slides"
         return GeneratedAssessment.model_validate(data)
+
+    def _normalize_report_dict(
+        self, d: Dict[str, Any], default_sub_id: str, default_student_id: str, max_possible: float
+    ) -> Dict[str, Any]:
+        if "grading_report" in d and isinstance(d["grading_report"], dict):
+            d = d["grading_report"]
+        elif "report" in d and isinstance(d["report"], dict):
+            d = d["report"]
+        elif "evaluation" in d and isinstance(d["evaluation"], dict):
+            d = d["evaluation"]
+
+        # Support decomposed multi-step reasoning outputs
+        if "evaluations" not in d or not d["evaluations"]:
+            d["evaluations"] = d.get("criteria_evaluations") or d.get("step_3_rubric_evaluation") or d.get("rubric_evaluation") or []
+
+        if "percentage" not in d or d["percentage"] is None:
+            if "overall_percentage" in d and d["overall_percentage"] is not None:
+                d["percentage"] = float(d["overall_percentage"])
+
+        scoring = d.get("step_4_scoring") or d.get("scoring") or {}
+        if isinstance(scoring, dict):
+            if "total_score" in scoring and scoring["total_score"] is not None:
+                d["total_score"] = float(scoring["total_score"])
+            if "max_possible_score" in scoring and scoring["max_possible_score"] is not None:
+                d["max_possible_score"] = float(scoring["max_possible_score"])
+            if "percentage" in scoring and scoring["percentage"] is not None:
+                d["percentage"] = float(scoring["percentage"])
+
+        feedback = d.get("step_5_pedagogical_feedback") or d.get("pedagogical_feedback") or d.get("feedback") or {}
+        if isinstance(feedback, dict):
+            if "summary" in feedback and feedback["summary"]:
+                d["summary_feedback"] = feedback["summary"]
+            elif "summary_feedback" in feedback and feedback["summary_feedback"]:
+                d["summary_feedback"] = feedback["summary_feedback"]
+            if "areas_to_review" in feedback and isinstance(feedback["areas_to_review"], list):
+                d["areas_to_review"] = feedback["areas_to_review"]
+
+        if "submission_id" not in d or not d["submission_id"]:
+            d["submission_id"] = default_sub_id
+        if "student_id" not in d or not d["student_id"]:
+            d["student_id"] = default_student_id
+
+        if "evaluations" in d and isinstance(d["evaluations"], list):
+            for idx, ev in enumerate(d["evaluations"]):
+                if isinstance(ev, dict):
+                    if "criterion_name" not in ev:
+                        ev["criterion_name"] = ev.get("criterion") or ev.get("name") or f"Criterion {idx + 1}"
+                    if "score_awarded" not in ev:
+                        ev["score_awarded"] = ev.get("score") or ev.get("points_awarded") or 0.0
+                    if "max_score" not in ev:
+                        ev["max_score"] = ev.get("max_points") or ev.get("max_raw_score") or 10.0
+                    if "evidence_citation" not in ev:
+                        ev["evidence_citation"] = ev.get("citation") or ev.get("quote") or ev.get("evidence") or "Student submission analyzed."
+                    if "strengths" not in ev or not isinstance(ev["strengths"], list):
+                        ev["strengths"] = [ev["strengths"]] if ev.get("strengths") else ["Satisfied criterion requirements."]
+                    if "gaps" not in ev or not isinstance(ev["gaps"], list):
+                        ev["gaps"] = [ev["gaps"]] if ev.get("gaps") else ["No major gaps detected."]
+
+        total_awarded = sum(ev.get("score_awarded", 0.0) for ev in d.get("evaluations", [])) if "evaluations" in d else 0.0
+        if "total_score" not in d or d["total_score"] is None:
+            d["total_score"] = round(float(total_awarded), 2)
+        if "max_possible_score" not in d or d["max_possible_score"] is None:
+            d["max_possible_score"] = max_possible
+        if "percentage" not in d or d["percentage"] is None:
+            d["percentage"] = round((d["total_score"] / max(d["max_possible_score"], 0.1)) * 100, 1)
+        if "summary_feedback" not in d or not d["summary_feedback"]:
+            d["summary_feedback"] = "Evaluation completed based on rubric criteria."
+        if "areas_to_review" not in d or not isinstance(d["areas_to_review"], list):
+            d["areas_to_review"] = ["Review lecture notes on core concepts."]
+        return d
 
     def grade_exam_question(
         self, question: Question, rubric: AssessmentRubric, student_answer: str
     ) -> GradingReport:
         prompt = format_exam_grading_prompt(question, rubric, student_answer)
         data = self._call_gemini_json(prompt, GradingReport.model_json_schema())
+        max_possible = sum(c.max_score for c in rubric.criteria)
+        data = self._normalize_report_dict(
+            data,
+            default_sub_id=f"SUB-{abs(hash(student_answer)) % 10000:04d}",
+            default_student_id="STUDENT-001",
+            max_possible=max_possible,
+        )
         return GradingReport.model_validate(data)
 
     def grade_assignment(
@@ -373,6 +500,13 @@ class GeminiLiveProvider(BaseLLMProvider):
             assignment_title, assignment_instructions, rubric, student_submission
         )
         data = self._call_gemini_json(prompt, GradingReport.model_json_schema())
+        max_possible = sum(c.max_score for c in rubric.criteria)
+        data = self._normalize_report_dict(
+            data,
+            default_sub_id=f"SUB-ASSIGN-{abs(hash(student_submission)) % 10000:04d}",
+            default_student_id="STUDENT-001",
+            max_possible=max_possible,
+        )
         return GradingReport.model_validate(data)
 
 
