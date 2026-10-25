@@ -1,6 +1,6 @@
 import io
 import re
-from typing import List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 from pathlib import Path
 from pypdf import PdfReader
 from src.ai.schemas import DocumentChunk, IngestedDocument
@@ -107,3 +107,99 @@ def ingest_pdf(
     """
     pages = extract_text_from_pdf(pdf_source)
     return chunk_document(pages, filename=filename)
+
+
+def extract_from_pptx(
+    source: Union[bytes, str, io.BytesIO]
+) -> Tuple[List[Dict[str, Any]], str, List[str]]:
+    """
+    Extracts text and speaker notes from a PowerPoint (.pptx) presentation.
+    Detects image-only slides.
+
+    Returns:
+        Tuple of (slides_data, full_text, warnings)
+    """
+    from pptx import Presentation
+
+    if isinstance(source, bytes):
+        stream = io.BytesIO(source)
+    elif isinstance(source, io.BytesIO):
+        stream = source
+    else:
+        stream = source
+
+    prs = Presentation(stream)
+    slides_data = []
+    full_text_parts = []
+    warnings = []
+
+    for idx, slide in enumerate(prs.slides):
+        slide_num = idx + 1
+        text_runs = []
+
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for paragraph in shape.text_frame.paragraphs:
+                    line = paragraph.text.strip()
+                    if line:
+                        text_runs.append(line)
+
+        slide_text = "\n".join(text_runs) if text_runs else "No text found (potential image/diagram only slide)"
+        if not text_runs:
+            warnings.append(f"Slide {slide_num}: No text found - may be image or diagram only")
+
+        notes_text = ""
+        if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+            notes_paragraphs = [p.text.strip() for p in slide.notes_slide.notes_text_frame.paragraphs if p.text.strip()]
+            notes_text = "\n".join(notes_paragraphs)
+
+        slides_data.append({
+            "slide_number": slide_num,
+            "text": slide_text,
+            "speaker_notes": notes_text,
+        })
+
+        full_text_parts.append(f"[Slide {slide_num}]\n{slide_text}")
+        if notes_text:
+            full_text_parts.append(f"[Slide {slide_num} Speaker Notes]\n{notes_text}")
+
+    full_text = "\n\n".join(full_text_parts)
+    return slides_data, full_text, warnings
+
+
+def extract_from_docx(source: Union[bytes, str, io.BytesIO]) -> str:
+    """Extracts text from a Word (.docx) document."""
+    from docx import Document
+
+    if isinstance(source, bytes):
+        stream = io.BytesIO(source)
+    elif isinstance(source, io.BytesIO):
+        stream = source
+    else:
+        stream = source
+
+    doc = Document(stream)
+    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+    return "\n\n".join(paragraphs)
+
+
+def extract_document_text(source: Union[bytes, str, io.BytesIO], filename: str) -> str:
+    """Extracts cleaned text from PDF, PPTX, DOCX, or TXT."""
+    ext = Path(filename).suffix.lower()
+    if ext == ".pdf":
+        pages = extract_text_from_pdf(source)
+        return "\n\n".join(t for _, t in pages)
+    elif ext in (".pptx", ".ppt"):
+        _, full_text, _ = extract_from_pptx(source)
+        return full_text
+    elif ext in (".docx", ".doc"):
+        return extract_from_docx(source)
+    else:
+        if isinstance(source, bytes):
+            return source.decode("utf-8", errors="replace")
+        elif hasattr(source, "read"):
+            content = source.read()
+            return content.decode("utf-8", errors="replace") if isinstance(content, bytes) else str(content)
+        else:
+            return Path(source).read_text(encoding="utf-8", errors="replace")
+
