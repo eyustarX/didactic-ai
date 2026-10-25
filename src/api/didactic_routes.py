@@ -278,13 +278,14 @@ def list_previous_uploads(
 
     results = []
     for n in notes:
+        lecturer_assessments = [a for a in n.assessments if a.lecturer_id == lecturer_id]
         results.append({
             "id": n.id,
             "name": n.name,
             "file_type": n.file_type.upper(),
             "upload_date": n.created_at.isoformat() if n.created_at else None,
             "ingest_status": n.ingest_status,
-            "assessment_count": len(n.assessments),
+            "assessment_count": len(lecturer_assessments),
             "key_points_count": len(n.key_points),
         })
     return results
@@ -330,6 +331,7 @@ def get_lecture_note_detail(
             "created_at": a.created_at.isoformat() if a.created_at else None,
         }
         for a in note.assessments
+        if a.lecturer_id == lecturer_id
     ]
 
     return {
@@ -1124,7 +1126,7 @@ async def grade_student_submission(
 ):
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id)
+        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
         .first()
     )
     if not assessment:
@@ -1282,7 +1284,7 @@ def create_manual_submission(
     import uuid
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id)
+        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
         .first()
     )
     if not assessment:
@@ -1409,7 +1411,7 @@ def list_assessment_submissions(
 ):
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id)
+        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
         .first()
     )
     if not assessment:
@@ -1512,7 +1514,7 @@ def export_assessment_pdf(
 
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id)
+        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
         .first()
     )
     if not assessment:

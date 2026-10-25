@@ -5,18 +5,23 @@
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
+function resolveLecturerId(lecturerId) {
+  if (lecturerId && typeof lecturerId === 'string') return lecturerId;
+  try {
+    const stored = localStorage.getItem('didactic_user');
+    if (stored) {
+      const u = JSON.parse(stored);
+      if (u.id) return u.id;
+    }
+  } catch (e) {}
+  return null;
+}
+
 function getAuthHeaders(lecturerId) {
   const headers = {};
-  if (lecturerId) {
-    headers['X-Lecturer-Id'] = lecturerId;
-  } else {
-    try {
-      const stored = localStorage.getItem('didactic_user');
-      if (stored) {
-        const u = JSON.parse(stored);
-        if (u.id) headers['X-Lecturer-Id'] = u.id;
-      }
-    } catch (e) {}
+  const id = resolveLecturerId(lecturerId);
+  if (id) {
+    headers['X-Lecturer-Id'] = id;
   }
   return headers;
 }
@@ -65,16 +70,20 @@ export async function uploadLectureNote({ file, pastedText, noteTitle, lecturerI
 }
 
 export async function fetchPreviousUploads(lecturerId) {
-  const res = await fetch(`${API_BASE}/lecture-notes`, {
-    headers: getAuthHeaders(lecturerId),
+  const id = resolveLecturerId(lecturerId);
+  const query = id ? `?lecturer_id=${encodeURIComponent(id)}` : '';
+  const res = await fetch(`${API_BASE}/lecture-notes${query}`, {
+    headers: getAuthHeaders(id),
   });
   if (!res.ok) throw new Error('Failed to fetch previous uploads');
   return await res.json();
 }
 
 export async function fetchLectureNote(noteId, lecturerId) {
-  const res = await fetch(`${API_BASE}/lecture-notes/${noteId}`, {
-    headers: getAuthHeaders(lecturerId),
+  const id = resolveLecturerId(lecturerId);
+  const query = id ? `?lecturer_id=${encodeURIComponent(id)}` : '';
+  const res = await fetch(`${API_BASE}/lecture-notes/${noteId}${query}`, {
+    headers: getAuthHeaders(id),
   });
   if (!res.ok) throw new Error('Failed to fetch lecture note details');
   return await res.json();
@@ -157,22 +166,36 @@ export async function copilotChat({ messages, lecture_note_id, lecture_title, le
   return await res.json();
 }
 
-export async function fetchAssessments({ lecture_note_id, lecturerId } = {}) {
-  let url = `${API_BASE}/assessments`;
-  if (lecture_note_id) {
-    url += `?lecture_note_id=${encodeURIComponent(lecture_note_id)}`;
+export async function fetchAssessments(arg = {}) {
+  let lecture_note_id;
+  let lecturerId;
+
+  if (typeof arg === 'string') {
+    lecturerId = arg;
+  } else if (arg && typeof arg === 'object') {
+    lecture_note_id = arg.lecture_note_id;
+    lecturerId = arg.lecturerId;
   }
-  const res = await fetch(url, {
-    headers: getAuthHeaders(lecturerId),
+
+  const id = resolveLecturerId(lecturerId);
+  const params = new URLSearchParams();
+  if (lecture_note_id) params.append('lecture_note_id', lecture_note_id);
+  if (id) params.append('lecturer_id', id);
+
+  const queryStr = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(`${API_BASE}/assessments${queryStr}`, {
+    headers: getAuthHeaders(id),
   });
   if (!res.ok) throw new Error('Failed to fetch assessments');
   return await res.json();
 }
 
 export async function deleteAssessment(assessmentId, lecturerId) {
-  const res = await fetch(`${API_BASE}/assessments/${assessmentId}`, {
+  const id = resolveLecturerId(lecturerId);
+  const query = id ? `?lecturer_id=${encodeURIComponent(id)}` : '';
+  const res = await fetch(`${API_BASE}/assessments/${assessmentId}${query}`, {
     method: 'DELETE',
-    headers: getAuthHeaders(lecturerId),
+    headers: getAuthHeaders(id),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to delete assessment' }));
@@ -182,8 +205,10 @@ export async function deleteAssessment(assessmentId, lecturerId) {
 }
 
 export async function fetchAssessment(assessmentId, lecturerId) {
-  const res = await fetch(`${API_BASE}/assessments/${assessmentId}`, {
-    headers: getAuthHeaders(lecturerId),
+  const id = resolveLecturerId(lecturerId);
+  const query = id ? `?lecturer_id=${encodeURIComponent(id)}` : '';
+  const res = await fetch(`${API_BASE}/assessments/${assessmentId}${query}`, {
+    headers: getAuthHeaders(id),
   });
   if (!res.ok) throw new Error('Failed to fetch assessment');
   return await res.json();
@@ -416,28 +441,35 @@ export async function createManualSubmission({
 }
 
 export async function fetchAssessmentSubmissions(assessmentId, lecturerId) {
-  const res = await fetch(`${API_BASE}/assessments/${assessmentId}/submissions`, {
-    headers: getAuthHeaders(lecturerId),
+  const id = resolveLecturerId(lecturerId);
+  const query = id ? `?lecturer_id=${encodeURIComponent(id)}` : '';
+  const res = await fetch(`${API_BASE}/assessments/${assessmentId}/submissions${query}`, {
+    headers: getAuthHeaders(id),
   });
   if (!res.ok) throw new Error('Failed to fetch submissions');
   return await res.json();
 }
 
 export async function fetchExportExcelData(assessmentId, lecturerId) {
-  const res = await fetch(`${API_BASE}/assessments/${assessmentId}/export-excel-data`, {
-    headers: getAuthHeaders(lecturerId),
+  const id = resolveLecturerId(lecturerId);
+  const query = id ? `?lecturer_id=${encodeURIComponent(id)}` : '';
+  const res = await fetch(`${API_BASE}/assessments/${assessmentId}/export-excel-data${query}`, {
+    headers: getAuthHeaders(id),
   });
   if (!res.ok) throw new Error('Failed to fetch Excel export data');
   return await res.json();
 }
 
 export async function downloadAssessmentPdf(assessmentId, solutions = false, lecturerId, assessmentFallbackData = null) {
+  const id = resolveLecturerId(lecturerId);
   let res = null;
   if (assessmentId && assessmentId !== 'undefined' && assessmentId !== 'null') {
     try {
-      const url = `${API_BASE}/assessments/${assessmentId}/export-pdf?solutions=${solutions ? 'true' : 'false'}`;
+      const q = new URLSearchParams({ solutions: solutions ? 'true' : 'false' });
+      if (id) q.append('lecturer_id', id);
+      const url = `${API_BASE}/assessments/${assessmentId}/export-pdf?${q.toString()}`;
       res = await fetch(url, {
-        headers: getAuthHeaders(lecturerId),
+        headers: getAuthHeaders(id),
       });
     } catch (e) {
       console.warn('GET /export-pdf failed, attempting fallback...', e);

@@ -42,7 +42,12 @@ export default function App() {
   useEffect(() => {
     fetchAnalytics().then((a) => setAnalyticsData(a)).catch(() => {});
 
-    // Automatically load initial lecture note & assessment if available
+    // Clear previous instructor's assessment & active lecture note state
+    setAssessment(null);
+    setRubric(null);
+    setActiveNoteId(null);
+
+    // Automatically load initial lecture note & assessment if available for this instructor
     fetchLectureNotes(currentUser?.id)
       .then(async (notes) => {
         if (notes && notes.length > 0) {
@@ -55,13 +60,22 @@ export default function App() {
               const firstAssId = detail.assessments[0].id;
               const fullAss = await fetchAssessment(firstAssId, currentUser?.id);
               if (fullAss) setAssessment(fullAss);
+            } else {
+              setAssessment(null);
             }
           } catch (e) {
             console.error('Failed to auto-load initial assessment:', e);
+            setAssessment(null);
           }
+        } else {
+          setAssessment(null);
+          setActiveNoteId(null);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setAssessment(null);
+        setActiveNoteId(null);
+      });
 
     const handleResize = () => {
       if (window.innerWidth <= 860) {
@@ -79,6 +93,9 @@ export default function App() {
   const handleSignOut = () => {
     localStorage.removeItem('didactic_user');
     setCurrentUser(null);
+    setAssessment(null);
+    setRubric(null);
+    setActiveNoteId(null);
   };
 
   if (view === 'landing') {
@@ -167,6 +184,7 @@ export default function App() {
               setAssessment={setAssessment}
               currentUser={currentUser}
               onGradingComplete={handleGradingComplete}
+              setActiveTab={setActiveTab}
             />
           )}
 

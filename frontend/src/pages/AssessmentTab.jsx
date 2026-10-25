@@ -210,20 +210,32 @@ export default function AssessmentTab({
     setDeleteError(null);
     try {
       const list = await fetchAssessments({ lecturerId: currentUser?.id });
-      setCreatedAssessments(list || []);
-      // If no active assessment is currently loaded, select the first available one
-      if (!assessment && list && list.length > 0) {
-        try {
-          const detail = await fetchAssessmentDetail(list[0].id, currentUser?.id);
-          if (detail) {
-            setAssessment(detail);
+      const safeList = Array.isArray(list) ? list : [];
+      setCreatedAssessments(safeList);
+
+      // Strict ownership check: only keep the active assessment if it belongs to this instructor
+      const currentStillValid = assessment?.id && safeList.some((a) => a.id === assessment.id);
+      if (!currentStillValid) {
+        if (safeList.length > 0) {
+          try {
+            const detail = await fetchAssessmentDetail(safeList[0].id, currentUser?.id);
+            if (detail) {
+              setAssessment(detail);
+            } else {
+              setAssessment(null);
+            }
+          } catch (e) {
+            console.error('Failed to load initial assessment detail:', e);
+            setAssessment(null);
           }
-        } catch (e) {
-          console.error('Failed to load initial assessment detail:', e);
+        } else {
+          setAssessment(null);
         }
       }
     } catch (err) {
       console.warn('Failed to load created assessments list:', err);
+      setCreatedAssessments([]);
+      setAssessment(null);
     } finally {
       setIsLoadingAssessments(false);
     }
@@ -311,10 +323,28 @@ export default function AssessmentTab({
     if (overrideCount) setQuestionCount(count);
 
     try {
+      let noteIdToUse = activeNoteId;
+      if (!noteIdToUse && lectureContent) {
+        try {
+          const resp = await uploadLectureNote({
+            pastedText: lectureContent,
+            noteTitle: lectureTitle || 'Lecture Notes',
+            lecturerId: currentUser?.id,
+          });
+          const note = resp.lecture_note || resp;
+          if (note?.id) {
+            noteIdToUse = note.id;
+            if (setActiveNoteId) setActiveNoteId(note.id);
+          }
+        } catch (noteErr) {
+          console.warn('Could not auto-create lecture note for assessment:', noteErr);
+        }
+      }
+
       let data;
-      if (activeNoteId) {
+      if (noteIdToUse) {
         data = await generateAssessmentFromParts({
-          lecture_note_id: activeNoteId,
+          lecture_note_id: noteIdToUse,
           question_count: count,
           title: assessmentTitle || `Assessment: ${lectureTitle || 'Lecture'}`,
           prompt: promptToUse?.trim() || undefined,
@@ -1194,6 +1224,8 @@ export default function AssessmentTab({
           <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', background: 'var(--bg)', borderRadius: 6, border: '1px dashed var(--border)' }}>
             {searchQuery
               ? `No assessments match "${searchQuery}".`
+              : currentUser?.name
+              ? `No assessments generated yet by ${currentUser.name}. Enter the number of questions above and click "Generate Assessment" to create your first one.`
               : 'No assessments found. Enter the number of questions above and click "Generate Assessment" to create your first one.'}
           </div>
         ) : (
