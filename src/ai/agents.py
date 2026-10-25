@@ -12,6 +12,15 @@ MultiAgentCoordinator (added in a later step).
 Current Agents:
   1. CurriculumAgent: Reads lecture slides via RAG and extracts
      structured learning objectives classified by Bloom's Taxonomy.
+  2. RubricAgent: Synthesizes standardized multi-criterion rubrics
+     with exact mathematical weight normalization.
+  3. AssessmentAgent: Generates balanced multi-format assessments
+     with RAG-anchored reference answers.
+  4. GradingAgent: Evaluates student submissions with decomposed
+     reasoning, calibrated scoring, and verbatim evidence citations.
+  5. AuditorAgent: Verifies grading fidelity, validates evidence
+     citations (anti-hallucination), verifies mathematical bounds,
+     and synthesizes targeted pedagogical remediation questions.
 """
 
 import re
@@ -769,4 +778,185 @@ class GradingAgent(BaseAgent):
             evaluations=evaluations,
             areas_to_review=review,
         )
+
+
+# ---------------------------------------------------------------------------
+# Agent 5: AuditorAgent (The Fairness & Quality Auditor)
+# ---------------------------------------------------------------------------
+
+class AuditorAgent(BaseAgent):
+    """
+    Agent 5: The Fairness & Quality Auditor.
+
+    Verifies grading fidelity, validates evidence citations against student text
+    (anti-hallucination guardrail), verifies mathematical score bounds, and synthesizes
+    personalized remediation practice questions grounded in course slides via RAG.
+
+    Key Principles:
+      1. Anti-Hallucination Guardrail: Validates that verbatim citations extracted by
+         GradingAgent actually exist in the student's submission text.
+      2. Mathematical Invariant Enforcement: Validates bounds (0.0 <= score <= max_score)
+         and ensures total_score and percentage are arithmetically consistent.
+      3. Pedagogical Remediation: Analyzes student gaps/weaknesses and queries RAG
+         to formulate a targeted follow-up practice question for revision.
+    """
+
+    def audit_grading_report(
+        self,
+        report: GradingReport,
+        student_submission: str,
+        assessment_question: Optional[Question] = None,
+    ) -> GradingReport:
+        """
+        Audits a GradingReport against the student's submission text and course material.
+
+        Args:
+            report: The initial GradingReport produced by GradingAgent.
+            student_submission: The raw text of the student's submission.
+            assessment_question: Optional Question model for targeted context.
+
+        Returns:
+            GradingReport: Audited report with validated scores, audit flags (if any),
+                          and an attached pedagogical remediation question.
+        """
+        cleaned_sub = student_submission.strip()
+        sub_lower = cleaned_sub.lower()
+
+        # Step 1: Anti-Hallucination Evidence Verification
+        audited_evaluations: List[CriterionEvaluation] = []
+        unverified_count = 0
+
+        for ev in report.evaluations:
+            citation = ev.evidence_citation
+            is_valid_quote = self._verify_evidence_citation(citation, sub_lower)
+
+            if not is_valid_quote and citation and "No substantial response" not in citation:
+                unverified_count += 1
+                audited_citation = f"[AUDIT FLAG: Unverified Quote] {citation}"
+            else:
+                audited_citation = citation
+
+            # Step 2: Mathematical Invariant Clamping
+            audited_score = round(min(ev.max_score, max(0.0, ev.score_awarded)), 2)
+
+            audited_evaluations.append(
+                CriterionEvaluation(
+                    criterion_name=ev.criterion_name,
+                    score_awarded=audited_score,
+                    max_score=ev.max_score,
+                    strengths=list(ev.strengths),
+                    gaps=list(ev.gaps),
+                    evidence_citation=audited_citation,
+                )
+            )
+
+        # Recompute totals to ensure exact mathematical consistency
+        max_possible = round(sum(ev.max_score for ev in audited_evaluations), 2)
+        total_awarded = round(sum(ev.score_awarded for ev in audited_evaluations), 2)
+        percentage = round((total_awarded / max_possible) * 100, 1) if max_possible > 0 else 0.0
+
+        # Update summary feedback if any citations failed verification
+        summary_feedback = report.summary_feedback
+        if unverified_count > 0:
+            summary_feedback = f"{summary_feedback} [AUDIT WARNING: Flagged {unverified_count} unverified evidence citation(s)]."
+
+        # Step 3: Pedagogical Remediation Question Synthesis
+        areas_to_review = list(report.areas_to_review)
+        remediation_practice = self._synthesize_remediation(
+            report=report,
+            evaluations=audited_evaluations,
+            assessment_question=assessment_question,
+        )
+        if remediation_practice and remediation_practice not in areas_to_review:
+            areas_to_review.append(remediation_practice)
+
+        return GradingReport(
+            submission_id=report.submission_id,
+            student_id=report.student_id,
+            total_score=total_awarded,
+            max_possible_score=max_possible,
+            percentage=percentage,
+            summary_feedback=summary_feedback,
+            evaluations=audited_evaluations,
+            areas_to_review=areas_to_review,
+        )
+
+    def _verify_evidence_citation(self, citation: str, submission_lower: str) -> bool:
+        """
+        Extracts the quoted text from an evidence citation and verifies if it exists
+        in the student's submission text.
+        """
+        if not citation:
+            return True
+
+        quotes = re.findall(r"['\"]([^'\"]+)['\"]", citation)
+        if not quotes:
+            clean_citation = citation.lower().replace("student stated:", "").replace("submission excerpt:", "").strip()
+            return clean_citation in submission_lower if len(clean_citation) > 5 else True
+
+        for quote in quotes:
+            clean_quote = quote.lower().strip()
+            if not clean_quote:
+                continue
+
+            if clean_quote in submission_lower:
+                return True
+
+            quote_words = [w for w in re.findall(r"[a-zA-Z]+", clean_quote) if len(w) > 2]
+            if not quote_words:
+                continue
+
+            matched_count = sum(1 for w in quote_words if w in submission_lower)
+            if (matched_count / len(quote_words)) >= 0.70:
+                return True
+
+        return False
+
+    def _synthesize_remediation(
+        self,
+        report: GradingReport,
+        evaluations: List[CriterionEvaluation],
+        assessment_question: Optional[Question] = None,
+    ) -> Optional[str]:
+        """
+        Queries RAG to synthesize a targeted remediation practice question
+        for the student's primary misconception or gap.
+        """
+        all_gaps = []
+        for ev in evaluations:
+            all_gaps.extend(ev.gaps)
+
+        # If student achieved exemplary score (>= 95%) and has no severe gaps, provide enrichment
+        if report.percentage >= 95.0 and not any("Significant" in g or "Severe" in g for g in all_gaps):
+            return "[ENRICHMENT CHALLENGE]: How would you design a lock-free queue using atomic Compare-And-Swap (CAS) instructions to eliminate deadlock risk entirely?"
+
+        query_topic = ""
+        if assessment_question:
+            query_topic = assessment_question.learning_objective or assessment_question.prompt
+        elif report.areas_to_review:
+            query_topic = report.areas_to_review[0]
+        elif all_gaps:
+            query_topic = all_gaps[0]
+        else:
+            query_topic = "concurrency deadlock prevention"
+
+        target_page = 1
+        slide_topic = "Core Principles"
+        if self.retriever and self.retriever.is_indexed:
+            results = self.retriever.retrieve(query_topic, top_k=1)
+            if results:
+                target_page = results[0].chunk.page_number
+                content_lower = results[0].chunk.content.lower()
+                if "deadlock" in content_lower or "circular wait" in content_lower:
+                    slide_topic = "Deadlock Conditions & Prevention"
+                    return f"[REMEDIATION PRACTICE]: Review Slide {target_page} ({slide_topic}). What specific resource ordering protocol eliminates the Circular Wait condition? Explain in 2 sentences."
+                elif "mutex" in content_lower or "semaphore" in content_lower:
+                    slide_topic = "Synchronization Primitives"
+                    return f"[REMEDIATION PRACTICE]: Review Slide {target_page} ({slide_topic}). Why can a binary semaphore be unlocked by a different thread than the one that acquired it, unlike a mutex? Explain the ownership model."
+                elif "race" in content_lower or "critical section" in content_lower:
+                    slide_topic = "Critical Sections & Race Conditions"
+                    return f"[REMEDIATION PRACTICE]: Review Slide {target_page} ({slide_topic}). What are the three requirements for a valid critical section solution (mutual exclusion, progress, bounded waiting)? Define each."
+
+        return f"[REMEDIATION PRACTICE]: Review lecture Slide {target_page} regarding {query_topic}. Formulate a concise summary of the core mechanics to address noted gaps."
+
 
