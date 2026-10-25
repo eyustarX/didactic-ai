@@ -25,6 +25,7 @@ import {
   Paperclip,
   Upload,
   BookOpen,
+  X,
 } from 'lucide-react';
 import {
   fetchAssessments,
@@ -62,6 +63,7 @@ export default function AssessmentTab({
   const [generatingRubricId, setGeneratingRubricId] = useState(null);
   const [copilotPrompt, setCopilotPrompt] = useState('');
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [showGradingBanner, setShowGradingBanner] = useState(true);
 
   // Assessment vs Assignment Studio Mode
   const [assessmentType, setAssessmentType] = useState('exam'); // 'exam' | 'assignment'
@@ -547,20 +549,6 @@ export default function AssessmentTab({
 
         {/* Generator Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Questions count:</span>
-            <input
-              type="number"
-              min="1"
-              max="25"
-              value={questionCount}
-              onChange={(e) => setQuestionCount(e.target.value)}
-              className="input-text"
-              style={{ width: 65, textAlign: 'center', fontSize: '0.86rem', padding: '3px 6px', height: 28 }}
-              disabled={loading}
-            />
-          </div>
-
           <button
             onClick={handleGenerateAssessment}
             disabled={loading || (!lectureContent && !activeNoteId)}
@@ -569,18 +557,6 @@ export default function AssessmentTab({
             {loading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
             <span>{loading ? 'Synthesizing...' : 'Generate Assessment'}</span>
           </button>
-
-          {setActiveTab && (
-            <button
-              onClick={() => setActiveTab('assessments_library')}
-              className="btn btn-secondary btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              title="Open full Assessments Library"
-            >
-              <Layers size={13} />
-              <span>Assessments Library</span>
-            </button>
-          )}
 
           {questions.length > 0 && (
             <button
@@ -1090,18 +1066,18 @@ export default function AssessmentTab({
 
 
 
-      {/* Active Assessment Top Banner with PDF Download Controls */}
+      {/* Active Assessment Top Banner with PDF Download Controls & Inline Grade Action */}
       {assessment && (
         <div
           className="cartesia-card"
           style={{
-            marginBottom: 16,
-            padding: '14px 18px',
+            marginBottom: 10,
+            padding: '10px 16px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: 'wrap',
-            gap: 12,
+            gap: 10,
             background: 'var(--surface)',
             border: '1px solid var(--border)',
           }}
@@ -1109,21 +1085,22 @@ export default function AssessmentTab({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 borderRadius: 8,
                 background: 'var(--surface-alt)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'var(--accent)',
+                flexShrink: 0,
               }}
             >
-              <FileCheck size={18} />
+              <FileCheck size={16} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h2 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                <h2 style={{ fontSize: '0.94rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
                   {assessmentTitle || assessment.title}
                 </h2>
                 {isLocked ? (
@@ -1136,7 +1113,7 @@ export default function AssessmentTab({
                   </span>
                 )}
               </div>
-              <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: 0, marginTop: 2 }}>
+              <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: 0, marginTop: 2 }}>
                 {questions.length} questions • {totalMaxPoints} total marks • Stored in Neon Cloud Database
               </p>
             </div>
@@ -1152,14 +1129,14 @@ export default function AssessmentTab({
                 alignItems: 'center',
                 gap: 6,
                 border: 'none',
-                padding: '7px 14px',
-                fontSize: '0.8rem',
+                padding: '6px 12px',
+                fontSize: '0.78rem',
                 fontWeight: 500,
               }}
               title="Download printable student exam paper with candidate instructions and ruled answer lines"
             >
-              {isDownloadingPdf ? <Loader2 size={13} className="spin" /> : <Download size={13} />}
-              <span>{assessmentType === 'assignment' || /assignment|project|coursework|homework/i.test(assessmentTitle || assessment?.title || '') ? 'Download Assignment Brief (PDF)' : 'Download Exam Paper (PDF)'}</span>
+              {isDownloadingPdf ? <Loader2 size={12} className="spin" /> : <Download size={12} />}
+              <span>{assessmentType === 'assignment' || /assignment|project|coursework|homework/i.test(assessmentTitle || assessment?.title || '') ? 'Download Assignment (PDF)' : 'Download Exam Paper (PDF)'}</span>
             </button>
 
             <button
@@ -1172,40 +1149,60 @@ export default function AssessmentTab({
                 gap: 6,
                 border: '1px solid var(--border)',
                 color: 'var(--text)',
-                padding: '7px 14px',
-                fontSize: '0.8rem',
+                padding: '6px 12px',
+                fontSize: '0.78rem',
                 fontWeight: 500,
               }}
               title="Download official instructor solution key with answer keys and rubric criteria"
             >
-              <FileText size={13} />
-              <span>{assessmentType === 'assignment' || /assignment|project|coursework|homework/i.test(assessmentTitle || assessment?.title || '') ? 'Download Rubrics & Guide (PDF)' : 'Download Solution Key (PDF)'}</span>
+              <FileText size={12} />
+              <span>{assessmentType === 'assignment' || /assignment|project|coursework|homework/i.test(assessmentTitle || assessment?.title || '') ? 'Solution & Rubric (PDF)' : 'Download Solution Key (PDF)'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab && setActiveTab('grading')}
+              className="btn btn-secondary btn-sm"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                padding: '6px 12px',
+                fontSize: '0.78rem',
+                fontWeight: 500,
+              }}
+              title="Open Paper Grading Studio"
+            >
+              <GraduationCap size={13} />
+              <span>Grade Papers</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Paper Grading Workflow Banner */}
-      {assessment && (
+      {/* Compact Paper Grading Workflow Banner matching Active Studio sizing */}
+      {assessment && showGradingBanner && (
         <div
           className="cartesia-card"
           style={{
-            marginBottom: 16,
-            padding: '14px 18px',
+            marginBottom: 12,
+            padding: '10px 16px',
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: 'wrap',
-            gap: 14,
+            gap: 10,
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
               style={{
-                width: 38,
-                height: 38,
+                width: 32,
+                height: 32,
                 borderRadius: 8,
                 background: 'var(--surface-alt)',
                 display: 'flex',
@@ -1215,41 +1212,63 @@ export default function AssessmentTab({
                 flexShrink: 0,
               }}
             >
-              <GraduationCap size={20} />
+              <GraduationCap size={16} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h4 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
                   Ready to Grade Student Answer Papers?
                 </h4>
                 <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
                   Paper Grading
                 </span>
               </div>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                Print the exam PDF, have students write their answers, scan their papers, and upload them to evaluate automatically against the rubric.
+              <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                Upload scanned student answer papers to evaluate automatically against rubrics.
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab && setActiveTab('grading')}
-            className="btn btn-primary btn-sm"
-            style={{
-              border: 'none',
-              padding: '8px 16px',
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <span>Open Paper Grading Studio</span>
-            <ArrowRight size={14} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setActiveTab && setActiveTab('grading')}
+              className="btn btn-primary btn-sm"
+              style={{
+                border: 'none',
+                padding: '6px 13px',
+                fontSize: '0.78rem',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>Open Paper Grading Studio</span>
+              <ArrowRight size={13} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowGradingBanner(false)}
+              className="btn btn-ghost btn-sm"
+              style={{
+                padding: '4px 6px',
+                color: 'var(--text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+              }}
+              title="Dismiss banner"
+              aria-label="Dismiss banner"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
       )}
 
