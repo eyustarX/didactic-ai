@@ -702,46 +702,62 @@ class GradingAgent(BaseAgent):
         citation = f"Submission excerpt: '{sentences[0]}'" if sentences else "No substantial response provided."
 
         top_page = 1
+        retrieved_content = ""
         if self.retriever and self.retriever.is_indexed:
             results = self.retriever.retrieve(assignment_instructions, top_k=2)
             if results:
                 top_page = results[0].chunk.page_number
+                retrieved_content = " ".join(r.chunk.content for r in results)
 
-        # Extract meaningful terms from assignment instructions and title
+            sub_queries = [p.strip() for p in re.split(r"and|or|vs|[,;]", assignment_instructions) if len(p.strip()) > 8]
+            for sq in sub_queries[:2]:
+                sub_res = self.retriever.retrieve(sq, top_k=1)
+                if sub_res:
+                    retrieved_content += " " + sub_res[0].chunk.content
+
+        # Extract meaningful terms from assignment instructions, title, and retrieved slides
         stopwords = {
             "the", "a", "an", "and", "or", "in", "on", "of", "to", "for", "with",
             "is", "are", "that", "this", "all", "each", "from", "your", "using", "into",
-            "explain", "describe", "analyze", "discuss", "detail", "write", "provide", "lab", "report"
+            "explain", "describe", "analyze", "discuss", "detail", "write", "provide", "lab", "report",
+            "student", "should", "must", "will", "would", "about", "which", "when", "where", "have", "has",
+            "been", "such", "than", "more", "most", "also", "both", "only", "other", "some", "what"
         }
         instruct_raw = f"{assignment_title} {assignment_instructions}"
-        instruct_terms = [w for w in set(re.findall(r"[a-zA-Z]+", instruct_raw.lower())) if len(w) > 3 and w not in stopwords]
+        instruct_terms = set(w for w in re.findall(r"[a-zA-Z]+", instruct_raw.lower()) if len(w) > 3 and w not in stopwords)
+        tech_words = set(w for w in re.findall(r"[a-zA-Z]+", retrieved_content.lower()) if len(w) > 4 and w not in stopwords)
+        target_terms = instruct_terms | tech_words
+
+        if not target_terms:
+            crit_terms = set(re.findall(r"[a-zA-Z]+", " ".join(c.name + " " + c.description for c in rubric.criteria).lower()))
+            target_terms = instruct_terms | {w for w in crit_terms if len(w) > 4 and w not in stopwords}
 
         ans_words = set(re.findall(r"[a-zA-Z]+", cleaned_sub.lower()))
         ans_lower = cleaned_sub.lower()
 
         matched = [
-            t for t in instruct_terms
+            t for t in target_terms
             if t in ans_words or t in ans_lower or any(t[:4] == aw[:4] for aw in ans_words if len(aw) >= 4)
         ]
-        concept_coverage = len(matched) / max(len(instruct_terms), 1)
+        concept_coverage = len(matched) / max(len(target_terms), 1)
 
         evaluations: List[CriterionEvaluation] = []
         total_awarded = 0.0
 
         for c in rubric.criteria:
-            if concept_coverage >= 0.45:
-                ratio = min(1.0, 0.80 + (concept_coverage - 0.45) * 0.35)
+            if concept_coverage >= 0.28:
+                ratio = min(1.0, 0.78 + (concept_coverage - 0.28) * 1.4)
                 strengths = [
                     f"Thoroughly addressed requirements of '{c.name}'.",
                     f"Solid grasp of key principles ({', '.join(matched[:4])}).",
                 ]
                 gaps = ["Minor formatting or stylistic refinements recommended."]
-            elif concept_coverage >= 0.20:
-                ratio = 0.50 + (concept_coverage - 0.20) * 1.0
+            elif concept_coverage >= 0.15:
+                ratio = 0.58 + (concept_coverage - 0.15) * 1.4
                 strengths = [f"Covered basic concepts for '{c.name}' ({', '.join(matched[:2])})."]
                 gaps = [f"Lacks depth on specific mechanics or edge cases for '{c.name}'."]
             else:
-                ratio = max(0.15, concept_coverage * 1.5) if cleaned_sub else 0.0
+                ratio = max(0.18, concept_coverage * 2.0) if cleaned_sub else 0.0
                 strengths = ["Attempted submission."]
                 gaps = [f"Severe conceptual gaps or erroneous assertions regarding '{c.name}'."]
 
