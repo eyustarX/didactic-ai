@@ -569,6 +569,30 @@ def test_grade_submission_multi_format_endpoints():
         assert file_img_resp.status_code == 200
         assert file_img_resp.headers["Content-Type"] == "image/png"
         assert len(file_img_resp.content) == len(png_bytes)
+
+        # 6. Grade Direct Pasted Answer Text (No file required)
+        pasted_text_body = "Question 1: Mutual exclusion prevents multiple threads from accessing critical section concurrently.\nQuestion 2: Concurrency primitives maintain data integrity."
+        grade_text_resp = client.post(
+            f"/assessments/{assessment_id}/grade-submission",
+            data={
+                "student_name": "Morgan Riley",
+                "student_number": "STU-TXT-03",
+                "pasted_text": pasted_text_body,
+            },
+            headers=headers,
+        )
+        assert grade_text_resp.status_code == 200
+        text_data = grade_text_resp.json()
+        assert text_data["file_type"] == "txt"
+        assert text_data["extracted_text"] == pasted_text_body
+        assert text_data["total_score"] > 0
+
+        # Verify downloading the generated text submission file
+        txt_sub_id = text_data["submission_id"]
+        file_txt_resp = client.get(f"/submissions/{txt_sub_id}/file", headers=headers)
+        assert file_txt_resp.status_code == 200
+        assert "text/plain" in file_txt_resp.headers["Content-Type"]
+        assert file_txt_resp.content.decode("utf-8") == pasted_text_body
     finally:
         app.dependency_overrides.pop(get_session, None)
 

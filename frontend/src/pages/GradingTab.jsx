@@ -49,10 +49,12 @@ export default function GradingTab({
   // Grading Mode: 'paper' (AI PDF OCR) or 'manual' (Direct Teacher Score Entry)
   const [gradingMode, setGradingMode] = useState('paper');
 
-  // Paper Grading State
+  // Paper / Text Grading State
   const [studentName, setStudentName] = useState('');
   const [studentNumber, setStudentNumber] = useState('');
+  const [submissionInputType, setSubmissionInputType] = useState('file'); // 'file' | 'text'
   const [studentFile, setStudentFile] = useState(null);
+  const [pastedStudentText, setPastedStudentText] = useState('');
   const [showExtractedText, setShowExtractedText] = useState(false);
   const [isGrading, setIsGrading] = useState(false);
 
@@ -191,18 +193,22 @@ export default function GradingTab({
     }
   };
 
-  // Mode 1: AI Paper OCR & Grading
+  // Mode 1: AI Evaluation (File Upload or Direct Text)
   const handleGrade = async () => {
     if (!assessment?.id && !assessment?.questions?.length) {
       setGradingError('Please select or generate an assessment first in the Assessment studio.');
       return;
     }
-    if (!studentFile) {
-      setGradingError('Please upload the student exam paper PDF.');
-      return;
-    }
     if (!studentName.trim()) {
       setGradingError('Please enter the student name.');
+      return;
+    }
+    if (submissionInputType === 'file' && !studentFile) {
+      setGradingError('Please upload an answer file (PDF, Word DOCX, Image, or Text file) or switch to Paste Answer Text.');
+      return;
+    }
+    if (submissionInputType === 'text' && !pastedStudentText.trim()) {
+      setGradingError('Please paste or type the student answer text.');
       return;
     }
 
@@ -215,7 +221,8 @@ export default function GradingTab({
         assessment_id: assessment.id,
         student_name: studentName.trim(),
         student_number: studentNumber.trim() || `STU-${Date.now().toString().slice(-4)}`,
-        file: studentFile,
+        file: submissionInputType === 'file' ? studentFile : null,
+        pasted_text: submissionInputType === 'text' ? pastedStudentText.trim() : null,
         lecturerId: currentUser?.id,
       });
 
@@ -903,8 +910,8 @@ export default function GradingTab({
           className={`btn btn-sm ${gradingMode === 'paper' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px' }}
         >
-          <UploadCloud size={14} />
-          <span>Upload & Grade Scanned Exam Paper (PDF)</span>
+          <Sparkles size={14} />
+          <span>AI Evaluation (File Upload or Direct Text)</span>
         </button>
 
         <button
@@ -918,22 +925,22 @@ export default function GradingTab({
         </button>
       </div>
 
-      {/* Mode A: Upload & Grade Scanned Exam Paper (PDF) */}
+      {/* Mode A: Upload & Grade Scanned Exam Paper or Direct Text */}
       {gradingMode === 'paper' && (
         <div className="cartesia-card" style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ fontSize: '0.95rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <UploadCloud size={16} />
-              <span>Grade Student Exam Paper (PDF)</span>
+              <Sparkles size={16} style={{ color: 'var(--accent)' }} />
+              <span>Grade Student Submission (File or Direct Text)</span>
             </h3>
             <span className="badge badge-accent" style={{ fontSize: '0.72rem' }}>
-              Instant AI Scoring & Feedback
+              Instant AI Scoring & Decomposed Rubrics
             </span>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Student Name</label>
+              <label className="form-label">Student Name *</label>
               <input
                 type="text"
                 placeholder="e.g. Alice Johnson"
@@ -957,41 +964,103 @@ export default function GradingTab({
             </div>
           </div>
 
-          {/* Dropzone Box */}
-          <label className="dropzone" style={{ position: 'relative', marginBottom: 16 }}>
-            <input
-              type="file"
-              accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.txt"
-              onChange={handleFileChange}
-              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
-              disabled={isGrading}
-            />
-            <div className="dropzone-icon">
-              {isGrading ? (
-                <Loader2 size={22} className="spin" />
-              ) : studentFile ? (
-                /\.(png|jpe?g|webp)$/i.test(studentFile.name) ? (
-                  <ImageIcon size={22} style={{ color: '#8b5cf6' }} />
-                ) : /\.(docx?)$/i.test(studentFile.name) ? (
-                  <FileText size={22} style={{ color: '#2563eb' }} />
+          {/* Sub-Tabs: Upload File vs Paste Text */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 10 }}>
+            <button
+              type="button"
+              onClick={() => { setSubmissionInputType('file'); setGradingError(null); }}
+              className={`btn btn-sm ${submissionInputType === 'file' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem' }}
+            >
+              <UploadCloud size={13} />
+              <span>Upload Document / Image (PDF, DOCX, Photo)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSubmissionInputType('text'); setGradingError(null); }}
+              className={`btn btn-sm ${submissionInputType === 'text' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem' }}
+            >
+              <PenTool size={13} />
+              <span>Paste Answer Text Directly</span>
+            </button>
+          </div>
+
+          {submissionInputType === 'file' ? (
+            /* Dropzone Box */
+            <label className="dropzone" style={{ position: 'relative', marginBottom: 16 }}>
+              <input
+                type="file"
+                accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.txt"
+                onChange={handleFileChange}
+                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                disabled={isGrading}
+              />
+              <div className="dropzone-icon">
+                {isGrading ? (
+                  <Loader2 size={22} className="spin" />
+                ) : studentFile ? (
+                  /\.(png|jpe?g|webp)$/i.test(studentFile.name) ? (
+                    <ImageIcon size={22} style={{ color: '#8b5cf6' }} />
+                  ) : /\.(docx?)$/i.test(studentFile.name) ? (
+                    <FileText size={22} style={{ color: '#2563eb' }} />
+                  ) : (
+                    <UploadCloud size={22} />
+                  )
                 ) : (
                   <UploadCloud size={22} />
-                )
-              ) : (
-                <UploadCloud size={22} />
-              )}
+                )}
+              </div>
+              <div>
+                <p style={{ fontWeight: 500, fontSize: '0.88rem', marginBottom: 2 }}>
+                  {studentFile ? studentFile.name : 'Select or drop student exam paper (PDF, Word DOCX, Image, or Text)'}
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                  {studentFile
+                    ? `${(studentFile.size / 1024).toFixed(1)} KB — Ready to grade with AI`
+                    : 'Supports typed PDF/Word DOCX, smartphone exam photos (PNG/JPG), and text files'}
+                </p>
+              </div>
+            </label>
+          ) : (
+            /* Direct Textarea for Pasting Student Answer Text */
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label className="form-label" style={{ marginBottom: 0 }}>
+                  Paste or Type Student Answer Text:
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const sampleText = assessment?.questions?.map((q, idx) => {
+                        const isMcq = /\b[A-D]\)/.test(q.text || '');
+                        if (isMcq) return `Question ${idx + 1}: B`;
+                        return `Question ${idx + 1}: ${q.student_hint?.replace('Official Answer Key: ', '') || 'The primary mechanism ensures consistent execution and prevents race conditions.'}`;
+                      }).join('\n\n') || "Question 1: Process synchronization coordinates thread execution.\n\nQuestion 2: B\n\nQuestion 3: Deadlock conditions include mutual exclusion, hold and wait, no preemption, and circular wait.";
+                      setPastedStudentText(sampleText);
+                    }}
+                    className="btn btn-ghost btn-sm"
+                    style={{ fontSize: '0.72rem', height: 24, padding: '0 6px', color: 'var(--accent)' }}
+                    title="Insert sample answers matching the current assessment"
+                  >
+                    Paste Sample Answer
+                  </button>
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    {pastedStudentText.length} characters
+                  </span>
+                </div>
+              </div>
+              <textarea
+                rows={7}
+                placeholder={"Paste raw student answers here (from Canvas, LMS, email, or chat)...\n\ne.g.\nQuestion 1: Mutual exclusion prevents multiple processes from accessing critical sections simultaneously...\nQuestion 2: B\nQuestion 3: Deadlock occurs when each thread waits for a resource held by another."}
+                value={pastedStudentText}
+                onChange={(e) => setPastedStudentText(e.target.value)}
+                className="input-text"
+                style={{ fontSize: '0.84rem', fontFamily: 'var(--font-mono)', lineHeight: 1.45, resize: 'vertical' }}
+              />
             </div>
-            <div>
-              <p style={{ fontWeight: 500, fontSize: '0.88rem', marginBottom: 2 }}>
-                {studentFile ? studentFile.name : 'Select or drop student exam paper (PDF, Word DOCX, Image, or Text)'}
-              </p>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                {studentFile
-                  ? `${(studentFile.size / 1024).toFixed(1)} KB — Ready to grade with AI`
-                  : 'Supports typed PDF/Word DOCX, smartphone exam photos (PNG/JPG), and text files'}
-              </p>
-            </div>
-          </label>
+          )}
 
           {gradingError && (
             <div style={{ marginBottom: 14, padding: 10, borderRadius: 4, background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1003,12 +1072,16 @@ export default function GradingTab({
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <button
               onClick={handleGrade}
-              disabled={isGrading || !studentFile || !studentName.trim()}
+              disabled={
+                isGrading ||
+                !studentName.trim() ||
+                (submissionInputType === 'file' ? !studentFile : !pastedStudentText.trim())
+              }
               className="btn btn-primary"
-              style={{ padding: '8px 20px' }}
+              style={{ padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 6 }}
             >
               {isGrading ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
-              <span>{isGrading ? 'Grading Paper with AI...' : 'Grade Student Paper'}</span>
+              <span>{isGrading ? 'Grading Submission with AI...' : 'Grade Student Paper'}</span>
             </button>
           </div>
         </div>

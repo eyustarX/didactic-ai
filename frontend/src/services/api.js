@@ -372,13 +372,15 @@ export async function gradeStudentSubmission({
   student_number,
   student_name,
   file,
+  pasted_text,
   lecturerId,
 }) {
   const formData = new FormData();
   if (student_id) formData.append('student_id', student_id);
   if (student_number) formData.append('student_number', student_number);
   if (student_name) formData.append('student_name', student_name);
-  formData.append('file', file);
+  if (file) formData.append('file', file);
+  if (pasted_text) formData.append('pasted_text', pasted_text);
 
   const res = await fetch(`${API_BASE}/assessments/${assessment_id}/grade-submission`, {
     method: 'POST',

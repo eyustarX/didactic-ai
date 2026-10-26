@@ -9,6 +9,7 @@ FastAPI route handlers for Didactic AI core workflow:
 """
 
 import io
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any, Union
@@ -91,10 +92,12 @@ class CopilotChatReq(BaseModel):
 
 
 class AssessmentGenerateReq(BaseModel):
-    lecture_note_id: str
+    lecture_note_id: Optional[str] = None
     question_count: int = 3
     title: Optional[str] = None
     prompt: Optional[str] = None
+    custom_instructions: Optional[str] = None
+    ticked_part_ids: Optional[List[str]] = None
 
 
 class QuestionEditItem(BaseModel):
@@ -584,8 +587,26 @@ def generate_assessment_endpoint(
             }
         ]
 
+    # If specific ticked_part_ids were passed, filter to them
+    if req.ticked_part_ids:
+        explicit_parts = [
+            {
+                "id": kp.id,
+                "title": kp.title,
+                "summary": kp.summary,
+                "type": kp.type,
+                "source_ref": kp.source_ref,
+                "included": True,
+            }
+            for kp in note.key_points
+            if kp.id in req.ticked_part_ids
+        ]
+        if explicit_parts:
+            ticked_parts = explicit_parts
+
+    instructions = req.prompt or req.custom_instructions
     ai_data = ai_generate_assessment(
-        note.name, ticked_parts, question_count=req.question_count, custom_instructions=req.prompt
+        note.name, ticked_parts, question_count=req.question_count, custom_instructions=instructions
     )
     title = req.title or ai_data.get("title") or f"Assessment: {note.name}"
 
@@ -1186,7 +1207,8 @@ async def grade_student_submission(
     student_id: Optional[str] = Form(None),
     student_number: Optional[str] = Form(None),
     student_name: Optional[str] = Form(None),
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(None),
+    pasted_text: Optional[str] = Form(None),
     lecturer_id: str = Depends(get_current_lecturer),
     session: Session = Depends(get_session),
 ):
@@ -1225,19 +1247,31 @@ async def grade_student_submission(
         .first()
     )
 
-    file_bytes = await file.read()
-    filename = file.filename or "answer.pdf"
     storage = get_storage()
-    stored_path, file_hash = storage.save_file(file_bytes, filename, subfolder="submissions")
+    if file and file.filename:
+        file_bytes = await file.read()
+        filename = file.filename or "answer.pdf"
+        stored_path, file_hash = storage.save_file(file_bytes, filename, subfolder="submissions")
 
-    # Polymorphic extraction across PDF, DOCX, Images (PNG/JPG/WEBP), and Text
-    try:
-        extraction = extract_document_text(file_bytes, filename=filename)
-        extracted_text = extraction.full_text if hasattr(extraction, "full_text") else str(extraction)
-        if not extracted_text or not extracted_text.strip():
-            extracted_text = f"Warning: No readable text could be extracted from {filename}."
-    except Exception as exc:
-        extracted_text = f"Error extracting document ({filename}): {exc}"
+        # Polymorphic extraction across PDF, DOCX, Images (PNG/JPG/WEBP), and Text
+        try:
+            extraction = extract_document_text(file_bytes, filename=filename)
+            extracted_text = extraction.full_text if hasattr(extraction, "full_text") else str(extraction)
+            if not extracted_text or not extracted_text.strip():
+                extracted_text = f"Warning: No readable text could be extracted from {filename}."
+        except Exception as exc:
+            extracted_text = f"Error extracting document ({filename}): {exc}"
+    elif pasted_text and pasted_text.strip():
+        safe_name = re.sub(r"[^\w\s-]", "", (student.name or "student").strip()).replace(" ", "_")
+        filename = f"{safe_name}_answer.txt"
+        file_bytes = pasted_text.strip().encode("utf-8")
+        stored_path, file_hash = storage.save_file(file_bytes, filename, subfolder="submissions")
+        extracted_text = pasted_text.strip()
+    else:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Please provide a student answer file (PDF, Word DOCX, Image, or Text file) or paste answer text directly.",
+        )
 
     q_payload = []
     for q in assessment.questions:
