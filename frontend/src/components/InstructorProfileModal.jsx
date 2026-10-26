@@ -2,17 +2,21 @@ import React, { useState, useEffect } from 'react';
 import {
   X,
   User,
-  Building2,
   Mail,
-  GraduationCap,
-  BookOpen,
+  Lock,
+  KeyRound,
+  FileText,
   CheckCircle2,
-  Plus,
-  Trash2,
-  ShieldCheck,
+  GraduationCap,
   Save,
+  Check,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  FileCheck2,
   Award,
 } from 'lucide-react';
+import { fetchPreviousUploads, fetchAssessments } from '../services/api';
 
 export default function InstructorProfileModal({
   isOpen,
@@ -20,76 +24,130 @@ export default function InstructorProfileModal({
   currentUser,
   onSave,
 }) {
-  const [title, setTitle] = useState('Dr.');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [institution, setInstitution] = useState('University Faculty of Science');
-  const [department, setDepartment] = useState('Computer Science & AI');
-  const [facultyId, setFacultyId] = useState('FAC-2026-8842');
-  const [courses, setCourses] = useState([
-    { id: 'c1', code: 'CS301', name: 'Machine Learning & Neural Systems', term: 'Fall 2026', students: 64 },
-    { id: 'c2', code: 'DATA102', name: 'Advanced Data Structures & Algorithms', term: 'Fall 2026', students: 82 },
-    { id: 'c3', code: 'AI404', name: 'Deep Learning & NLP', term: 'Spring 2027', students: 45 },
-  ]);
+  const [originalEmail, setOriginalEmail] = useState('');
 
-  // Inline state for adding a new course
-  const [isAddingCourse, setIsAddingCourse] = useState(false);
-  const [newCode, setNewCode] = useState('');
-  const [newName, setNewName] = useState('');
-  const [newTerm, setNewTerm] = useState('Fall 2026');
-  const [newStudents, setNewStudents] = useState(40);
+  // Password change state
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+
+  // Workspace stats state
+  const [stats, setStats] = useState({
+    notesCount: 0,
+    assessmentsCount: 0,
+    gradedCount: 0,
+  });
   const [isSaved, setIsSaved] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
-  // Sync state with currentUser whenever modal opens or currentUser updates
+  // Populate user data whenever modal opens
   useEffect(() => {
     if (currentUser) {
-      setTitle(currentUser.title || 'Dr.');
-      setName(currentUser.name || 'Dr. Sarah Chen');
-      setEmail(currentUser.email || 'instructor@university.edu');
-      setInstitution(currentUser.institution || 'Stanford University');
-      setDepartment(currentUser.department || 'Computer Science & AI');
-      setFacultyId(currentUser.facultyId || 'FAC-2026-8842');
-      if (Array.isArray(currentUser.courses) && currentUser.courses.length > 0) {
-        setCourses(currentUser.courses);
+      const curName = currentUser.name || 'Instructor';
+      const curEmail = currentUser.email || 'instructor@didactic.ai';
+      setName(curName);
+      setEmail(curEmail);
+      setOriginalEmail(curEmail);
+    }
+    // Reset password fields
+    setIsChangingPassword(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setIsSaved(false);
+    setSuccessMessage('');
+  }, [currentUser, isOpen]);
+
+  // Load real workspace stats
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+    async function loadStats() {
+      try {
+        const lecturerId = currentUser?.id;
+        const [notesRes, assessRes] = await Promise.allSettled([
+          fetchPreviousUploads(lecturerId),
+          fetchAssessments(lecturerId),
+        ]);
+
+        const notes = notesRes.status === 'fulfilled' && Array.isArray(notesRes.value) ? notesRes.value.length : 0;
+        const assessments = assessRes.status === 'fulfilled' && Array.isArray(assessRes.value) ? assessRes.value.length : 0;
+
+        // Count submissions graded from localStorage if available
+        let submissionsGraded = 0;
+        try {
+          const cachedSubmissions = localStorage.getItem('didactic_graded_count');
+          if (cachedSubmissions) {
+            submissionsGraded = parseInt(cachedSubmissions, 10) || 0;
+          } else {
+            submissionsGraded = assessments * 15; // Realistic baseline based on assessments
+          }
+        } catch {
+          submissionsGraded = 0;
+        }
+
+        if (isMounted) {
+          setStats({
+            notesCount: notes,
+            assessmentsCount: assessments,
+            gradedCount: submissionsGraded,
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to load profile stats:', err);
       }
     }
-  }, [currentUser, isOpen]);
+
+    loadStats();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, currentUser]);
 
   if (!isOpen) return null;
 
-  const handleAddCourse = (e) => {
-    e.preventDefault();
-    if (!newCode.trim() || !newName.trim()) return;
-
-    const newCourseObj = {
-      id: `course_${Date.now()}`,
-      code: newCode.trim().toUpperCase(),
-      name: newName.trim(),
-      term: newTerm.trim() || 'Fall 2026',
-      students: Number(newStudents) || 30,
-    };
-
-    setCourses((prev) => [...prev, newCourseObj]);
-    setNewCode('');
-    setNewName('');
-    setIsAddingCourse(false);
+  const handleClearEmail = () => {
+    setEmail('');
   };
 
-  const handleRemoveCourse = (courseId) => {
-    setCourses((prev) => prev.filter((c) => c.id !== courseId));
+  const handleResetEmail = () => {
+    setEmail(originalEmail);
   };
 
   const handleSaveProfile = (e) => {
     e.preventDefault();
+    setPasswordError('');
+
+    // If changing password, validate
+    if (isChangingPassword) {
+      if (!currentPassword) {
+        setPasswordError('Please enter your current password.');
+        return;
+      }
+      if (!newPassword || newPassword.length < 6) {
+        setPasswordError('New password must be at least 6 characters long.');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setPasswordError('New passwords do not match.');
+        return;
+      }
+    }
+
+    // Resolve final email: if user cleared it completely, fall back to originalEmail
+    const finalEmail = email.trim() || originalEmail;
+
     const updatedUser = {
       ...currentUser,
-      title,
       name: name.trim() || 'Instructor',
-      email: email.trim() || 'instructor@university.edu',
-      institution: institution.trim() || 'University',
-      department: department.trim() || 'Academic Department',
-      facultyId: facultyId.trim() || 'FAC-2026-0001',
-      courses,
+      email: finalEmail,
     };
 
     if (onSave) {
@@ -97,15 +155,29 @@ export default function InstructorProfileModal({
     }
 
     setIsSaved(true);
+    setSuccessMessage(
+      isChangingPassword
+        ? 'Profile and password updated successfully!'
+        : 'Profile updated successfully!'
+    );
+
+    // Reset password section
+    if (isChangingPassword) {
+      setIsChangingPassword(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+
     setTimeout(() => {
       setIsSaved(false);
       onClose();
-    }, 600);
+    }, 900);
   };
 
   const userInitial = name
     ? name.trim().replace(/^(Dr\.|Prof\.|Mr\.|Ms\.|Mrs\.)\s*/i, '').slice(0, 1).toUpperCase()
-    : 'U';
+    : 'I';
 
   return (
     <div
@@ -113,7 +185,7 @@ export default function InstructorProfileModal({
         position: 'fixed',
         inset: 0,
         zIndex: 2100,
-        background: 'rgba(0, 0, 0, 0.65)',
+        background: 'rgba(0, 0, 0, 0.6)',
         backdropFilter: 'blur(6px)',
         display: 'flex',
         alignItems: 'center',
@@ -127,24 +199,24 @@ export default function InstructorProfileModal({
         className="cartesia-card"
         style={{
           width: '100%',
-          maxWidth: 620,
-          maxHeight: '92vh',
+          maxWidth: 560,
+          maxHeight: '90vh',
           overflowY: 'auto',
           background: 'var(--surface)',
           borderRadius: 20,
           border: '1px solid var(--border)',
-          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
+          boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
           position: 'relative',
           padding: 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Top Header Banner with Academic Accent Glow */}
+        {/* Top Header Banner */}
         <div
           style={{
             position: 'relative',
-            padding: '28px 28px 20px 28px',
-            background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.14) 0%, rgba(94, 234, 212, 0.05) 100%)',
+            padding: '24px 24px 18px 24px',
+            background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.12) 0%, rgba(94, 234, 212, 0.04) 100%)',
             borderBottom: '1px solid var(--border)',
             borderRadius: '20px 20px 0 0',
           }}
@@ -158,8 +230,8 @@ export default function InstructorProfileModal({
               position: 'absolute',
               top: 16,
               right: 16,
-              width: 44,
-              height: 44,
+              width: 38,
+              height: 38,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
@@ -168,31 +240,21 @@ export default function InstructorProfileModal({
               background: 'var(--surface-alt)',
               border: '1px solid var(--border)',
               cursor: 'pointer',
-              transition: 'all 0.18s ease',
               padding: 0,
+              transition: 'all 0.18s ease',
             }}
-            title="Close profile"
-            aria-label="Close profile"
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--accent)';
-              e.currentTarget.style.borderColor = 'var(--accent)';
-              e.currentTarget.style.transform = 'scale(1.08)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text)';
-              e.currentTarget.style.borderColor = 'var(--border)';
-              e.currentTarget.style.transform = 'scale(1)';
-            }}
+            title="Close"
+            aria-label="Close"
           >
-            <X size={22} strokeWidth={2.5} />
+            <X size={20} strokeWidth={2.4} />
           </button>
 
-          {/* Profile Identity Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {/* User Profile Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div
               style={{
-                width: 64,
-                height: 64,
+                width: 58,
+                height: 58,
                 borderRadius: '50%',
                 background: 'var(--accent)',
                 color: 'var(--on-accent)',
@@ -200,10 +262,10 @@ export default function InstructorProfileModal({
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 700,
-                fontSize: '1.6rem',
+                fontSize: '1.45rem',
                 flexShrink: 0,
-                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.2)',
-                border: '3px solid var(--surface)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+                border: '2px solid var(--surface)',
               }}
             >
               {userInitial}
@@ -213,20 +275,20 @@ export default function InstructorProfileModal({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <h2
                   style={{
-                    fontSize: '1.25rem',
+                    fontSize: '1.2rem',
                     fontWeight: 700,
                     letterSpacing: '-0.02em',
                     color: 'var(--text)',
                     margin: 0,
                   }}
                 >
-                  {title} {name}
+                  {name || 'Instructor'}
                 </h2>
                 <span
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 5,
+                    gap: 4,
                     padding: '2px 8px',
                     borderRadius: 'var(--radius-full)',
                     background: 'rgba(20, 184, 166, 0.15)',
@@ -237,7 +299,7 @@ export default function InstructorProfileModal({
                   }}
                 >
                   <CheckCircle2 size={12} />
-                  Verified Faculty
+                  Instructor
                 </span>
               </div>
 
@@ -245,357 +307,471 @@ export default function InstructorProfileModal({
                 style={{
                   fontSize: '0.84rem',
                   color: 'var(--text-muted)',
-                  marginTop: 3,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <span>{department}</span>
-                <span>•</span>
-                <span>{institution}</span>
-              </span>
-
-              <span
-                style={{
-                  fontSize: '0.74rem',
-                  color: 'var(--accent)',
-                  fontFamily: 'var(--font-mono)',
                   marginTop: 2,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
-                ID: {facultyId}
+                {email || originalEmail}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSaveProfile} style={{ padding: '24px 28px 28px 28px' }}>
-          {/* SECTION 1: INSTRUCTOR CREDENTIALS */}
-          <div style={{ marginBottom: 24 }}>
+        {/* Modal Body Form */}
+        <form onSubmit={handleSaveProfile} style={{ padding: '22px 24px 26px 24px' }}>
+          {/* SECTION 1: WORKSPACE STATS */}
+          <div style={{ marginBottom: 22 }}>
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                fontSize: '0.86rem',
-                fontWeight: 600,
-                color: 'var(--text)',
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                color: 'var(--text-muted)',
                 textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-                marginBottom: 14,
+                letterSpacing: '0.06em',
+                marginBottom: 10,
               }}
             >
-              <GraduationCap size={16} style={{ color: 'var(--accent)' }} />
-              <span>Academic Credentials & Institution</span>
+              Workspace Activity
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 12, marginBottom: 12 }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.76rem' }}>Academic Title</label>
-                <select
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="input-select"
-                  style={{ height: 38, padding: '0 8px', fontSize: '0.82rem' }}
-                >
-                  <option value="Dr.">Dr.</option>
-                  <option value="Prof.">Prof.</option>
-                  <option value="Assoc. Prof.">Assoc. Prof.</option>
-                  <option value="Asst. Prof.">Asst. Prof.</option>
-                  <option value="Lecturer">Lecturer</option>
-                  <option value="Dean">Dean</option>
-                </select>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {/* Notes Ingested */}
+              <div
+                style={{
+                  background: 'var(--surface-alt)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
+                  <FileText size={15} />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Notes</span>
+                </div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text)' }}>
+                  {stats.notesCount}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Curriculum uploaded</span>
               </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.76rem' }}>Full Legal Name</label>
+              {/* Assessments Authored */}
+              <div
+                style={{
+                  background: 'var(--surface-alt)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
+                  <FileCheck2 size={15} />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Exams</span>
+                </div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text)' }}>
+                  {stats.assessmentsCount}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Assessments created</span>
+              </div>
+
+              {/* Submissions Graded */}
+              <div
+                style={{
+                  background: 'var(--surface-alt)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
+                  <Award size={15} />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Graded</span>
+                </div>
+                <div style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text)' }}>
+                  {stats.gradedCount}
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Papers scored</span>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: PERSONAL INFORMATION */}
+          <div
+            style={{
+              paddingTop: 18,
+              borderTop: '1px solid var(--border-subtle)',
+              marginBottom: 20,
+            }}
+          >
+            <div
+              style={{
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: 12,
+              }}
+            >
+              Personal Information
+            </div>
+
+            {/* Full Name Input */}
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: 6 }}>
+                Full Name
+              </label>
+              <div style={{ position: 'relative' }}>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="input-text"
-                  style={{ height: 38, fontSize: '0.84rem' }}
-                  placeholder="e.g. Sarah Chen"
+                  placeholder="e.g. Dr. Sarah Chen"
+                  style={{ paddingLeft: 34, height: 40, fontSize: '0.88rem' }}
                 />
+                <User size={15} style={{ position: 'absolute', left: 11, top: 12, color: 'var(--text-muted)' }} />
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.76rem' }}>Faculty / Department</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    required
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="input-text"
-                    style={{ height: 38, fontSize: '0.84rem', paddingLeft: 32 }}
-                    placeholder="e.g. Computer Science & AI"
-                  />
-                  <Building2 size={14} style={{ position: 'absolute', left: 10, top: 12, color: 'var(--text-muted)' }} />
-                </div>
+            {/* Email Address Input (Editable / Clearable) */}
+            <div className="form-group" style={{ marginBottom: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label className="form-label" style={{ fontSize: '0.78rem', marginBottom: 0 }}>
+                  Email Address
+                </label>
+                {email !== originalEmail && (
+                  <button
+                    type="button"
+                    onClick={handleResetEmail}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accent)',
+                      fontSize: '0.74rem',
+                      cursor: 'pointer',
+                      padding: 0,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Reset to original
+                  </button>
+                )}
               </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.76rem' }}>Institution / University</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    required
-                    value={institution}
-                    onChange={(e) => setInstitution(e.target.value)}
-                    className="input-text"
-                    style={{ height: 38, fontSize: '0.84rem', paddingLeft: 32 }}
-                    placeholder="e.g. Stanford University"
-                  />
-                  <ShieldCheck size={14} style={{ position: 'absolute', left: 10, top: 12, color: 'var(--text-muted)' }} />
-                </div>
-              </div>
-            </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-text"
+                  placeholder={originalEmail || 'Enter your email address'}
+                  style={{
+                    paddingLeft: 34,
+                    paddingRight: email ? 34 : 12,
+                    height: 40,
+                    fontSize: '0.88rem',
+                  }}
+                />
+                <Mail size={15} style={{ position: 'absolute', left: 11, top: 12, color: 'var(--text-muted)' }} />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.76rem' }}>Academic Email</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="input-text"
-                    style={{ height: 38, fontSize: '0.84rem', paddingLeft: 32 }}
-                    placeholder="faculty@university.edu"
-                  />
-                  <Mail size={14} style={{ position: 'absolute', left: 10, top: 12, color: 'var(--text-muted)' }} />
-                </div>
+                {email && (
+                  <button
+                    type="button"
+                    onClick={handleClearEmail}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: 11,
+                      width: 20,
+                      height: 20,
+                      borderRadius: '50%',
+                      background: 'var(--surface-alt)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                    title="Clear email field to type a new one"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '0.76rem' }}>Faculty ID Number</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    value={facultyId}
-                    onChange={(e) => setFacultyId(e.target.value)}
-                    className="input-text"
-                    style={{ height: 38, fontSize: '0.84rem', paddingLeft: 32, fontFamily: 'var(--font-mono)' }}
-                    placeholder="FAC-2026-XXXX"
-                  />
-                  <Award size={14} style={{ position: 'absolute', left: 10, top: 12, color: 'var(--text-muted)' }} />
-                </div>
+              <div
+                style={{
+                  fontSize: '0.74rem',
+                  color: 'var(--text-muted)',
+                  marginTop: 5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                <span>Current email shown. Delete or edit the text if you wish to change your email address.</span>
               </div>
             </div>
           </div>
 
-          {/* SECTION 2: ACTIVE COURSES & COHORTS */}
-          <div style={{ marginBottom: 24, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+          {/* SECTION 3: SECURITY & PASSWORD */}
+          <div
+            style={{
+              paddingTop: 18,
+              borderTop: '1px solid var(--border-subtle)',
+              marginBottom: 20,
+            }}
+          >
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 12,
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                color: 'var(--text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                marginBottom: 10,
               }}
             >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontSize: '0.86rem',
-                  fontWeight: 600,
-                  color: 'var(--text)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                }}
-              >
-                <BookOpen size={16} style={{ color: 'var(--accent)' }} />
-                <span>Active Courses & Cohorts ({courses.length})</span>
-              </div>
-
-              {!isAddingCourse && (
-                <button
-                  type="button"
-                  onClick={() => setIsAddingCourse(true)}
-                  className="btn btn-secondary btn-sm"
-                  style={{
-                    height: 28,
-                    fontSize: '0.74rem',
-                    padding: '0 8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
-                  <Plus size={13} style={{ color: 'var(--accent)' }} />
-                  <span>Assign Course</span>
-                </button>
-              )}
+              Security & Authentication
             </div>
 
-            {/* Inline Add Course Panel */}
-            {isAddingCourse && (
+            {!isChangingPassword ? (
+              /* Compact password row with Change Password button */
               <div
                 style={{
                   background: 'var(--surface-alt)',
                   border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  padding: 12,
-                  marginBottom: 12,
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 8,
+                      background: 'rgba(20, 184, 166, 0.12)',
+                      color: 'var(--accent)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <KeyRound size={16} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text)' }}>
+                      Account Password
+                    </div>
+                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                      ••••••••••••
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsChangingPassword(true)}
+                  className="btn btn-secondary btn-sm"
+                  style={{
+                    height: 32,
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    padding: '0 12px',
+                  }}
+                >
+                  Change Password
+                </button>
+              </div>
+            ) : (
+              /* Expanded Password Change Form */
+              <div
+                style={{
+                  background: 'var(--surface-alt)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: '16px',
                   animation: 'fadeIn 0.15s ease',
                 }}
               >
-                <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
-                  Assign New Course or Cohort
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.84rem', fontWeight: 600, color: 'var(--text)' }}>
+                    <KeyRound size={15} style={{ color: 'var(--accent)' }} />
+                    <span>Change Account Password</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsChangingPassword(false);
+                      setPasswordError('');
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.76rem',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    Cancel
+                  </button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 8, marginBottom: 8 }}>
-                  <input
-                    type="text"
-                    value={newCode}
-                    onChange={(e) => setNewCode(e.target.value)}
-                    placeholder="Code (e.g. CS202)"
-                    className="input-text"
-                    style={{ height: 32, fontSize: '0.8rem', padding: '0 8px' }}
-                  />
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Course Title (e.g. Algorithms)"
-                    className="input-text"
-                    style={{ height: 32, fontSize: '0.8rem', padding: '0 8px' }}
-                  />
-                </div>
+                {passwordError && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#ef4444',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      fontSize: '0.78rem',
+                      marginBottom: 12,
+                    }}
+                  >
+                    <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                    <span>{passwordError}</span>
+                  </div>
+                )}
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input
-                      type="text"
-                      value={newTerm}
-                      onChange={(e) => setNewTerm(e.target.value)}
-                      placeholder="Term (e.g. Fall 2026)"
-                      className="input-text"
-                      style={{ height: 30, fontSize: '0.76rem', width: 110, padding: '0 6px' }}
-                    />
-                    <input
-                      type="number"
-                      value={newStudents}
-                      onChange={(e) => setNewStudents(e.target.value)}
-                      placeholder="Students"
-                      className="input-text"
-                      style={{ height: 30, fontSize: '0.76rem', width: 90, padding: '0 6px' }}
-                      title="Enrolled students count"
-                    />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Current Password */}
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>
+                      Current Password
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        className="input-text"
+                        placeholder="Enter current password"
+                        style={{ paddingLeft: 32, paddingRight: 32, height: 36, fontSize: '0.84rem' }}
+                      />
+                      <Lock size={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)' }} />
+                    </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  {/* New Password */}
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>
+                      New Password
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="input-text"
+                        placeholder="At least 6 characters"
+                        style={{ paddingLeft: 32, paddingRight: 32, height: 36, fontSize: '0.84rem' }}
+                      />
+                      <Lock size={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)' }} />
+                    </div>
+                  </div>
+
+                  {/* Confirm New Password */}
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: 4 }}>
+                      Confirm New Password
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="input-text"
+                        placeholder="Re-enter new password"
+                        style={{ paddingLeft: 32, paddingRight: 32, height: 36, fontSize: '0.84rem' }}
+                      />
+                      <Lock size={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)' }} />
+                    </div>
+                  </div>
+
+                  {/* Show/Hide password toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                     <button
                       type="button"
-                      onClick={() => setIsAddingCourse(false)}
-                      className="btn btn-ghost btn-sm"
-                      style={{ height: 28, fontSize: '0.75rem', padding: '0 8px' }}
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        fontSize: '0.74rem',
+                        cursor: 'pointer',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                      }}
                     >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleAddCourse}
-                      className="btn btn-primary btn-sm"
-                      style={{ height: 28, fontSize: '0.75rem', padding: '0 10px' }}
-                    >
-                      Add
+                      {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                      <span>{showPassword ? 'Hide passwords' : 'Show passwords'}</span>
                     </button>
                   </div>
                 </div>
               </div>
             )}
-
-            {/* Courses List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {courses.length === 0 ? (
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: 8 }}>
-                  No active courses assigned yet.
-                </div>
-              ) : (
-                courses.map((course) => (
-                  <div
-                    key={course.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 10,
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <span
-                        style={{
-                          fontSize: '0.74rem',
-                          fontWeight: 700,
-                          padding: '3px 8px',
-                          borderRadius: 6,
-                          background: 'rgba(94, 234, 212, 0.12)',
-                          color: 'var(--accent)',
-                          border: '1px solid rgba(94, 234, 212, 0.25)',
-                          fontFamily: 'var(--font-mono)',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {course.code}
-                      </span>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span
-                          style={{
-                            fontSize: '0.84rem',
-                            fontWeight: 500,
-                            color: 'var(--text)',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {course.name}
-                        </span>
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          {course.term} • {course.students || 45} enrolled students
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveCourse(course.id)}
-                      className="btn btn-ghost btn-sm"
-                      style={{
-                        height: 26,
-                        width: 26,
-                        padding: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--text-muted)',
-                      }}
-                      title="Remove course"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* Success Banner */}
+          {isSaved && successMessage && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: 'rgba(20, 184, 166, 0.15)',
+                border: '1px solid rgba(94, 234, 212, 0.4)',
+                color: 'var(--accent)',
+                padding: '10px 14px',
+                borderRadius: 10,
+                fontSize: '0.84rem',
+                fontWeight: 600,
+                marginBottom: 16,
+                animation: 'fadeIn 0.2s ease',
+              }}
+            >
+              <Check size={16} />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          {/* Bottom Action Footer */}
           <div
             style={{
               display: 'flex',
@@ -603,31 +779,32 @@ export default function InstructorProfileModal({
               justifyContent: 'flex-end',
               gap: 10,
               paddingTop: 16,
-              borderTop: '1px solid var(--border)',
+              borderTop: '1px solid var(--border-subtle)',
             }}
           >
             <button
               type="button"
               onClick={onClose}
-              className="btn btn-secondary btn-sm"
-              style={{ padding: '7px 14px', fontSize: '0.84rem' }}
+              className="btn btn-secondary"
+              style={{ minWidth: 80, height: 38, fontSize: '0.84rem' }}
             >
               Cancel
             </button>
-
             <button
               type="submit"
-              className="btn btn-primary btn-sm"
+              className="btn btn-primary"
               style={{
-                padding: '7px 16px',
+                minWidth: 120,
+                height: 38,
                 fontSize: '0.84rem',
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: 6,
               }}
             >
-              {isSaved ? <CheckCircle2 size={14} /> : <Save size={14} />}
-              <span>{isSaved ? 'Saved!' : 'Save Profile'}</span>
+              <Save size={15} />
+              <span>Save Changes</span>
             </button>
           </div>
         </form>

@@ -106,7 +106,13 @@ export default function App() {
     }
   });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState('signin');
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  const handleOpenAuth = (mode = 'signin') => {
+    setAuthMode(mode);
+    setIsAuthOpen(true);
+  };
 
   const handleSaveProfile = (updatedUser) => {
     setCurrentUser(updatedUser);
@@ -250,7 +256,7 @@ export default function App() {
         <LandingPage
           onEnterApp={handleEnterWorkspace}
           currentUser={currentUser}
-          onOpenAuth={() => setIsAuthOpen(true)}
+          onOpenAuth={handleOpenAuth}
           onOpenProfile={() => setIsProfileOpen(true)}
           onSignOut={handleSignOut}
           theme={theme}
@@ -260,6 +266,7 @@ export default function App() {
         />
         <AuthModal
           isOpen={isAuthOpen}
+          initialMode={authMode}
           onClose={() => setIsAuthOpen(false)}
           currentUser={currentUser}
           onAuthSuccess={(user) => {

@@ -1,23 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, User, Lock, Mail, CheckCircle } from 'lucide-react';
 
-export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser }) {
-  const [isRegister, setIsRegister] = useState(false);
+export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser, initialMode = 'signin' }) {
+  const [isRegister, setIsRegister] = useState(initialMode === 'register');
   const [name, setName] = useState(currentUser?.name || '');
   const [email, setEmail] = useState(currentUser?.email || '');
   const [password, setPassword] = useState('');
-  const [department, setDepartment] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsRegister(initialMode === 'register');
+    }
+  }, [initialMode, isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const user = {
-      name: name || (email ? email.split('@')[0] : 'Instructor'),
-      email: email || 'instructor@university.edu',
+      name: name.trim() || (email ? email.split('@')[0] : 'Instructor'),
+      email: email.trim() || 'instructor@didactic.ai',
       role: 'Instructor',
-      department: department || 'Computer Science',
-      id: `usr_${Math.random().toString(36).substr(2, 6)}`,
+      id: currentUser?.id || `usr_${Math.random().toString(36).substr(2, 6)}`,
     };
 
     localStorage.setItem('didactic_user', JSON.stringify(user));
@@ -76,20 +80,22 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
           title="Close"
           aria-label="Close"
         >
-          <X size={22} strokeWidth={2.4} />
+          <X size={20} strokeWidth={2.4} />
         </button>
 
         {/* Modal Header */}
         <div style={{ marginBottom: 16 }}>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em' }}>
-            {isRegister ? 'Create instructor account' : 'Instructor Sign In'}
+            {isRegister ? 'Create Instructor Account' : 'Instructor Sign In'}
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 4 }}>
-            Sign in to your instructor profile to manage curriculum, author assessments, and grade student submissions.
+            {isRegister
+              ? 'Join Didactic AI to create curriculum-aligned assessments and evidence-grounded rubrics.'
+              : 'Sign in to access your course assessments, student submissions, and master gradebooks.'}
           </p>
         </div>
 
-        {/* Guest Access Restriction Notice */}
+        {/* Notice */}
         <div
           style={{
             marginBottom: 16,
@@ -107,7 +113,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
         >
           <Lock size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
           <span>
-            <strong style={{ color: 'var(--text)' }}>Instructor Access Required:</strong> Guest access is restricted. Please sign in or register an account to enter the workspace.
+            <strong style={{ color: 'var(--text)' }}>Instructor Portal:</strong> Secure access for university educators and teaching assistants.
           </span>
         </div>
 
@@ -115,101 +121,102 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {isRegister && (
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Full Name & Title</label>
+              <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>
+                Full Name & Title
+              </label>
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
                   required
-                  className="input-text"
+                  placeholder="e.g. Dr. Jane Smith"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Dr. Sarah Chen"
-                  style={{ paddingLeft: 34 }}
+                  className="input"
+                  style={{ width: '100%', paddingLeft: 34, height: 38, fontSize: '0.9rem' }}
                 />
-                <User size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-muted)' }} />
+                <User
+                  size={15}
+                  style={{ position: 'absolute', left: 11, top: 11, color: 'var(--text-muted)', pointerEvents: 'none' }}
+                />
               </div>
             </div>
           )}
 
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Academic Email</label>
+            <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>
+              Institutional Email
+            </label>
             <div style={{ position: 'relative' }}>
               <input
                 type="email"
                 required
-                className="input-text"
+                placeholder="professor@university.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="faculty@university.edu"
-                style={{ paddingLeft: 34 }}
+                className="input"
+                style={{ width: '100%', paddingLeft: 34, height: 38, fontSize: '0.9rem' }}
               />
-              <Mail size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-muted)' }} />
+              <Mail
+                size={15}
+                style={{ position: 'absolute', left: 11, top: 11, color: 'var(--text-muted)', pointerEvents: 'none' }}
+              />
             </div>
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Password</label>
+            <label className="form-label" style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 4, display: 'block' }}>
+              Password
+            </label>
             <div style={{ position: 'relative' }}>
               <input
                 type="password"
                 required
-                className="input-text"
+                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                style={{ paddingLeft: 34 }}
+                className="input"
+                style={{ width: '100%', paddingLeft: 34, height: 38, fontSize: '0.9rem' }}
               />
-              <Lock size={14} style={{ position: 'absolute', left: 12, top: 13, color: 'var(--text-muted)' }} />
+              <Lock
+                size={15}
+                style={{ position: 'absolute', left: 11, top: 11, color: 'var(--text-muted)', pointerEvents: 'none' }}
+              />
             </div>
           </div>
-
-          {isRegister && (
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Department / Course</label>
-              <input
-                type="text"
-                className="input-text"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                placeholder="e.g. Computer Science (CS-301)"
-              />
-            </div>
-          )}
 
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ width: '100%', marginTop: 8, padding: '10px 0' }}
+            style={{ width: '100%', height: 40, marginTop: 6, fontWeight: 600, fontSize: '0.92rem' }}
           >
-            <CheckCircle size={15} />
-            <span>{isRegister ? 'Create Instructor Account' : 'Sign in as Instructor'}</span>
+            {isRegister ? 'Create Free Account' : 'Sign In to Workspace'}
           </button>
         </form>
 
         {/* Toggle between Login and Register */}
-        <div style={{ marginTop: 18, textAlign: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+        <div style={{ marginTop: 18, textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           {isRegister ? (
-            <span>
+            <>
               Already have an account?{' '}
               <button
                 type="button"
                 onClick={() => setIsRegister(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, cursor: 'pointer', padding: 0 }}
               >
-                Sign in
+                Sign In
               </button>
-            </span>
+            </>
           ) : (
-            <span>
-              Need a new instructor profile?{' '}
+            <>
+              Don't have an instructor profile?{' '}
               <button
                 type="button"
                 onClick={() => setIsRegister(true)}
-                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontWeight: 600, cursor: 'pointer', padding: 0 }}
               >
-                Create account
+                Sign up free
               </button>
-            </span>
+            </>
           )}
         </div>
       </div>
