@@ -25,6 +25,9 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ChevronUp,
+  Table,
+  Settings,
+  FolderCheck,
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import {
@@ -34,6 +37,8 @@ import {
   regradeSubmissionQuestion,
   fetchAssessmentSubmissions,
   fetchAssessments,
+  fetchMasterCourseGradebook,
+  updateAssessmentSettings,
   fetchAssessmentDetail,
   createManualSubmission,
 } from '../services/api';
@@ -90,7 +95,165 @@ export default function GradingTab({
 
   const reportRef = useRef(null);
 
+  // Master Course Gradebook & Section Management State
+  const [courseName, setCourseName] = useState(assessment?.course_name || 'General Course');
+  const [section, setSection] = useState(assessment?.section || 'Section A');
+  const [academicYear, setAcademicYear] = useState(assessment?.academic_year || '2026');
+  const [assessmentCategory, setAssessmentCategory] = useState(assessment?.assessment_category || 'midterm');
+  const [weightPct, setWeightPct] = useState(assessment?.weight_pct ?? 25.0);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsSuccessMsg, setSettingsSuccessMsg] = useState(null);
+
+  // Gradebook Mode: 'master' (cumulative course sheet) | 'exam' (single exam sheet)
+  const [gradebookMode, setGradebookMode] = useState('master');
+  const [activeSectionFilter, setActiveSectionFilter] = useState('All');
+  const [masterGradebookData, setMasterGradebookData] = useState(null);
+  const [isLoadingMasterGradebook, setIsLoadingMasterGradebook] = useState(false);
+  const [showAddSectionModal, setShowAddSectionModal] = useState(false);
+  const [newSectionName, setNewSectionName] = useState('');
+
   // Initialize manual scores whenever active assessment changes
+  // Synchronize active assessment settings
+  useEffect(() => {
+    if (assessment) {
+      if (assessment.course_name) setCourseName(assessment.course_name);
+      if (assessment.section) setSection(assessment.section);
+      if (assessment.academic_year) setAcademicYear(assessment.academic_year);
+      if (assessment.assessment_category) setAssessmentCategory(assessment.assessment_category);
+      if (assessment.weight_pct !== undefined) setWeightPct(assessment.weight_pct);
+    }
+  }, [assessment?.id]);
+
+  const loadMasterGradebook = async (sec = activeSectionFilter, crs = courseName, yr = academicYear) => {
+    setIsLoadingMasterGradebook(true);
+    try {
+      const data = await fetchMasterCourseGradebook({
+        course_name: crs || courseName,
+        section: sec === 'All' ? null : sec,
+        academic_year: yr || academicYear,
+        assessment_id: assessment?.id,
+        lecturerId: currentUser?.email,
+      });
+      setMasterGradebookData(data);
+    } catch (err) {
+      console.error('Failed to load Master Course Gradebook:', err);
+    } finally {
+      setIsLoadingMasterGradebook(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMasterGradebook();
+  }, [assessment?.id, activeSectionFilter]);
+
+  const handleSaveAssessmentSettings = async () => {
+    if (!assessment?.id) return;
+    setIsSavingSettings(true);
+    setSettingsSuccessMsg(null);
+    try {
+      const updated = await updateAssessmentSettings(
+        assessment.id,
+        {
+          course_name: courseName,
+          section: section,
+          academic_year: academicYear,
+          assessment_category: assessmentCategory,
+          weight_pct: parseFloat(weightPct) || 25.0,
+        },
+        currentUser?.email
+      );
+      if (setAssessment) {
+        setAssessment((prev) => ({ ...prev, ...updated }));
+      }
+      setSettingsSuccessMsg('Course & Section settings saved.');
+      setTimeout(() => setSettingsSuccessMsg(null), 3500);
+      await loadMasterGradebook();
+    } catch (err) {
+      setGradingError(`Failed to save settings: ${err.message}`);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleExportMasterExcel = async () => {
+    if (!masterGradebookData) return;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Master Course Gradebook');
+
+    const assessmentsList = masterGradebookData.assessments || [];
+
+    const columns = [
+      { header: 'Student ID', key: 'student_number', width: 16 },
+      { header: 'Student Name', key: 'student_name', width: 26 },
+      { header: 'Section', key: 'section', width: 14 },
+      { header: 'Academic Year', key: 'academic_year', width: 14 },
+    ];
+
+    assessmentsList.forEach((a) => {
+      columns.push({
+        header: `${a.title} (${a.category.toUpperCase()}) [${a.max_score} pts, ${a.weight_pct}%]`,
+        key: `score_${a.id}`,
+        width: 30,
+      });
+    });
+
+    columns.push(
+      { header: 'Raw Total Points', key: 'raw_total', width: 16 },
+      { header: 'Weighted Course %', key: 'course_percentage', width: 18 },
+      { header: 'Final Grade Tier', key: 'grade_tier', width: 16 }
+    );
+
+    worksheet.columns = columns;
+
+    (masterGradebookData.students || []).forEach((s) => {
+      const rowData = {
+        student_number: s.student_number || s.student_id,
+        student_name: s.student_name,
+        section: s.section,
+        academic_year: s.academic_year,
+        raw_total: `${s.raw_total} / ${s.max_total}`,
+        course_percentage: `${s.course_percentage}%`,
+        grade_tier: s.grade_tier,
+      };
+
+      assessmentsList.forEach((a) => {
+        rowData[`score_${a.id}`] = s.scores && s.scores[a.id] !== undefined
+          ? `${s.scores[a.id]} / ${a.max_score} (${s.percentages[a.id]}%)`
+          : 'Pending';
+      });
+
+      worksheet.addRow(rowData);
+    });
+
+    const statsRow = {
+      student_number: 'CLASS AVERAGE',
+      student_name: `${(masterGradebookData.students || []).length} Students Enrolled`,
+      section: activeSectionFilter,
+      academic_year: academicYear,
+      raw_total: '-',
+      course_percentage: `${masterGradebookData.class_statistics?.overall_course_average_pct || 0}%`,
+      grade_tier: (masterGradebookData.class_statistics?.overall_course_average_pct >= 80 ? 'Grade B' : 'Grade C'),
+    };
+
+    assessmentsList.forEach((a) => {
+      const aStat = masterGradebookData.class_statistics?.assessment_averages?.[a.id];
+      statsRow[`score_${a.id}`] = aStat ? `${aStat.average_score} / ${a.max_score} (${aStat.average_percentage}%)` : '-';
+    });
+
+    worksheet.addRow(statsRow);
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const safeTitle = (courseName || 'Course').replace(/[^a-zA-Z0-9]/g, '_');
+    const safeSec = (activeSectionFilter || 'All').replace(/[^a-zA-Z0-9]/g, '_');
+    link.download = `${safeTitle}_${safeSec}_${academicYear}_Master_Gradebook.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     if (assessment?.questions && assessment.questions.length > 0) {
       const initScores = {};
@@ -621,6 +784,16 @@ export default function GradingTab({
 
   const questionsCount = assessment?.questions?.length || 0;
 
+  const filteredMasterStudents = (masterGradebookData?.students || []).filter((s) => {
+    if (!searchTerm.trim()) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      (s.student_name && s.student_name.toLowerCase().includes(term)) ||
+      (s.student_number && s.student_number.toLowerCase().includes(term)) ||
+      (s.section && s.section.toLowerCase().includes(term))
+    );
+  });
+
   // Filtered submissions for search
   const filteredSubmissions = submissions.filter((s) => {
     if (!searchTerm.trim()) return true;
@@ -716,6 +889,117 @@ export default function GradingTab({
               </option>
             ))}
           </select>
+        </div>
+      </div>
+
+      {/* Course, Section, Year & Weight Settings Card */}
+      <div
+        className="cartesia-card"
+        style={{
+          padding: '12px 16px',
+          marginBottom: 20,
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 8,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flex: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Course Name / Code
+              </label>
+              <input
+                type="text"
+                value={courseName}
+                onChange={(e) => setCourseName(e.target.value)}
+                placeholder="e.g. CS101: Computer Science"
+                className="input-text"
+                style={{ height: 28, fontSize: '0.8rem', width: 190, padding: '0 8px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Class Section
+              </label>
+              <input
+                type="text"
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+                placeholder="e.g. Section A"
+                className="input-text"
+                style={{ height: 28, fontSize: '0.8rem', width: 110, padding: '0 8px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Academic Year
+              </label>
+              <input
+                type="text"
+                value={academicYear}
+                onChange={(e) => setAcademicYear(e.target.value)}
+                placeholder="e.g. 2026"
+                className="input-text"
+                style={{ height: 28, fontSize: '0.8rem', width: 85, padding: '0 8px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Category in Master Sheet
+              </label>
+              <select
+                value={assessmentCategory}
+                onChange={(e) => setAssessmentCategory(e.target.value)}
+                className="input-text"
+                style={{ height: 28, fontSize: '0.8rem', width: 145, padding: '0 6px', background: 'var(--bg)', color: 'var(--text)' }}
+              >
+                <option value="midterm">Midterm Exam</option>
+                <option value="final">Final Exam</option>
+                <option value="quiz">Quiz</option>
+                <option value="assignment">Assignment</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Course Weight (%)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={weightPct}
+                onChange={(e) => setWeightPct(e.target.value)}
+                className="input-text"
+                style={{ height: 28, fontSize: '0.8rem', width: 75, padding: '0 6px', textAlign: 'center' }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              type="button"
+              onClick={handleSaveAssessmentSettings}
+              disabled={isSavingSettings || !assessment?.id}
+              className="btn btn-secondary btn-sm"
+              style={{ height: 28, fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: 5 }}
+              title="Save course and section metadata for this assessment"
+            >
+              <Settings size={12} className={isSavingSettings ? 'spin' : ''} />
+              <span>{isSavingSettings ? 'Saving...' : 'Save Settings'}</span>
+            </button>
+
+            {settingsSuccessMsg && (
+              <span style={{ fontSize: '0.74rem', color: 'var(--success)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <CheckCircle2 size={12} />
+                {settingsSuccessMsg}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -999,7 +1283,7 @@ export default function GradingTab({
             </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Student Name *</label>
               <input
@@ -1013,7 +1297,7 @@ export default function GradingTab({
             </div>
 
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Student ID / Number (Optional)</label>
+              <label className="form-label">Student ID / Number</label>
               <input
                 type="text"
                 placeholder="e.g. STU-2026-081"
@@ -1022,6 +1306,33 @@ export default function GradingTab({
                 className="input-text"
                 style={{ fontSize: '0.88rem' }}
               />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Class Section</label>
+              <input
+                type="text"
+                placeholder="e.g. Section A"
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+                className="input-text"
+                style={{ fontSize: '0.88rem' }}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Category in Sheet</label>
+              <select
+                value={assessmentCategory}
+                onChange={(e) => setAssessmentCategory(e.target.value)}
+                className="input-text"
+                style={{ fontSize: '0.88rem', background: 'var(--bg)', color: 'var(--text)' }}
+              >
+                <option value="midterm">Midterm Exam</option>
+                <option value="final">Final Exam</option>
+                <option value="quiz">Quiz</option>
+                <option value="assignment">Assignment</option>
+              </select>
             </div>
           </div>
 
@@ -1581,33 +1892,84 @@ export default function GradingTab({
         </div>
       )}
 
-      {/* Cohort Gradebook Table Section - Dedicated strictly to this assessment */}
+      {/* Cohort Gradebook Table Section */}
       <div className="cartesia-card">
-        {/* Gradebook Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <GraduationCap size={18} style={{ color: 'var(--accent)' }} />
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-                Class Gradebook: {assessment?.title || 'Selected Assessment'}
-              </h3>
-            </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-              Only students who submitted or were graded for this specific exam are listed here.
-            </p>
+        {/* Mode Toggle & Export Controls Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          {/* Left: Mode Toggle */}
+          <div style={{ display: 'inline-flex', padding: 3, background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+            <button
+              type="button"
+              onClick={() => setGradebookMode('master')}
+              className={`btn btn-sm ${gradebookMode === 'master' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ height: 28, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <Table size={13} />
+              <span>Master Course Gradebook</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGradebookMode('exam')}
+              className={`btn btn-sm ${gradebookMode === 'exam' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ height: 28, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <FileText size={13} />
+              <span>Single Exam Sheet</span>
+            </button>
           </div>
 
+          {/* Right: Refresh & Export */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button onClick={loadSubmissions} disabled={isLoadingSubmissions} className="btn btn-secondary btn-sm" title="Refresh gradebook">
-              <RefreshCw size={13} className={isLoadingSubmissions ? 'spin' : ''} />
+            <button
+              onClick={() => { loadSubmissions(); loadMasterGradebook(); }}
+              disabled={isLoadingSubmissions || isLoadingMasterGradebook}
+              className="btn btn-secondary btn-sm"
+              title="Refresh gradebook"
+            >
+              <RefreshCw size={13} className={(isLoadingSubmissions || isLoadingMasterGradebook) ? 'spin' : ''} />
               <span>Refresh</span>
             </button>
 
-            <button onClick={handleExportCohortExcel} disabled={submissions.length === 0} className="btn btn-secondary btn-sm">
-              <FileSpreadsheet size={13} />
-              <span>Export Class Gradebook (.xlsx)</span>
-            </button>
+            {gradebookMode === 'master' ? (
+              <button
+                onClick={handleExportMasterExcel}
+                disabled={!masterGradebookData?.students?.length}
+                className="btn btn-primary btn-sm"
+                title="Export complete cumulative course gradebook with all exam columns, percentages, and grade tiers"
+              >
+                <FileSpreadsheet size={13} />
+                <span>Export Master Course Gradebook (.xlsx)</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleExportCohortExcel}
+                disabled={submissions.length === 0}
+                className="btn btn-secondary btn-sm"
+                title="Export single exam results"
+              >
+                <FileSpreadsheet size={13} />
+                <span>Export Exam Sheet (.xlsx)</span>
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Section Filter Tabs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, overflowX: 'auto', paddingBottom: 2 }}>
+          <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: 4 }}>
+            Filter Section:
+          </span>
+          {['All', ...(masterGradebookData?.available_sections || ['Section A', 'Section B'])].map((secItem) => (
+            <button
+              key={secItem}
+              type="button"
+              onClick={() => setActiveSectionFilter(secItem)}
+              className={`btn btn-sm ${activeSectionFilter === secItem ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ height: 26, fontSize: '0.74rem', padding: '0 10px', borderRadius: 14 }}
+            >
+              {secItem === 'All' ? 'All Sections' : secItem}
+            </button>
+          ))}
         </div>
 
         {/* Cohort Metric Stats */}
@@ -1645,146 +2007,270 @@ export default function GradingTab({
           </div>
         </div>
 
-        {/* Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table className="rubric-table" style={{ fontSize: '0.84rem' }}>
-            <thead>
-              <tr>
-                <th>Student ID</th>
-                <th>Student Name</th>
-                <th>Format</th>
-                <th>Score</th>
-                <th>Percentage</th>
-                <th>Status</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSubmissions.length > 0 ? (
-                filteredSubmissions.map((sub, idx) => {
-                  const pct = sub.percentage ?? (sub.max_score ? Number(((sub.total_score / sub.max_score) * 100).toFixed(1)) : 0);
-                  let tier = 'C';
-                  if (pct >= 90) tier = 'Grade A';
-                  else if (pct >= 85) tier = 'Grade A-';
-                  else if (pct >= 80) tier = 'Grade B+';
-                  else if (pct >= 75) tier = 'Grade B';
-                  else if (pct >= 70) tier = 'Grade C+';
-                  else tier = 'Grade C';
-
-                  const isRowConfirmed = sub.status === 'confirmed';
-
-                  return (
-                    <tr key={sub.id || idx} className="gradebook-row">
-                      <td style={{ fontFamily: 'var(--font-mono)' }}>
-                        {sub.student_number || `STU-2026-${String(idx + 1).padStart(3, '0')}`}
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{sub.student_name}</td>
-                      <td>
-                        <span
-                          className="badge"
-                          style={{
-                            fontSize: '0.68rem',
-                            textTransform: 'uppercase',
-                            fontWeight: 600,
-                            color: sub.file_type === 'docx' ? '#2563eb' : (sub.file_type === 'png' || sub.file_type === 'jpg' || sub.file_type === 'jpeg') ? '#8b5cf6' : sub.file_type === 'pdf' ? '#ef4444' : 'var(--text-muted)',
-                            background: 'var(--surface)',
-                            border: '1px solid var(--border-subtle)',
-                          }}
-                        >
-                          {sub.file_type || (sub.has_file ? 'FILE' : 'MANUAL')}
-                        </span>
-                      </td>
-                      <td>
-                        {sub.total_score} / {sub.max_score || assessment?.max_score || 100}
-                      </td>
-                      <td style={{ fontWeight: 700, color: 'var(--accent)' }}>
-                        {pct}%
-                      </td>
-                      <td>
-                        <span
-                          className={`badge ${isRowConfirmed ? 'badge-accent' : 'badge-outline'}`}
-                          style={{ fontSize: '0.7rem' }}
-                        >
-                          {isRowConfirmed ? 'CONFIRMED' : 'GRADED'}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                          <button
-                            onClick={() => handleReviewSubmission(sub)}
-                            className="btn btn-secondary btn-sm"
-                            style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
-                            title="Inspect student report and citations"
-                          >
-                            <Eye size={11} />
-                            <span>Review</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleRegradeSubmission(sub)}
-                            disabled={regradingSubId === sub.id}
-                            className="btn btn-secondary btn-sm"
-                            style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
-                            title="Re-run AI grading from scratch on this student paper"
-                          >
-                            <RefreshCw size={11} className={regradingSubId === sub.id ? 'spin' : ''} />
-                            <span>{regradingSubId === sub.id ? 'Regrading...' : 'Regrade'}</span>
-                          </button>
-
-                          {sub.has_file && sub.id && (
-                            <a
-                              href={`/api/submissions/${sub.id}/file`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-secondary btn-sm"
-                              style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
-                              title="Download student original paper"
-                            >
-                              <Download size={11} />
-                              <span>Paper</span>
-                            </a>
-                          )}
-
-                          {!isRowConfirmed && (
-                            <button
-                              onClick={() => handleConfirmRowScore(sub)}
-                              disabled={confirmingSubId === sub.id}
-                              className="btn btn-primary btn-sm"
-                              style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
-                              title="Confirm score"
-                            >
-                              {confirmingSubId === sub.id ? <Loader2 size={11} className="spin" /> : <Check size={11} />}
-                              <span>Confirm</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
+        {/* Table Rendering based on Gradebook Mode */}
+        {gradebookMode === 'master' ? (
+          /* =========================================================
+             Master Course Gradebook (Multi-Assessment Columns & Tiers)
+             ========================================================= */
+          <div style={{ overflowX: 'auto' }}>
+            <table className="rubric-table" style={{ fontSize: '0.84rem' }}>
+              <thead>
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-muted)' }}>
-                    {searchTerm ? (
-                      `No student submissions found matching "${searchTerm}".`
-                    ) : (
+                  <th>Student ID</th>
+                  <th>Student Name</th>
+                  <th>Section</th>
+                  {(masterGradebookData?.assessments || []).map((a) => (
+                    <th key={a.id} style={{ minWidth: 130 }}>
+                      <div style={{ fontWeight: 600 }}>{a.title}</div>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--accent)', fontWeight: 500 }}>
+                        {a.category.toUpperCase()} • {a.max_score} pts ({a.weight_pct}%)
+                      </div>
+                    </th>
+                  ))}
+                  <th>Raw Points</th>
+                  <th>Course %</th>
+                  <th>Final Grade Tier</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredMasterStudents.length > 0 ? (
+                  filteredMasterStudents.map((stu, sIdx) => {
+                    const tierBadgeClass =
+                      stu.grade_tier?.includes('A')
+                        ? 'badge-accent'
+                        : stu.grade_tier?.includes('B')
+                        ? 'badge-primary'
+                        : stu.grade_tier?.includes('C')
+                        ? 'badge-outline'
+                        : 'badge-danger';
+                    return (
+                      <tr key={stu.student_id || sIdx} className="gradebook-row">
+                        <td style={{ fontFamily: 'var(--font-mono)' }}>
+                          {stu.student_number || `STU-${String(sIdx + 1).padStart(3, '0')}`}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{stu.student_name}</td>
+                        <td>
+                          <span className="badge badge-outline" style={{ fontSize: '0.68rem' }}>
+                            {stu.section}
+                          </span>
+                        </td>
+                        {(masterGradebookData?.assessments || []).map((a) => {
+                          const hasScore = stu.scores && stu.scores[a.id] !== undefined;
+                          const scoreVal = hasScore ? stu.scores[a.id] : null;
+                          const pctVal = hasScore ? stu.percentages[a.id] : null;
+                          return (
+                            <td key={a.id}>
+                              {hasScore ? (
+                                <div>
+                                  <span style={{ fontWeight: 600 }}>{scoreVal}</span>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}> / {a.max_score}</span>
+                                  <span style={{ fontSize: '0.72rem', color: 'var(--accent)', marginLeft: 4 }}>({pctVal}%)</span>
+                                </div>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem', fontStyle: 'italic' }}>Pending</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td>
+                          {stu.raw_total} / {stu.max_total}
+                        </td>
+                        <td style={{ fontWeight: 700, color: 'var(--accent)' }}>
+                          {stu.course_percentage}%
+                        </td>
+                        <td>
+                          <span className={`badge ${tierBadgeClass}`} style={{ fontSize: '0.72rem', fontWeight: 600 }}>
+                            {stu.grade_tier}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={6 + (masterGradebookData?.assessments?.length || 0)} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-muted)' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                         <GraduationCap size={28} style={{ color: 'var(--accent)', opacity: 0.7 }} />
                         <span style={{ fontWeight: 600, color: 'var(--text)' }}>
-                          No Student Submissions for this Exam Yet
+                          No Students in this Course / Section Yet
                         </span>
                         <span style={{ fontSize: '0.8rem' }}>
-                          This class gradebook is dedicated specifically to <strong>{assessment?.title || 'this assessment'}</strong>.<br />
-                          Upload a student exam paper or insert scores manually above to start recording grades for this class.
+                          Students graded under Course "<strong>{courseName}</strong>" and Section "<strong>{activeSectionFilter}</strong>" will automatically aggregate into this master sheet.
                         </span>
                       </div>
-                    )}
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              {filteredMasterStudents.length > 0 && (
+                <tfoot>
+                  <tr style={{ background: 'var(--surface-alt)', fontWeight: 600 }}>
+                    <td colSpan={3} style={{ textTransform: 'uppercase', fontSize: '0.74rem', letterSpacing: '0.04em', color: 'var(--accent)' }}>
+                      Class Average ({filteredMasterStudents.length} Students)
+                    </td>
+                    {(masterGradebookData?.assessments || []).map((a) => {
+                      const aStat = masterGradebookData?.class_statistics?.assessment_averages?.[a.id];
+                      return (
+                        <td key={a.id} style={{ fontSize: '0.78rem' }}>
+                          {aStat ? `${aStat.average_score} / ${a.max_score} (${aStat.average_percentage}%)` : '-'}
+                        </td>
+                      );
+                    })}
+                    <td>-</td>
+                    <td style={{ color: 'var(--accent)', fontWeight: 700 }}>
+                      {masterGradebookData?.class_statistics?.overall_course_average_pct || 0}%
+                    </td>
+                    <td>
+                      <span className="badge badge-accent" style={{ fontSize: '0.7rem' }}>
+                        {(masterGradebookData?.class_statistics?.overall_course_average_pct || 0) >= 80 ? 'Grade B' : 'Grade C'}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
               )}
-            </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        ) : (
+          /* =========================================================
+             Single Exam View (Active Assessment Submissions & Actions)
+             ========================================================= */
+          <div style={{ overflowX: 'auto' }}>
+            <table className="rubric-table" style={{ fontSize: '0.84rem' }}>
+              <thead>
+                <tr>
+                  <th>Student ID</th>
+                  <th>Student Name</th>
+                  <th>Section</th>
+                  <th>Format</th>
+                  <th>Score</th>
+                  <th>Percentage</th>
+                  <th>Status</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSubmissions.length > 0 ? (
+                  filteredSubmissions.map((sub, idx) => {
+                    const pct = sub.percentage ?? (sub.max_score ? Number(((sub.total_score / sub.max_score) * 100).toFixed(1)) : 0);
+                    const isRowConfirmed = sub.status === 'confirmed';
+
+                    return (
+                      <tr key={sub.id || idx} className="gradebook-row">
+                        <td style={{ fontFamily: 'var(--font-mono)' }}>
+                          {sub.student_number || `STU-2026-${String(idx + 1).padStart(3, '0')}`}
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{sub.student_name}</td>
+                        <td>
+                          <span className="badge badge-outline" style={{ fontSize: '0.68rem' }}>
+                            {sub.section || 'Section A'}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className="badge"
+                            style={{
+                              fontSize: '0.68rem',
+                              textTransform: 'uppercase',
+                              fontWeight: 600,
+                              color: sub.file_type === 'docx' ? '#2563eb' : (sub.file_type === 'png' || sub.file_type === 'jpg' || sub.file_type === 'jpeg') ? '#8b5cf6' : sub.file_type === 'pdf' ? '#ef4444' : 'var(--text-muted)',
+                              background: 'var(--surface)',
+                              border: '1px solid var(--border-subtle)',
+                            }}
+                          >
+                            {sub.file_type || (sub.has_file ? 'FILE' : 'MANUAL')}
+                          </span>
+                        </td>
+                        <td>
+                          {sub.total_score} / {sub.max_score || assessment?.max_score || 100}
+                        </td>
+                        <td style={{ fontWeight: 700, color: 'var(--accent)' }}>
+                          {pct}%
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${isRowConfirmed ? 'badge-accent' : 'badge-outline'}`}
+                            style={{ fontSize: '0.7rem' }}
+                          >
+                            {isRowConfirmed ? 'CONFIRMED' : 'GRADED'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <button
+                              onClick={() => handleReviewSubmission(sub)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
+                              title="Inspect student report and citations"
+                            >
+                              <Eye size={11} />
+                              <span>Review</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleRegradeSubmission(sub)}
+                              disabled={regradingSubId === sub.id}
+                              className="btn btn-secondary btn-sm"
+                              style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
+                              title="Re-run AI grading from scratch on this student paper"
+                            >
+                              <RefreshCw size={11} className={regradingSubId === sub.id ? 'spin' : ''} />
+                              <span>{regradingSubId === sub.id ? 'Regrading...' : 'Regrade'}</span>
+                            </button>
+
+                            {sub.has_file && sub.id && (
+                              <a
+                                href={`/api/submissions/${sub.id}/file`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-secondary btn-sm"
+                                style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
+                                title="Download student original paper"
+                              >
+                                <Download size={11} />
+                                <span>Paper</span>
+                              </a>
+                            )}
+
+                            {!isRowConfirmed && (
+                              <button
+                                onClick={() => handleConfirmRowScore(sub)}
+                                disabled={confirmingSubId === sub.id}
+                                className="btn btn-primary btn-sm"
+                                style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
+                                title="Confirm score"
+                              >
+                                {confirmingSubId === sub.id ? <Loader2 size={11} className="spin" /> : <Check size={11} />}
+                                <span>Confirm</span>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-muted)' }}>
+                      {searchTerm ? (
+                        `No student submissions found matching "${searchTerm}".`
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                          <GraduationCap size={28} style={{ color: 'var(--accent)', opacity: 0.7 }} />
+                          <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+                            No Student Submissions for this Exam Yet
+                          </span>
+                          <span style={{ fontSize: '0.8rem' }}>
+                            Upload a student exam paper or insert scores manually above to start recording grades for this class.
+                          </span>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
         </div> {/* End Right Column */}
       </div> {/* End Dual-Pane Split Screen Workspace */}

@@ -1875,6 +1875,7 @@ def confirm_submission_score(
 
 
 @router.post("/assessments/{assessment_id}/manual-submission")
+@router.post("/assessments/{assessment_id}/submissions/manual")
 def create_manual_submission(
     assessment_id: str,
     req: ManualSubmissionReq,
@@ -2066,7 +2067,7 @@ def update_assessment_settings(
     session.commit()
     session.refresh(assessment)
 
-    return {
+    res_data = {
         "assessment_id": assessment.id,
         "title": assessment.title,
         "course_name": assessment.course_name,
@@ -2074,6 +2075,10 @@ def update_assessment_settings(
         "academic_year": assessment.academic_year,
         "assessment_category": assessment.assessment_category,
         "weight_pct": assessment.weight_pct,
+    }
+    return {
+        **res_data,
+        "assessment": res_data,
     }
 
 
@@ -2133,6 +2138,10 @@ def get_master_course_gradebook(
     if resolved_course != "All":
         matching_query = matching_query.filter(
             (Assessment.course_name == resolved_course) | (Assessment.title.ilike(f"%{resolved_course}%"))
+        )
+    if section and section.strip() and section.strip() != "All":
+        matching_query = matching_query.filter(
+            (Assessment.section == section.strip()) | (Assessment.section == None) | (Assessment.section == "")
         )
     course_assessments = matching_query.order_by(Assessment.created_at.asc()).all()
     if not course_assessments and active_assessment:
@@ -2233,6 +2242,7 @@ def get_master_course_gradebook(
         stu_data["raw_total"] = round(raw_total_points, 1)
         stu_data["max_total"] = round(total_possible_points, 1)
         stu_data["course_percentage"] = course_pct
+        stu_data["weighted_percentage"] = course_pct
         stu_data["grade_tier"] = tier
         students_list.append(stu_data)
 

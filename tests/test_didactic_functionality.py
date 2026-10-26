@@ -920,3 +920,222 @@ def test_isolated_text_answers_and_regrade():
         assert regrade_q_data["total_score"] >= 40.0
     finally:
         app.dependency_overrides.pop(get_session, None)
+
+
+def test_master_course_gradebook_multi_assessment_and_deduplication():
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from src.main import app
+    from src.db.session import get_session
+    from src.db.models import Base, LectureNote, Assessment, Question, Student
+
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(test_engine)
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    def override_session():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+        db = TestingSessionLocal()
+        headers = {"x-lecturer-id": "prof_master"}
+
+        note = LectureNote(lecturer_id="prof_master", name="Computer Architecture", file_type="pdf", ingest_status="done")
+        db.add(note)
+        db.flush()
+
+        midterm = Assessment(
+            lecturer_id="prof_master",
+            lecture_note_id=note.id,
+            title="Arch Midterm",
+            course_name="CS301",
+            section="Section A",
+            academic_year="2025/2026",
+            assessment_category="midterm",
+            weight_pct=40.0,
+            max_score=100.0,
+            status="draft",
+        )
+        final = Assessment(
+            lecturer_id="prof_master",
+            lecture_note_id=note.id,
+            title="Arch Final Exam",
+            course_name="CS301",
+            section="Section A",
+            academic_year="2025/2026",
+            assessment_category="final",
+            weight_pct=60.0,
+            max_score=100.0,
+            status="draft",
+        )
+        midterm_b = Assessment(
+            lecturer_id="prof_master",
+            lecture_note_id=note.id,
+            title="Arch Midterm (Sec B)",
+            course_name="CS301",
+            section="Section B",
+            academic_year="2025/2026",
+            assessment_category="midterm",
+            weight_pct=100.0,
+            max_score=100.0,
+            status="draft",
+        )
+        db.add_all([midterm, final, midterm_b])
+        db.commit()
+
+        # Update settings on midterm using PATCH /assessments/{id}/settings
+        patch_res = client.patch(
+            f"/assessments/{midterm.id}/settings",
+            json={
+                "course_name": "CS301",
+                "section": "Section A",
+                "academic_year": "2025/2026",
+                "assessment_category": "midterm",
+                "weight_pct": 50.0,
+            },
+            headers=headers,
+        )
+        assert patch_res.status_code == 200
+        assert patch_res.json()["assessment"]["weight_pct"] == 50.0
+
+        patch_res2 = client.patch(
+            f"/assessments/{final.id}/settings",
+            json={
+                "course_name": "CS301",
+                "section": "Section A",
+                "academic_year": "2025/2026",
+                "assessment_category": "final",
+                "weight_pct": 50.0,
+            },
+            headers=headers,
+        )
+        assert patch_res2.status_code == 200
+
+        # Add manual submission for Alice in Midterm (score 80)
+        alice_mid_res = client.post(
+            f"/assessments/{midterm.id}/submissions/manual",
+            json={
+                "student_name": "Alice Wonderland",
+                "student_number": "STU-A1",
+                "total_score": 80.0,
+                "feedback": "Great performance on cache architecture.",
+                "section": "Section A",
+                "academic_year": "2025/2026",
+                "course_name": "CS301",
+                "assessment_category": "midterm",
+            },
+            headers=headers,
+        )
+        assert alice_mid_res.status_code == 200
+
+        # Add manual submission for Alice in Final (score 100)
+        alice_final_res = client.post(
+            f"/assessments/{final.id}/submissions/manual",
+            json={
+                "student_name": "Alice Wonderland",
+                "student_number": "STU-A1",
+                "total_score": 100.0,
+                "feedback": "Flawless on pipelining.",
+                "section": "Section A",
+                "academic_year": "2025/2026",
+                "course_name": "CS301",
+                "assessment_category": "final",
+            },
+            headers=headers,
+        )
+        assert alice_final_res.status_code == 200
+
+        # Verify Student record deduplication
+        alice_count = db.query(Student).filter(
+            Student.student_number == "STU-A1",
+            Student.lecturer_id == "prof_master",
+        ).count()
+        assert alice_count == 1
+
+        # Add submission for Bob in Midterm only (score 70)
+        bob_mid_res = client.post(
+            f"/assessments/{midterm.id}/submissions/manual",
+            json={
+                "student_name": "Bob Builder",
+                "student_number": "STU-B2",
+                "total_score": 70.0,
+                "feedback": "Needs work on hazard detection.",
+                "section": "Section A",
+                "academic_year": "2025/2026",
+                "course_name": "CS301",
+                "assessment_category": "midterm",
+            },
+            headers=headers,
+        )
+        assert bob_mid_res.status_code == 200
+
+        # Add submission for Charlie in Section B
+        charlie_mid_res = client.post(
+            f"/assessments/{midterm_b.id}/submissions/manual",
+            json={
+                "student_name": "Charlie Brown",
+                "student_number": "STU-C3",
+                "total_score": 85.0,
+                "section": "Section B",
+                "academic_year": "2025/2026",
+                "course_name": "CS301",
+                "assessment_category": "midterm",
+            },
+            headers=headers,
+        )
+        assert charlie_mid_res.status_code == 200
+
+        # Master Gradebook for Section A
+        sec_a_res = client.get(
+            "/courses/master-gradebook?course_name=CS301&section=Section%20A",
+            headers=headers,
+        )
+        assert sec_a_res.status_code == 200
+        sec_a_data = sec_a_res.json()
+        assert sec_a_data["course_name"] == "CS301"
+        assert sec_a_data["section"] == "Section A"
+        assert len(sec_a_data["assessments"]) == 2
+        assert len(sec_a_data["students"]) == 2
+
+        alice_entry = next((s for s in sec_a_data["students"] if s["student_number"] == "STU-A1"), None)
+        assert alice_entry is not None
+        assert alice_entry["scores"][str(midterm.id)] == 80.0
+        assert alice_entry["percentages"][str(midterm.id)] == 80.0
+        assert alice_entry["scores"][str(final.id)] == 100.0
+        assert alice_entry["percentages"][str(final.id)] == 100.0
+        assert alice_entry["weighted_percentage"] == 90.0
+        assert alice_entry["grade_tier"] == "Grade A"
+
+        bob_entry = next((s for s in sec_a_data["students"] if s["student_number"] == "STU-B2"), None)
+        assert bob_entry is not None
+        assert bob_entry["scores"][str(midterm.id)] == 70.0
+        assert bob_entry["percentages"][str(midterm.id)] == 70.0
+        assert str(final.id) not in bob_entry["scores"]
+        assert bob_entry["weighted_percentage"] == 70.0
+        assert bob_entry["grade_tier"] == "Grade C+"
+
+        # Master Gradebook across all sections
+        all_res = client.get(
+            "/courses/master-gradebook?course_name=CS301",
+            headers=headers,
+        )
+        assert all_res.status_code == 200
+        all_data = all_res.json()
+        assert len(all_data["assessments"]) == 3
+        assert len(all_data["students"]) == 3
+        assert "Section A" in all_data["available_sections"]
+        assert "Section B" in all_data["available_sections"]
+    finally:
+        app.dependency_overrides.pop(get_session, None)
