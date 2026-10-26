@@ -9,17 +9,14 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   Sparkles,
-  GraduationCap,
   BookOpen,
-  Layers,
-  BarChart3,
+  FileText,
   RotateCcw,
-  Users,
   Award,
   ChevronDown,
   ChevronUp,
-  LogIn,
   Check,
+  Cpu,
 } from 'lucide-react';
 
 export default function LandingPage({
@@ -37,7 +34,7 @@ export default function LandingPage({
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
 
   useEffect(() => {
-    // Scroll progress line
+    // Scroll progress line along top edge
     const scrollLine = document.getElementById('pro-scroll-line');
     const updateScrollProgress = () => {
       const docElem = document.documentElement;
@@ -210,20 +207,15 @@ export default function LandingPage({
         </div>
       </nav>
 
-      {/* SPLIT HERO SECTION: Left Copy + Right Visual Idea Showcase */}
+      {/* SPLIT HERO SECTION: Left Copy + Right Convergence Funnel Graphic */}
       <header className="pro-split-hero-container">
         {/* Left Side: Headline, Pitch & Enter Platform CTA */}
         <div className="pro-hero-left">
-          <div className="pro-hero-badge">
-            <Sparkles size={14} />
-            <span>Next-Gen Pedagogical AI &bull; Evidence-Grounded Grading Engine</span>
-          </div>
+
 
           <h1 className="pro-hero-main-title">
-            Turn Course Material into Rigorous Exams.
-            <span className="pro-hero-gradient-text">
-              Grade Faster with Verifiable Evidence.
-            </span>
+            Grade Faster with Verifiable Evidence.
+
           </h1>
 
           <p className="pro-hero-description">
@@ -259,69 +251,126 @@ export default function LandingPage({
           </div>
         </div>
 
-        {/* Right Side: Visual Graphic Aligning with Didactic AI */}
-        <div className="pro-hero-right-visual">
-          <div className="pro-visual-card-wrapper">
-            {/* Visual Header */}
-            <div className="pro-visual-topbar">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="pro-visual-pill">CS-301 &bull; Section A</span>
-                <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Midterm Exam</span>
+        {/* Right Side: Convergence Funnel Illustration (Exams, Notes, Papers -> Didactic AI) */}
+        <div className="pro-hero-pipeline-wrapper">
+          {/* SVG Connector Curves */}
+          <svg className="pro-funnel-svg" viewBox="0 0 540 420" fill="none" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="funnelGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#14B8A6" stopOpacity="0.4" />
+                <stop offset="70%" stopColor="#5EEAD4" stopOpacity="0.85" />
+                <stop offset="100%" stopColor="#14B8A6" stopOpacity="1" />
+              </linearGradient>
+            </defs>
+
+            {/* Path 1: Exams (Top) to Center Hub */}
+            <path
+              d="M 165 75 C 270 75, 290 210, 345 210"
+              stroke="url(#funnelGrad)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+            <circle cx="255" cy="115" r="4.5" fill="#5EEAD4" />
+            <circle cx="255" cy="115" r="9" fill="#5EEAD4" fillOpacity="0.25" />
+
+            {/* Path 2: Notes & PPTX (Middle) to Center Hub */}
+            <path
+              d="M 165 210 L 345 210"
+              stroke="url(#funnelGrad)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+            <circle cx="255" cy="210" r="4.5" fill="#5EEAD4" />
+            <circle cx="255" cy="210" r="9" fill="#5EEAD4" fillOpacity="0.25" />
+
+            {/* Path 3: Papers & Submissions (Bottom) to Center Hub */}
+            <path
+              d="M 165 345 C 270 345, 290 210, 345 210"
+              stroke="url(#funnelGrad)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            />
+            <circle cx="255" cy="305" r="4.5" fill="#5EEAD4" />
+            <circle cx="255" cy="305" r="9" fill="#5EEAD4" fillOpacity="0.25" />
+          </svg>
+
+          {/* Left Inputs Column */}
+          <div className="pro-pipeline-sources">
+            {/* Source 1: Exams */}
+            <div className="pro-source-badge-card">
+              <div className="pro-source-tag">
+                <FileText size={12} />
+                <span>Exams & MCQs</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', color: '#EAB308' }}>
-                <Lock size={12} />
-                <span>Rubric Locked</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '4px 0' }}>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: 'rgba(20, 184, 166, 0.2)', color: 'var(--accent)', fontSize: '0.62rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>A</span>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: 'var(--accent)', color: '#000', fontSize: '0.62rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>B</span>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: 'rgba(20, 184, 166, 0.2)', color: 'var(--accent)', fontSize: '0.62rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>C</span>
+                <span style={{ width: 14, height: 14, borderRadius: '50%', background: 'rgba(20, 184, 166, 0.2)', color: 'var(--accent)', fontSize: '0.62rem', fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>D</span>
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Question sheets & rubrics</div>
+            </div>
+
+            {/* Source 2: Curriculum Notes */}
+            <div className="pro-source-badge-card">
+              <div className="pro-source-tag">
+                <BookOpen size={12} />
+                <span>Lecture Notes</span>
+              </div>
+              <div style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text)', margin: '2px 0' }}>
+                slides-concurrency.pptx
+              </div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--accent)', fontWeight: 600 }}>
+                Bloom's Taxonomy L4
               </div>
             </div>
 
-            {/* Step 1: Lecture Concept */}
-            <div className="pro-visual-step">
-              <div className="pro-visual-step-header">
-                <span>Ingested Source &bull; Slide 14</span>
-                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Bloom Level 4 (Analyze)</span>
+            {/* Source 3: Student Papers */}
+            <div className="pro-source-badge-card">
+              <div className="pro-source-tag">
+                <Cpu size={12} />
+                <span>Student Papers</span>
               </div>
-              <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-                <strong>Topic:</strong> Mutex ownership vs binary semaphore signaling; dynamic priority inheritance.
-              </p>
-            </div>
-
-            {/* Step 2: Student Response with Highlighted Evidence Citation */}
-            <div className="pro-visual-step" style={{ borderLeft: '3px solid var(--accent)' }}>
-              <div className="pro-visual-step-header">
-                <span style={{ color: 'var(--text)' }}>Student Answer &bull; STU-101 (Alice J.)</span>
-                <span style={{ color: 'var(--accent)' }}>Score: 9.5 / 10</span>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                "Mutex enforces{' '}
+                <span style={{ color: 'var(--accent)', fontWeight: 600, background: 'rgba(20, 184, 166, 0.15)', padding: '1px 3px', borderRadius: 2 }}>
+                  strict thread ownership
+                </span>..."
               </div>
-              <p className="pro-visual-answer-text">
-                "A mutex enforces{' '}
-                <span className="pro-evidence-highlight">
-                  strict thread ownership: only the locker thread can release it
-                </span>
-                . In real-time kernels, priority inversion is resolved by{' '}
-                <span className="pro-evidence-highlight">
-                  elevating the lock-holder's dynamic priority
-                </span>{' '}
-                to eliminate unbounded blocking."
-              </p>
             </div>
+          </div>
 
-            {/* Step 3: Evidence Evaluation & Gradebook Sync */}
-            <div className="pro-visual-eval-stats">
-              <div className="pro-visual-stat-item">
-                <div className="pro-visual-stat-lbl">Evidence Citation</div>
-                <div style={{ fontSize: '0.78rem', color: 'var(--accent)', marginTop: 2, fontWeight: 600 }}>
-                  &check; Line-by-Line Match
+          {/* Right Destination: Didactic AI Unified Engine */}
+          <div className="pro-pipeline-target">
+            <div className="pro-target-engine-card">
+              <div className="pro-target-badge">
+                <Sparkles size={13} />
+                <span>Didactic AI Engine</span>
+              </div>
+
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)', marginBottom: 4 }}>
+                CS-301 Midterm &bull; Sec A
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+                <CheckCircle2 size={12} style={{ color: 'var(--accent)' }} />
+                <span>Grounded Evidence Citations</span>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Alice J. (STU-101)</span>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent)' }}>Grade A</span>
+                </div>
+                <div className="pro-target-score-pill">
+                  9.5 / 10.0 pts (95%)
                 </div>
               </div>
-              <div className="pro-visual-stat-item">
-                <div className="pro-visual-stat-lbl">Master Grade Tier</div>
-                <div className="pro-visual-stat-val">Grade A (95%)</div>
-              </div>
-            </div>
 
-            {/* Floating Badge */}
-            <div className="pro-floating-card-badge">
-              <CheckCircle2 size={15} />
-              <span>Confirmed in Master Excel (.xlsx)</span>
+              <div style={{ marginTop: 10, fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <FileSpreadsheet size={11} style={{ color: '#10B981' }} />
+                <span>Master Gradebook Sync (.xlsx)</span>
+              </div>
             </div>
           </div>
         </div>
@@ -394,7 +443,7 @@ export default function LandingPage({
       {/* CLEAN SIMPLE FOOTER */}
       <footer className="pro-simple-footer">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <DidacticLogo size={24} variant="icon" theme={themeMode === 'light' ? 'light' : 'dark'} />
+          <DidacticLogo size={22} variant="icon" theme={themeMode === 'light' ? 'light' : 'dark'} />
           <span style={{ fontWeight: 700, fontSize: '0.92rem' }}>Didactic AI</span>
           <span>&copy; {new Date().getFullYear()} All rights reserved.</span>
         </div>

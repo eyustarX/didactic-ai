@@ -1,6 +1,6 @@
 /* ==========================================================================
-   Didactic AI - Clean, Modern Split Hero Landing Page Styles
-   Simpler, elegant, high-impact layout with left copy and right visual card
+   Didactic AI - Split Hero with Convergence Pipeline Illustration
+   Inspired by multi-stream EdTech workflows (Exams, Notes, Papers -> Unified AI Engine)
    ========================================================================== */
 
 .pro-landing-wrapper {
@@ -60,14 +60,14 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 44px;
-  background: rgba(11, 18, 32, 0.82);
+  background: rgba(11, 18, 32, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 [data-theme="light"] .pro-nav {
-  background: rgba(248, 250, 252, 0.88);
+  background: rgba(248, 250, 252, 0.9);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -80,23 +80,6 @@
   color: var(--text);
   text-decoration: none;
   letter-spacing: -0.02em;
-}
-
-.brand-icon-pro {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #14B8A6, #0D9488);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  box-shadow: 0 4px 14px rgba(20, 184, 166, 0.35);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.pro-nav-logo:hover .brand-icon-pro {
-  transform: scale(1.06) rotate(3deg);
 }
 
 .pro-nav-center-links {
@@ -164,21 +147,20 @@
 }
 
 /* ==========================================================================
-   SPLIT HERO SECTION (LEFT COPY + RIGHT VISUAL ILLUSTRATION)
+   SPLIT HERO SECTION (LEFT COPY + RIGHT PIPELINE FUNNEL)
    ========================================================================== */
 .pro-split-hero-container {
-  max-width: 1200px;
+  max-width: 1220px;
   margin: 0 auto;
-  padding: 60px 32px 50px 32px;
+  padding: 50px 32px 40px 32px;
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
+  grid-template-columns: 1fr 1fr;
   align-items: center;
-  gap: 48px;
+  gap: 40px;
   position: relative;
   z-index: 1;
 }
 
-/* Left Hero Content */
 .pro-hero-left {
   display: flex;
   flex-direction: column;
@@ -202,7 +184,7 @@
 }
 
 .pro-hero-main-title {
-  font-size: 3.2rem;
+  font-size: 3.1rem;
   font-weight: 800;
   letter-spacing: -0.035em;
   line-height: 1.12;
@@ -224,18 +206,18 @@
 }
 
 .pro-hero-description {
-  font-size: 1.12rem;
+  font-size: 1.1rem;
   color: var(--text-muted);
   line-height: 1.6;
-  max-width: 580px;
-  margin-bottom: 30px;
+  max-width: 560px;
+  margin-bottom: 28px;
 }
 
 .pro-hero-cta-wrap {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 36px;
+  margin-bottom: 32px;
 }
 
 .pro-hero-btn-large {
@@ -263,8 +245,8 @@
 .pro-hero-features-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px 20px;
-  max-width: 540px;
+  gap: 12px 18px;
+  max-width: 520px;
 }
 
 .pro-hero-feat-item {
@@ -277,173 +259,144 @@
 }
 
 /* ==========================================================================
-   RIGHT SIDE VISUAL CARD (ILLUSTRATING DIDACTIC AI'S CORE IDEA)
+   RIGHT SIDE PIPELINE FUNNEL (EXAMS + NOTES + PAPERS -> DIDACTIC ENGINE)
    ========================================================================== */
-.pro-hero-right-visual {
+.pro-hero-pipeline-wrapper {
   position: relative;
-  display: flex;
-  justify-content: center;
-}
-
-.pro-visual-card-wrapper {
   width: 100%;
-  max-width: 480px;
-  background: rgba(17, 28, 48, 0.85);
+  max-width: 540px;
+  height: 420px;
+  background: rgba(17, 28, 48, 0.7);
   border: 1px solid rgba(94, 234, 212, 0.22);
-  border-radius: 20px;
+  border-radius: 24px;
   box-shadow: 
-    0 24px 60px rgba(0, 0, 0, 0.55),
-    0 0 35px rgba(20, 184, 166, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-  padding: 22px;
-  position: relative;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+    0 24px 60px rgba(0, 0, 0, 0.5),
+    0 0 35px rgba(20, 184, 166, 0.1);
+  backdrop-filter: blur(16px);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
 }
 
-[data-theme="light"] .pro-visual-card-wrapper {
+[data-theme="light"] .pro-hero-pipeline-wrapper {
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(20, 184, 166, 0.25);
-  box-shadow: 
-    0 20px 48px rgba(11, 18, 32, 0.1),
-    0 0 25px rgba(20, 184, 166, 0.08);
+  box-shadow: 0 20px 48px rgba(11, 18, 32, 0.08);
 }
 
-.pro-visual-card-wrapper:hover {
-  transform: translateY(-4px);
-  border-color: rgba(94, 234, 212, 0.45);
-  box-shadow: 
-    0 30px 70px rgba(0, 0, 0, 0.6),
-    0 0 45px rgba(20, 184, 166, 0.2);
+/* SVG Funnel Curves Canvas */
+.pro-funnel-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
 }
 
-/* Top bar in visual card */
-.pro-visual-topbar {
+/* Source Nodes on Left */
+.pro-pipeline-sources {
+  position: relative;
+  z-index: 2;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-  margin-bottom: 16px;
+  height: 100%;
+  width: 165px;
 }
 
-.pro-visual-pill {
-  font-size: 0.74rem;
-  font-weight: 700;
+.pro-source-badge-card {
+  background: rgba(14, 23, 41, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+[data-theme="light"] .pro-source-badge-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.pro-source-badge-card:hover {
+  transform: translateX(3px);
+  border-color: var(--accent);
+}
+
+.pro-source-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: rgba(20, 184, 166, 0.12);
   color: var(--accent);
-  border: 1px solid rgba(94, 234, 212, 0.25);
-}
-
-/* Visual step rows */
-.pro-visual-step {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: 14px;
-  margin-bottom: 12px;
-}
-
-[data-theme="light"] .pro-visual-step {
-  background: var(--surface-muted);
-}
-
-.pro-visual-step-header {
+  margin-bottom: 4px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--text-muted);
+  gap: 5px;
+}
+
+/* Target Convergence Hub on Right */
+.pro-pipeline-target {
+  position: relative;
+  z-index: 2;
+  margin-left: auto;
+  width: 195px;
+}
+
+.pro-target-engine-card {
+  background: linear-gradient(145deg, rgba(20, 184, 166, 0.16), rgba(17, 28, 48, 0.95));
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  border-radius: 16px;
+  padding: 16px 14px;
+  box-shadow: 
+    0 16px 36px rgba(0, 0, 0, 0.5),
+    0 0 25px rgba(20, 184, 166, 0.2);
+  text-align: left;
+}
+
+[data-theme="light"] .pro-target-engine-card {
+  background: linear-gradient(145deg, rgba(20, 184, 166, 0.1), #ffffff);
+  border: 1px solid rgba(20, 184, 166, 0.35);
+  box-shadow: 0 12px 30px rgba(20, 184, 166, 0.15);
+}
+
+.pro-target-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
   text-transform: uppercase;
-  margin-bottom: 8px;
-}
-
-.pro-visual-answer-text {
-  font-size: 0.86rem;
-  line-height: 1.55;
-  color: var(--text);
-}
-
-.pro-evidence-highlight {
-  background: rgba(20, 184, 166, 0.22);
+  letter-spacing: 0.05em;
   color: #5EEAD4;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 600;
-  border-bottom: 2px solid var(--accent);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-[data-theme="light"] .pro-evidence-highlight {
-  background: rgba(20, 184, 166, 0.18);
+[data-theme="light"] .pro-target-badge {
   color: #0D9488;
 }
 
-/* Evaluation stats in visual */
-.pro-visual-eval-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.pro-visual-stat-item {
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 10px 12px;
-}
-
-[data-theme="light"] .pro-visual-stat-item {
-  background: #ffffff;
-}
-
-.pro-visual-stat-val {
-  font-size: 1.15rem;
+.pro-target-score-pill {
+  background: rgba(20, 184, 166, 0.2);
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.86rem;
   font-weight: 800;
   color: var(--accent);
-}
-
-.pro-visual-stat-lbl {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-/* Floating status badge on the card */
-.pro-floating-card-badge {
-  position: absolute;
-  bottom: -16px;
-  right: -12px;
-  background: linear-gradient(135deg, #111C30, #0E1729);
-  border: 1px solid rgba(94, 234, 212, 0.35);
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
-  border-radius: 12px;
-  padding: 8px 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--accent);
-}
-
-[data-theme="light"] .pro-floating-card-badge {
-  background: #ffffff;
-  border-color: rgba(20, 184, 166, 0.3);
-  box-shadow: 0 10px 24px rgba(11, 18, 32, 0.12);
+  margin-top: 8px;
+  display: inline-block;
 }
 
 /* ==========================================================================
-   CONCISE 3-FEATURE GRID BELOW HERO (CLEAN & NOT TOO MUCH)
+   CONCISE 3-FEATURE SECTION BELOW HERO (SIMPLE & CLEAR)
    ========================================================================== */
 .pro-simple-features-section {
-  max-width: 1140px;
+  max-width: 1180px;
   margin: 30px auto 70px auto;
   padding: 0 32px;
 }
@@ -562,7 +515,7 @@
 }
 
 /* Responsive */
-@media (max-width: 960px) {
+@media (max-width: 980px) {
   .pro-split-hero-container {
     grid-template-columns: 1fr;
     gap: 36px;
@@ -588,5 +541,8 @@
   }
   .pro-nav-center-links {
     display: none;
+  }
+  .pro-hero-pipeline-wrapper {
+    margin: 0 auto;
   }
 }
