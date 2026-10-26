@@ -149,6 +149,7 @@ export default function InstructorProfileModal({
       name: name.trim() || 'Instructor',
       email: finalEmail,
     };
+    delete updatedUser.department;
 
     if (onSave) {
       onSave(updatedUser);

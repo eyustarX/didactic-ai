@@ -437,12 +437,12 @@ body {
 }
 
 .sidebar-profile-email {
-  font-size: 0.68rem;
-  color: var(--accent);
-  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 130px;
 }
 
 .sidebar-profile-action-btn {

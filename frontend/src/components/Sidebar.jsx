@@ -243,11 +243,8 @@ export default function Sidebar({
                     </span>
                   </div>
                   <div className="sidebar-profile-meta-row">
-                    <span className="sidebar-profile-sub">
-                      {currentUser.department || currentUser.role || 'Instructor'}
-                    </span>
                     <span className="sidebar-profile-email" title={currentUser.email || userHandle}>
-                      {userHandle}
+                      {currentUser.email || userHandle}
                     </span>
                   </div>
                 </div>

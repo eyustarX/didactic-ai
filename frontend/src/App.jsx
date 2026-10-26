@@ -100,7 +100,13 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const saved = localStorage.getItem('didactic_user');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.department) {
+        delete parsed.department;
+        localStorage.setItem('didactic_user', JSON.stringify(parsed));
+      }
+      return parsed;
     } catch {
       return null;
     }
