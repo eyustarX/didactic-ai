@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, User, LogOut, LogIn } from 'lucide-react';
+import { Menu, PanelLeftOpen, User, LogOut, LogIn } from 'lucide-react';
 
 const TAB_TITLES = {
   overview: 'Platform overview',
@@ -22,8 +22,21 @@ export default function Header({
   return (
     <header className="top-header">
       <div className="header-left">
+        {/* Desktop Open Sidebar Button (visible when sidebar is collapsed) */}
+        {collapsed && (
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            className="header-sidebar-open-btn"
+            title="Open sidebar"
+          >
+            <PanelLeftOpen size={17} />
+          </button>
+        )}
+
         {/* Mobile Hamburger / Expand Button */}
         <button
+          type="button"
           onClick={() => setCollapsed(!collapsed)}
           className="sidebar-toggle-btn mobile-menu-toggle"
           title={collapsed ? 'Open menu' : 'Close menu'}

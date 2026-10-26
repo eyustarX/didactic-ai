@@ -91,26 +91,29 @@ body {
   width: 100%;
 }
 
-/* Sidebar Desktop Layout with Wrapper & Hover-Expand Floating Overlay */
+/* Sidebar Desktop Layout with Full Smooth Collapse (ChatGPT Style) */
 .sidebar-wrapper {
   position: sticky;
   top: 0;
   height: 100vh;
   z-index: 50;
   flex-shrink: 0;
-  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sidebar-wrapper:not(.collapsed) {
-  width: 240px;
+  width: 250px;
 }
 
 .sidebar-wrapper.collapsed {
-  width: 68px;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  overflow: hidden;
 }
 
 .sidebar {
-  width: 240px;
+  width: 250px;
   height: 100vh;
   background-color: var(--surface-muted);
   border-right: 1px solid var(--border);
@@ -118,15 +121,22 @@ body {
   flex-direction: column;
   padding: 16px 12px;
   flex-shrink: 0;
-  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), padding 0.2s ease, box-shadow 0.22s ease;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .sidebar.collapsed {
-  width: 68px;
-  padding: 16px 8px;
-  position: absolute;
-  top: 0;
-  left: 0;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  border-right: none !important;
+  transform: translateX(-100%) !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 .brand-section {
@@ -136,59 +146,7 @@ body {
   padding-bottom: 14px;
   border-bottom: 1px solid var(--border);
   position: relative;
-}
-
-/* Collapsed at rest: Only Didactic logo is centered, title and uncollapse button are hidden */
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .brand-section {
-  justify-content: center;
-}
-
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .brand-left {
-  justify-content: center;
-  width: auto;
-  margin: 0 auto;
-}
-
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .brand-title {
-  display: none;
-}
-
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .desktop-collapse-toggle {
-  display: none;
-}
-
-/* Collapsed & HOVERED: The whole sidebar appears! */
-.sidebar.collapsed.hover-expanded,
-.sidebar.collapsed:hover {
-  width: 240px;
-  padding: 16px 12px;
-  background-color: var(--surface-muted);
-  box-shadow: 4px 0 28px rgba(0, 0, 0, 0.08), 12px 0 36px rgba(0, 0, 0, 0.04);
-  z-index: 100;
-}
-
-.sidebar.collapsed.hover-expanded .brand-section,
-.sidebar.collapsed:hover .brand-section {
-  justify-content: space-between;
-}
-
-.sidebar.collapsed.hover-expanded .brand-left,
-.sidebar.collapsed:hover .brand-left {
-  justify-content: flex-start;
-  width: auto;
-  margin: 0;
-}
-
-.sidebar.collapsed.hover-expanded .brand-title,
-.sidebar.collapsed:hover .brand-title {
-  display: block;
-}
-
-.sidebar.collapsed.hover-expanded .desktop-collapse-toggle,
-.sidebar.collapsed:hover .desktop-collapse-toggle {
-  display: flex;
-  opacity: 1;
-  pointer-events: auto;
+  flex-shrink: 0;
 }
 
 .brand-left {
@@ -442,41 +400,8 @@ body {
   border-color: var(--border);
 }
 
-/* Collapsed state rules */
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .sidebar-profile-section {
-  padding-top: 10px;
-}
+/* Collapsed state: completely hidden, 0 width */
 
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .sidebar-profile-card {
-  padding: 4px;
-  justify-content: center;
-  background: transparent;
-  border-color: transparent;
-}
-
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .sidebar-profile-card:hover {
-  background: var(--surface);
-}
-
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .sidebar-profile-info,
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .sidebar-profile-action-btn {
-  display: none;
-}
-
-.sidebar.collapsed.hover-expanded .sidebar-profile-info,
-.sidebar.collapsed:hover .sidebar-profile-info,
-.sidebar.collapsed.hover-expanded .sidebar-profile-action-btn,
-.sidebar.collapsed:hover .sidebar-profile-action-btn {
-  display: flex;
-}
-
-.sidebar.collapsed.hover-expanded .sidebar-profile-card,
-.sidebar.collapsed:hover .sidebar-profile-card {
-  justify-content: flex-start;
-  padding: 8px 10px;
-  background: var(--surface);
-  border-color: var(--border-subtle);
-}
 
 /* Top Header */
 .main-wrapper {
@@ -1827,4 +1752,27 @@ body {
 
 .chat-item-delete-btn:hover {
   color: var(--danger, #ef4444);
+}
+
+/* Desktop Open Sidebar Button in Header */
+.header-sidebar-open-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  margin-right: 12px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.header-sidebar-open-btn:hover {
+  background: var(--surface-alt);
+  border-color: var(--accent);
+  color: var(--accent);
 }

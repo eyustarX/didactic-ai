@@ -67,15 +67,7 @@ export default function Sidebar({
       )}
 
       <div className={`sidebar-wrapper ${collapsed ? 'collapsed' : ''}`}>
-        <aside
-          className={`sidebar ${collapsed ? 'collapsed' : ''} ${isHovered && collapsed ? 'hover-expanded' : ''}`}
-          onMouseEnter={() => {
-            if (collapsed && window.innerWidth > 860) setIsHovered(true);
-          }}
-          onMouseLeave={() => {
-            if (collapsed) setIsHovered(false);
-          }}
-        >
+        <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
           {/* Brand & Collapse / Uncollapse Toggle */}
           <div className="brand-section">
             <div
@@ -91,19 +83,12 @@ export default function Sidebar({
             </div>
 
             <button
-              onClick={() => {
-                if (collapsed) {
-                  setCollapsed(false);
-                  setIsHovered(false);
-                } else {
-                  setCollapsed(true);
-                  setIsHovered(false);
-                }
-              }}
+              type="button"
+              onClick={() => setCollapsed(true)}
               className="sidebar-toggle-btn desktop-collapse-toggle"
-              title={collapsed ? 'Uncollapse sidebar (lock open)' : 'Collapse sidebar'}
+              title="Collapse sidebar"
             >
-              {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+              <PanelLeftClose size={15} />
             </button>
 
             {/* Close button inside mobile drawer */}
