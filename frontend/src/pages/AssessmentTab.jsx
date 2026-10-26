@@ -26,6 +26,11 @@ import {
   Upload,
   BookOpen,
   X,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Maximize2,
+  ChevronRight,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   fetchAssessments,
@@ -41,6 +46,9 @@ import {
   fetchLectureNotes,
   fetchLectureNoteDetail,
   uploadLectureNote,
+  fetchChatSessionDetails,
+  createChatSession,
+  saveChatMessage,
 } from '../services/api';
 
 export default function AssessmentTab({
@@ -54,6 +62,9 @@ export default function AssessmentTab({
   setAssessment,
   setActiveTab,
   currentUser,
+  activeChatSessionId,
+  setActiveChatSessionId,
+  onChatSessionsChange,
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -72,6 +83,10 @@ export default function AssessmentTab({
   const [customQuestionMarks, setCustomQuestionMarks] = useState(10);
   const [isGeneratingCustomRubric, setIsGeneratingCustomRubric] = useState(false);
 
+  // Split-Screen & Layout State
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [manualSplitView, setManualSplitView] = useState(false);
+
   // Interactive Assessment Chatbot State (Didactic AI)
   const [chatMessages, setChatMessages] = useState([
     {
@@ -87,12 +102,14 @@ export default function AssessmentTab({
   const [showAnalysis, setShowAnalysis] = useState(true);
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
+  const heroInputRef = useRef(null);
 
   // Uploaded Lecture Materials / Sources state in Chat
   const [lectureNotesList, setLectureNotesList] = useState([]);
   const [isLoadingNotes, setIsLoadingNotes] = useState(false);
   const [isUploadingChatFile, setIsUploadingChatFile] = useState(false);
   const chatFileInputRef = useRef(null);
+  const heroFileInputRef = useRef(null);
 
   const loadNotesList = async () => {
     setIsLoadingNotes(true);
@@ -118,6 +135,48 @@ export default function AssessmentTab({
       setIsLoadingNotes(false);
     }
   };
+
+  // Load session messages when activeChatSessionId changes
+  useEffect(() => {
+    if (!activeChatSessionId) {
+      setChatMessages([
+        {
+          id: `init-${Date.now()}`,
+          role: 'assistant',
+          content:
+            "👋 Hello Professor! What assessment would you like to build? Tell me your topics, question formats (e.g. 5 MCQs, 2 Short Answer), and marks per question.",
+          readyToGenerate: false,
+        },
+      ]);
+      return;
+    }
+
+    const loadSession = async () => {
+      setIsChatLoading(true);
+      try {
+        const detail = await fetchChatSessionDetails(activeChatSessionId, currentUser?.id);
+        if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
+          setChatMessages(detail.messages.map((m) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            readyToGenerate: !!m.ready_to_generate,
+            suggestedPrompt: m.suggested_prompt,
+            questionCount: m.question_count,
+          })));
+          if (detail.lecture_note_id && setActiveNoteId) {
+            setActiveNoteId(detail.lecture_note_id);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load chat session messages:', err);
+      } finally {
+        setIsChatLoading(false);
+      }
+    };
+
+    loadSession();
+  }, [activeChatSessionId, currentUser?.id]);
 
   useEffect(() => {
     loadNotesList();
@@ -190,6 +249,9 @@ export default function AssessmentTab({
       if (chatFileInputRef.current) {
         chatFileInputRef.current.value = '';
       }
+      if (heroFileInputRef.current) {
+        heroFileInputRef.current.value = '';
+      }
     }
   };
 
@@ -227,6 +289,8 @@ export default function AssessmentTab({
     setAssessmentTitle(lectureTitle ? `Assessment: ${lectureTitle}` : 'New Assessment');
     setActiveQuestionIndex(0);
     setError(null);
+    setManualSplitView(false);
+    handleResetChat();
   };
 
   const handleGenerateAssessment = async (overridePrompt, overrideCount) => {
@@ -240,7 +304,6 @@ export default function AssessmentTab({
     try {
       let noteIdToUse = activeNoteId;
       if (!noteIdToUse) {
-        // Auto-create a lecture note record from lectureContent or promptToUse so assessment is safely linked
         const textToIngest = (lectureContent && lectureContent.trim().length >= 10)
           ? lectureContent
           : (promptToUse && promptToUse.trim().length >= 10)
@@ -295,9 +358,7 @@ export default function AssessmentTab({
         {
           id: `success-${Date.now()}`,
           role: 'assistant',
-          content: `🎉 Successfully created **${data.title || (assessmentType === 'assignment' ? 'Assignment' : 'Exam Paper')}** with ${data.questions?.length || count} questions!
-
-You can review question details, refine answer keys, or add custom questions in the editor on the right.`,
+          content: `🎉 Successfully created **${data.title || (assessmentType === 'assignment' ? 'Assignment' : 'Exam Paper')}** with ${data.questions?.length || count} questions!\n\nYou can review question details, refine answer keys, or add custom questions in the editor on the right.`,
           readyToGenerate: false,
         },
       ]);
@@ -321,8 +382,37 @@ You can review question details, refine answer keys, or add custom questions in 
     const newHistory = [...chatMessages, userMsg];
     setChatMessages(newHistory);
     setChatInput('');
+
+    // Ensure active chat session exists on backend
+    let currentSessId = activeChatSessionId;
+    if (!currentSessId) {
+      try {
+        const newSess = await createChatSession({
+          title: textToSend.slice(0, 40) || 'New Assessment',
+          lecture_note_id: activeNoteId,
+          lecturerId: currentUser?.id,
+        });
+        currentSessId = newSess.id;
+        if (setActiveChatSessionId) setActiveChatSessionId(newSess.id);
+        if (onChatSessionsChange) onChatSessionsChange();
+      } catch (sessErr) {
+        console.warn('Could not auto-create chat session:', sessErr);
+      }
+    }
+
+    if (currentSessId) {
+      saveChatMessage({
+        sessionId: currentSessId,
+        role: 'user',
+        content: textToSend,
+        lecturerId: currentUser?.id,
+      }).catch(() => {});
+    }
     if (chatInputRef.current) {
-      chatInputRef.current.style.height = '52px';
+      chatInputRef.current.style.height = '40px';
+    }
+    if (heroInputRef.current) {
+      heroInputRef.current.style.height = '72px';
     }
     setIsChatLoading(true);
     setError(null);
@@ -357,6 +447,22 @@ You can review question details, refine answer keys, or add custom questions in 
       }
 
       setChatMessages((prev) => [...prev, assistantMsg]);
+
+      if (currentSessId) {
+        saveChatMessage({
+          sessionId: currentSessId,
+          role: 'assistant',
+          content: assistantMsg.content,
+          readyToGenerate: assistantMsg.readyToGenerate,
+          suggestedPrompt: assistantMsg.suggestedPrompt,
+          questionCount: assistantMsg.questionCount,
+          lecturerId: currentUser?.id,
+        })
+          .then(() => {
+            if (onChatSessionsChange) onChatSessionsChange();
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       console.error('Chat error:', err);
       setChatMessages((prev) => [
@@ -375,16 +481,18 @@ You can review question details, refine answer keys, or add custom questions in 
   };
 
   const handleResetChat = () => {
+    if (setActiveChatSessionId) setActiveChatSessionId(null);
     setChatMessages([
       {
         id: `init-${Date.now()}`,
         role: 'assistant',
         content:
-          "Chat reset. What assessment would you like to build next?",
+          "👋 Hello Professor! What assessment would you like to build? Tell me your topics, question formats (e.g. 5 MCQs, 2 Short Answer), and marks per question.",
         readyToGenerate: false,
       },
     ]);
     setChatInput('');
+    if (onChatSessionsChange) onChatSessionsChange();
   };
 
   const handleUpdateQuestion = (idx, field, value) => {
@@ -409,7 +517,13 @@ You can review question details, refine answer keys, or add custom questions in 
       },
     };
     const updated = [...(assessment?.questions || []), newQ];
-    setAssessment({ ...assessment, questions: updated });
+    setAssessment({
+      ...(assessment || {
+        id: `draft_${Date.now()}`,
+        title: assessmentTitle || (assessmentType === 'assignment' ? 'Coursework Assignment' : 'Examination Paper'),
+      }),
+      questions: updated,
+    });
     setActiveQuestionIndex(updated.length - 1);
   };
 
@@ -552,381 +666,232 @@ You can review question details, refine answer keys, or add custom questions in 
     0
   );
 
+  // Determine whether to display Hero Centered View or Split-Screen Workspace
+  const isHeroView = !manualSplitView && !assessment && questions.length === 0 && chatMessages.length <= 1;
+
   return (
-    <div>
+    <div style={{ position: 'relative', width: '100%', minHeight: '80vh' }}>
 
-
-      {/* Didactic AI Multi-Turn Chatbot */}
-      <div
-        className="cartesia-card"
-        style={{
-          marginBottom: 16,
-          padding: '14px 22px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-        }}
-      >
-        {/* Chatbot Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: 'var(--accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--on-accent)',
-              }}
-            >
-              <Bot size={18} />
-            </div>
-            <div>
-              <h3 style={{ fontSize: '0.94rem', fontWeight: 600, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                Didactic AI Assistant
-                <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                  Interactive
-                </span>
-              </h3>
-              <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: 0, marginTop: 1 }}>
-                Create exams, quizzes & rubrics with AI assistance
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleResetChat}
-            className="btn btn-secondary btn-sm"
-            style={{ height: 26, fontSize: '0.74rem', gap: 4 }}
-            title="Start a new conversation"
-          >
-            <RotateCcw size={12} />
-            <span>Reset</span>
-          </button>
-        </div>
-
-        {/* Source Material Selector Bar inside the Chat */}
+      {/* ========================================================================= */}
+      {/* 1. INITIAL / HERO CENTERED CHATGPT-STYLE INTERFACE                        */}
+      {/* ========================================================================= */}
+      {isHeroView && (
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 10,
-            padding: '8px 12px',
-            background: 'var(--bg)',
-            borderRadius: 8,
-            border: '1px solid var(--border-subtle)',
-            marginBottom: 10,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <BookOpen size={13} style={{ color: 'var(--accent)' }} />
-              <span>Source Material:</span>
-            </span>
-
-            {/* Dropdown to choose already uploaded materials */}
-            <select
-              value={activeNoteId || ''}
-              onChange={(e) => handleSelectSourceNote(e.target.value)}
-              className="input-text"
-              style={{
-                height: 28,
-                fontSize: '0.78rem',
-                minWidth: 200,
-                maxWidth: 320,
-                padding: '0 8px',
-                background: 'var(--surface)',
-                color: 'var(--text)',
-                borderRadius: 6,
-                border: '1px solid var(--border)',
-              }}
-            >
-              {lectureNotesList.length === 0 ? (
-                <option value="">No materials uploaded yet</option>
-              ) : (
-                lectureNotesList.map((note) => (
-                  <option key={note.id} value={note.id}>
-                    {note.name} ({note.file_type || 'DOC'})
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-
-          {/* Quick Upload Button directly in the chat */}
-          <div>
-            <input
-              type="file"
-              ref={chatFileInputRef}
-              onChange={handleChatFileUpload}
-              accept=".pdf,.pptx,.docx,.txt"
-              style={{ display: 'none' }}
-            />
-            <button
-              type="button"
-              onClick={() => chatFileInputRef.current?.click()}
-              disabled={isUploadingChatFile || isChatLoading}
-              className="btn btn-secondary btn-sm"
-              style={{
-                height: 28,
-                fontSize: '0.76rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                color: 'var(--text)',
-              }}
-              title="Upload lecture slides or PDF directly to the chat"
-            >
-              {isUploadingChatFile ? <Loader2 size={12} className="spin" /> : <Paperclip size={12} />}
-              <span>{isUploadingChatFile ? 'Uploading & Indexing...' : '+ Upload New Material'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Message Stream - Responsive & fits within viewport with comfortable width & height */}
-        <div
-          ref={chatContainerRef}
-          className="custom-scroll"
-          style={{
-            height: 'clamp(200px, 30vh, 280px)',
-            minHeight: 180,
-            maxHeight: 300,
-            overflowY: 'auto',
+            maxWidth: 760,
+            margin: '40px auto 60px auto',
             display: 'flex',
             flexDirection: 'column',
-            gap: 10,
-            padding: '14px 20px',
-            background: 'var(--bg)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            marginBottom: 12,
+            alignItems: 'center',
+            textAlign: 'center',
+            animation: 'fadeIn 0.25s ease',
+            padding: '0 16px',
           }}
         >
-          {chatMessages.map((msg) => {
-            const isUser = msg.role === 'user';
-            return (
-              <div
-                key={msg.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: isUser ? 'flex-end' : 'flex-start',
-                  alignItems: 'flex-start',
-                  gap: 10,
-                }}
-              >
-                {!isUser && (
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 8,
-                      background: 'var(--surface-alt)',
-                      color: 'var(--accent)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                      marginTop: 2,
-                    }}
-                  >
-                    <Bot size={15} />
-                  </div>
-                )}
+          {/* Hero Greeting & Icon */}
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 16,
+              background: 'var(--accent)',
+              color: 'var(--on-accent)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 18,
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            <Bot size={28} />
+          </div>
 
-                <div
-                  style={{
-                    maxWidth: '90%',
-                    padding: '12px 18px',
-                    borderRadius: 10,
-                    fontSize: '0.88rem',
-                    lineHeight: 1.55,
-                    background: isUser ? 'var(--accent)' : 'var(--surface)',
-                    border: isUser ? '1px solid var(--accent)' : '1px solid var(--border)',
-                    color: isUser ? 'var(--on-accent)' : 'var(--text)',
-                  }}
-                >
-                  <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{msg.content}</p>
+          <h1
+            style={{
+              fontSize: '1.85rem',
+              fontWeight: 700,
+              letterSpacing: '-0.02em',
+              color: 'var(--text)',
+              marginBottom: 8,
+            }}
+          >
+            What assessment would you like to build?
+          </h1>
 
-                  {/* If agent flagged readyToGenerate, show 1-click generation button */}
-                  {msg.readyToGenerate && (
-                    <div
-                      style={{
-                        marginTop: 12,
-                        padding: '12px 14px',
-                        background: 'var(--surface-alt)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 8,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: 'var(--accent)', fontWeight: 600 }}>
-                        <CheckCircle2 size={15} />
-                        <span>
-                          {assessmentType === 'assignment' ? 'Assignment Blueprint Ready' : 'Exam Blueprint Ready'} ({msg.questionCount || questionCount} Questions)
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleGenerateAssessment(msg.suggestedPrompt, msg.questionCount)}
-                        disabled={loading}
-                        className="btn btn-primary btn-sm"
-                        style={{
-                          border: 'none',
-                          fontSize: '0.82rem',
-                          padding: '8px 16px',
-                          alignSelf: 'flex-start',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          fontWeight: 600,
-                          cursor: loading ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
-                        <span>
-                          {loading
-                            ? (assessmentType === 'assignment' ? 'Generating Assignment with AI...' : 'Generating Exam Paper with AI...')
-                            : (assessmentType === 'assignment' ? 'Generate Assignment Brief' : 'Generate Exam Paper')
-                          }
-                        </span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          <p
+            style={{
+              fontSize: '0.94rem',
+              color: 'var(--text-muted)',
+              maxWidth: 580,
+              lineHeight: 1.5,
+              marginBottom: 24,
+            }}
+          >
+            Formulate balanced exam papers, quizzes, coursework assignments, and multi-criteria rubrics from your course lecture notes in seconds.
+          </p>
 
-          {isChatLoading && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px' }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 8,
-                  background: 'var(--surface-alt)',
-                  color: 'var(--accent)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Bot size={15} />
-              </div>
-              <div
-                style={{
-                  padding: '8px 14px',
-                  borderRadius: 8,
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  fontSize: '0.84rem',
-                  color: 'var(--text-muted)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <Loader2 size={14} className="spin" />
-                <span>Didactic AI is formulating questions and rubrics...</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Suggestion Response Chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', fontWeight: 600 }}>Quick prompts:</span>
-          {(assessmentType === 'assignment'
-            ? [
-                { label: '📁 3 Homework Problems & Rubrics', prompt: 'Create 3 multi-part assignment problems (10 marks each) with clear multi-criteria grading rubrics, deliverables, and hints.' },
-                { label: '💻 2 Coding Tasks + 1 Analysis', prompt: 'Generate an assignment consisting of 2 practical programming tasks and 1 architectural analysis problem with detailed rubrics.' },
-                { label: '✨ Build Rubrics for my Question', prompt: 'I have a custom question. Can you help me formulate the grading rubric criteria and point distribution?' },
-                { label: '📑 Project Brief with Milestones', prompt: 'Design an in-depth coursework project brief with milestone deliverables, evaluation criteria, and academic guidelines.' },
-              ]
-            : [
-                { label: '⚡ 5 MCQs & 2 Short Answer', prompt: '5 MCQs (1 mark each) and 2 Short Answer (3 marks each)' },
-                { label: '📝 3 Fill in the Blank', prompt: '3 Fill in the Blank (1 mark each) and 2 Short Answer (3 marks each)' },
-                { label: '🎯 Focus on Key Concepts', prompt: 'Focus specifically on the key algorithms and core concepts from the lecture' },
-                { label: '🔑 Include Complete Answer Key', prompt: 'Include distinct 4-choice options A, B, C, D and an exact answer key for all questions' },
-                { label: '✨ Build Rubrics for my Question', prompt: 'I have a custom question. Can you help me formulate the grading rubric criteria and point distribution?' },
-              ]
-          ).map((item, idx) => (
+          {/* Mode Pill Toggle: Exam vs Assignment */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: 'var(--surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-full)',
+              padding: '3px 4px',
+              marginBottom: 20,
+              gap: 4,
+            }}
+          >
             <button
-              key={idx}
               type="button"
-              onClick={() => handleSendChatMessage(item.prompt)}
-              disabled={isChatLoading || loading}
+              onClick={() => setAssessmentType('exam')}
               style={{
-                fontSize: '0.76rem',
-                padding: '4px 12px',
-                borderRadius: 6,
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                color: 'var(--text)',
-                cursor: isChatLoading || loading ? 'not-allowed' : 'pointer',
+                border: 'none',
+                background: assessmentType === 'exam' ? 'var(--accent)' : 'transparent',
+                color: assessmentType === 'exam' ? 'var(--on-accent)' : 'var(--text-muted)',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full)',
+                cursor: 'pointer',
                 transition: 'all 0.15s ease',
               }}
-              onMouseEnter={(e) => {
-                if (!isChatLoading) {
-                  e.currentTarget.style.color = 'var(--accent)';
-                  e.currentTarget.style.borderColor = 'var(--accent)';
-                  e.currentTarget.style.background = 'var(--surface-alt)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color = 'var(--text)';
-                e.currentTarget.style.borderColor = 'var(--border)';
-                e.currentTarget.style.background = 'var(--surface)';
-              }}
             >
-              {item.label}
+              📝 Examination Paper
             </button>
-          ))}
-        </div>
-
-        {/* Auto-Resizing Vertical Chat Input Bar - Enlarged */}
-        <div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <button
               type="button"
-              onClick={() => chatFileInputRef.current?.click()}
-              disabled={isUploadingChatFile || isChatLoading || loading}
-              className="btn btn-secondary btn-sm"
+              onClick={() => setAssessmentType('assignment')}
               style={{
-                height: 44,
-                width: 44,
-                padding: 0,
+                border: 'none',
+                background: assessmentType === 'assignment' ? 'var(--accent)' : 'transparent',
+                color: assessmentType === 'assignment' ? 'var(--on-accent)' : 'var(--text-muted)',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              📁 Coursework Assignment
+            </button>
+          </div>
+
+          {/* Large Centered ChatGPT-style Prompt Box */}
+          <div
+            className="cartesia-card"
+            style={{
+              width: '100%',
+              padding: '16px 18px',
+              borderRadius: 16,
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-card)',
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              marginBottom: 16,
+              transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+            }}
+          >
+            {/* Embedded Source Material Selector */}
+            <div
+              style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 8,
-                flexShrink: 0,
-                color: 'var(--accent)',
-                border: '1px solid var(--border)',
-                background: 'var(--bg)',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+                paddingBottom: 10,
+                borderBottom: '1px solid var(--border-subtle)',
               }}
-              title="Attach and upload lecture document (PDF, PPTX, DOCX)"
             >
-              {isUploadingChatFile ? <Loader2 size={16} className="spin" /> : <Paperclip size={16} />}
-            </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontSize: '0.78rem',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontWeight: 500,
+                  }}
+                >
+                  <BookOpen size={14} style={{ color: 'var(--accent)' }} />
+                  <span>Source Material:</span>
+                </span>
 
+                <select
+                  value={activeNoteId || ''}
+                  onChange={(e) => handleSelectSourceNote(e.target.value)}
+                  className="input-text"
+                  style={{
+                    height: 28,
+                    fontSize: '0.78rem',
+                    minWidth: 200,
+                    maxWidth: 320,
+                    padding: '0 8px',
+                    background: 'var(--surface)',
+                    color: 'var(--text)',
+                    borderRadius: 6,
+                    border: '1px solid var(--border)',
+                  }}
+                >
+                  {lectureNotesList.length === 0 ? (
+                    <option value="">No materials uploaded yet</option>
+                  ) : (
+                    lectureNotesList.map((note) => (
+                      <option key={note.id} value={note.id}>
+                        {note.name} ({note.file_type || 'DOC'})
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <input
+                  type="file"
+                  ref={heroFileInputRef}
+                  onChange={handleChatFileUpload}
+                  accept=".pdf,.pptx,.docx,.txt"
+                  style={{ display: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => heroFileInputRef.current?.click()}
+                  disabled={isUploadingChatFile || isChatLoading}
+                  className="btn btn-secondary btn-sm"
+                  style={{
+                    height: 28,
+                    fontSize: '0.76rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)',
+                  }}
+                  title="Upload lecture slides or PDF"
+                >
+                  {isUploadingChatFile ? <Loader2 size={12} className="spin" /> : <Paperclip size={12} />}
+                  <span>{isUploadingChatFile ? 'Uploading & Indexing...' : '+ Upload New Material'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Prompt Textarea */}
             <textarea
-              ref={chatInputRef}
-              rows={2}
+              ref={heroInputRef}
+              rows={3}
               value={chatInput}
               onChange={(e) => {
                 setChatInput(e.target.value);
                 e.target.style.height = 'auto';
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 180)}px`;
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 220)}px`;
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -934,20 +899,25 @@ You can review question details, refine answer keys, or add custom questions in 
                   handleSendChatMessage();
                 }
               }}
-              placeholder="Ask Didactic AI to create an assessment (e.g. 5 MCQs on sorting algorithms, 2 short answers with 10 marks each)..."
+              placeholder={
+                assessmentType === 'assignment'
+                  ? "Ask Didactic AI to create an assignment..."
+                  : "Ask Didactic AI to create an assessment..."
+              }
               className="input-textarea"
               style={{
-                flex: 1,
-                minHeight: 44,
-                maxHeight: 180,
+                width: '100%',
+                minHeight: 72,
+                maxHeight: 220,
                 resize: 'none',
-                fontSize: '0.86rem',
-                padding: '10px 14px',
-                borderRadius: 8,
-                background: 'var(--bg)',
-                border: '1px solid var(--border)',
+                fontSize: '0.96rem',
+                padding: '8px 4px',
+                borderRadius: 0,
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
                 color: 'var(--text)',
-                lineHeight: 1.45,
+                lineHeight: 1.55,
                 wordBreak: 'break-word',
                 whiteSpace: 'pre-wrap',
                 overflowY: 'auto',
@@ -955,777 +925,1436 @@ You can review question details, refine answer keys, or add custom questions in 
               disabled={isChatLoading || loading}
             />
 
-            <button
-              type="button"
-              onClick={() => handleSendChatMessage()}
-              disabled={!chatInput.trim() || isChatLoading || loading}
-              className="btn btn-primary btn-sm"
-              style={{
-                height: 44,
-                padding: '0 20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                fontSize: '0.86rem',
-                fontWeight: 600,
-                background: 'var(--accent)',
-                color: 'var(--on-accent)',
-                border: 'none',
-                cursor: !chatInput.trim() || isChatLoading ? 'not-allowed' : 'pointer',
-                opacity: !chatInput.trim() || isChatLoading ? 0.6 : 1,
-                flexShrink: 0,
-                borderRadius: 8,
-              }}
-            >
-              {isChatLoading ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
-              <span>Send</span>
-            </button>
-          </div>
-          <div style={{ marginTop: 6, fontSize: '0.74rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', paddingLeft: 2 }}>
-            <span>↵ Enter to send • Shift+Enter for new line • Powered by Didactic AI Copilot</span>
-            {isChatLoading && <span style={{ color: 'var(--accent)' }}>AI generating response...</span>}
-          </div>
-        </div>
-      </div>
-
-
-
-      {/* Active Assessment Top Banner with PDF Download Controls & Inline Grade Action */}
-      {assessment && (
-        <div
-          className="cartesia-card"
-          style={{
-            marginBottom: 10,
-            padding: '10px 16px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 10,
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Bottom Actions inside Prompt Box */}
             <div
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: 'var(--surface-alt)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--accent)',
-                flexShrink: 0,
+                justifyContent: 'space-between',
+                paddingTop: 8,
+                borderTop: '1px solid var(--border-subtle)',
               }}
             >
-              <FileCheck size={16} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h2 style={{ fontSize: '0.94rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                  {assessmentTitle || assessment.title}
-                </h2>
-                {isLocked ? (
-                  <span className="badge" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning)', fontSize: '0.68rem', padding: '1px 6px' }}>
-                    Locked
-                  </span>
-                ) : (
-                  <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                    Active Studio
-                  </span>
-                )}
-              </div>
-              <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: 0, marginTop: 2 }}>
-                {questions.length} questions • {totalMaxPoints} total marks • Stored in Neon Cloud Database
-              </p>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              onClick={(e) => handleDownloadPdf(e, assessment.id, false)}
-              disabled={isDownloadingPdf}
-              className="btn btn-primary btn-sm"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                border: 'none',
-                padding: '6px 12px',
-                fontSize: '0.78rem',
-                fontWeight: 500,
-              }}
-              title="Download printable student exam paper with candidate instructions and ruled answer lines"
-            >
-              {isDownloadingPdf ? <Loader2 size={12} className="spin" /> : <Download size={12} />}
-              <span>{assessmentType === 'assignment' || /assignment|project|coursework|homework/i.test(assessmentTitle || assessment?.title || '') ? 'Download Assignment (PDF)' : 'Download Exam Paper (PDF)'}</span>
-            </button>
-
-            <button
-              onClick={(e) => handleDownloadPdf(e, assessment.id, true)}
-              disabled={isDownloadingPdf}
-              className="btn btn-secondary btn-sm"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                border: '1px solid var(--border)',
-                color: 'var(--text)',
-                padding: '6px 12px',
-                fontSize: '0.78rem',
-                fontWeight: 500,
-              }}
-              title="Download official instructor solution key with answer keys and rubric criteria"
-            >
-              <FileText size={12} />
-              <span>{assessmentType === 'assignment' || /assignment|project|coursework|homework/i.test(assessmentTitle || assessment?.title || '') ? 'Solution & Rubric (PDF)' : 'Download Solution Key (PDF)'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab && setActiveTab('grading')}
-              className="btn btn-secondary btn-sm"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                border: '1px solid var(--border)',
-                color: 'var(--text)',
-                padding: '6px 12px',
-                fontSize: '0.78rem',
-                fontWeight: 500,
-              }}
-              title="Open Paper Grading Studio"
-            >
-              <GraduationCap size={13} />
-              <span>Grade Papers</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Compact Paper Grading Workflow Banner matching Active Studio sizing */}
-      {assessment && showGradingBanner && (
-        <div
-          className="cartesia-card"
-          style={{
-            marginBottom: 12,
-            padding: '10px 16px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 10,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: 'var(--surface-alt)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--accent)',
-                flexShrink: 0,
-              }}
-            >
-              <GraduationCap size={16} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                  Ready to Grade Student Answer Papers?
-                </h4>
-                <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                  Paper Grading
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => heroFileInputRef.current?.click()}
+                  disabled={isUploadingChatFile || isChatLoading || loading}
+                  className="btn btn-ghost btn-sm"
+                  style={{
+                    height: 32,
+                    padding: '0 8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: '0.78rem',
+                    color: 'var(--text-muted)',
+                  }}
+                  title="Attach lecture slides or PDF"
+                >
+                  <Paperclip size={14} />
+                  <span>Attach Notes</span>
+                </button>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  ↵ Enter to generate • Shift+Enter for new line
                 </span>
               </div>
-              <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                Upload scanned student answer papers to evaluate automatically against rubrics.
-              </p>
+
+              <button
+                type="button"
+                onClick={() => handleSendChatMessage()}
+                disabled={!chatInput.trim() || isChatLoading || loading}
+                className="btn btn-primary btn-sm"
+                style={{
+                  height: 36,
+                  padding: '0 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  fontSize: '0.86rem',
+                  fontWeight: 600,
+                  background: 'var(--accent)',
+                  color: 'var(--on-accent)',
+                  border: 'none',
+                  cursor: !chatInput.trim() || isChatLoading ? 'not-allowed' : 'pointer',
+                  opacity: !chatInput.trim() || isChatLoading ? 0.6 : 1,
+                  borderRadius: 8,
+                }}
+              >
+                {isChatLoading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+                <span>Generate Assessment</span>
+              </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Secondary Shortcuts: Library or Open Split View */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <button
               type="button"
-              onClick={() => setActiveTab && setActiveTab('grading')}
-              className="btn btn-primary btn-sm"
-              style={{
-                border: 'none',
-                padding: '6px 13px',
-                fontSize: '0.78rem',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                whiteSpace: 'nowrap',
-              }}
+              onClick={() => setActiveTab && setActiveTab('assessments_library')}
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}
             >
-              <span>Open Paper Grading Studio</span>
-              <ArrowRight size={13} />
+              <BookOpen size={13} />
+              <span>Browse Existing Assessments Library</span>
             </button>
+
+            <span style={{ color: 'var(--border)' }}>•</span>
 
             <button
               type="button"
-              onClick={() => setShowGradingBanner(false)}
+              onClick={() => setManualSplitView(true)}
               className="btn btn-ghost btn-sm"
-              style={{
-                padding: '4px 6px',
-                color: 'var(--text-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-              }}
-              title="Dismiss banner"
-              aria-label="Dismiss banner"
+              style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}
             >
-              <X size={14} />
+              <SlidersHorizontal size={13} />
+              <span>Open Split Workspace Directly</span>
             </button>
           </div>
         </div>
       )}
 
-      {isLocked && (
-        <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 6, background: 'var(--warning-bg)', border: '1px solid var(--warning)', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem' }}>
-          <Lock size={15} />
-          <span>This assessment is server-locked because student work has been submitted or graded. Questions and rubrics are immutable.</span>
-        </div>
-      )}
-
-      {error && (
-        <div style={{ marginBottom: 16, padding: 12, borderRadius: 6, background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: '0.84rem' }}>
-          {error}
-        </div>
-      )}
-
-      {/* Assessment Pedagogical Analysis & Cognitive Breakdown Matrix */}
-      {questions.length > 0 && (
+      {/* ========================================================================= */}
+      {/* 2. SPLIT-SCREEN DUAL PANE WORKSPACE (CHAT DIDACTIC AI + LIVE ASSESSMENT CANVAS) */}
+      {/* ========================================================================= */}
+      {!isHeroView && (
         <div
-          className="cartesia-card"
           style={{
-            marginBottom: 16,
-            padding: '14px 18px',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
+            display: 'grid',
+            gridTemplateColumns: isChatCollapsed ? '52px 1fr' : 'minmax(360px, 420px) 1fr',
+            gap: 16,
+            alignItems: 'start',
+            transition: 'grid-template-columns 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            minHeight: 'calc(100vh - 120px)',
           }}
         >
-          {(() => {
-            const mcqs = questions.filter((q) => /\b[A-D]\)/.test(q.text || ''));
-            const fitbs = questions.filter((q) => /____|fill in the blank/i.test(q.text || ''));
-            const written = questions.filter((q) => !/\b[A-D]\)/.test(q.text || '') && !/____|fill in the blank/i.test(q.text || ''));
-            const mcqPts = mcqs.reduce((sum, q) => sum + (parseFloat(q.max_marks || q.max_points) || 1), 0);
-            const fitbPts = fitbs.reduce((sum, q) => sum + (parseFloat(q.max_marks || q.max_points) || 1), 0);
-            const writtenPts = written.reduce((sum, q) => sum + (parseFloat(q.max_marks || q.max_points) || 5), 0);
-            const pacingMins = Math.round(mcqs.length * 1.5 + fitbs.length * 2 + written.length * 5);
+          {/* ------------------------------------------------------------------- */}
+          {/* LEFT COLUMN: INTERACTIVE DIDACTIC AI CHAT (OR COLLAPSED RAIL)       */}
+          {/* ------------------------------------------------------------------- */}
+          {isChatCollapsed ? (
+            /* Collapsed Rail */
+            <div
+              className="cartesia-card"
+              style={{
+                position: 'sticky',
+                top: 76,
+                height: 'calc(100vh - 96px)',
+                padding: '12px 6px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 16,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+              }}
+              onClick={() => setIsChatCollapsed(false)}
+              title="Click to expand Didactic AI"
+            >
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsChatCollapsed(false);
+                }}
+                className="btn btn-ghost btn-sm"
+                style={{ padding: 6, color: 'var(--accent)' }}
+                title="Expand Didactic AI Chat"
+              >
+                <PanelLeftOpen size={18} />
+              </button>
 
-            return (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showAnalysis ? 12 : 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <TrendingUp size={16} style={{ color: 'var(--accent)' }} />
-                    <h3 style={{ fontSize: '0.92rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                      Assessment Pedagogical Analysis & Cognitive Matrix
-                    </h3>
-                    <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                      Academic Blueprint
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAnalysis(!showAnalysis)}
-                    className="btn btn-ghost btn-sm"
-                    style={{ fontSize: '0.74rem', padding: '2px 8px', color: 'var(--text-muted)' }}
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: 'var(--accent)',
+                  color: 'var(--on-accent)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Bot size={16} />
+              </div>
+
+              {chatMessages.length > 1 && (
+                <span
+                  className="badge badge-accent"
+                  style={{
+                    fontSize: '0.62rem',
+                    padding: '2px 5px',
+                    borderRadius: 'var(--radius-full)',
+                  }}
+                >
+                  {chatMessages.length}
+                </span>
+              )}
+
+              <div
+                style={{
+                  writingMode: 'vertical-rl',
+                  textOrientation: 'mixed',
+                  transform: 'rotate(180deg)',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  color: 'var(--text-muted)',
+                  marginTop: 'auto',
+                  letterSpacing: '0.05em',
+                  paddingBottom: 8,
+                }}
+              >
+                DIDACTIC AI
+              </div>
+            </div>
+          ) : (
+            /* Expanded Interactive Didactic AI Chat Column */
+            <div
+              className="cartesia-card"
+              style={{
+                position: 'sticky',
+                top: 76,
+                height: 'calc(100vh - 96px)',
+                display: 'flex',
+                flexDirection: 'column',
+                padding: '14px 16px',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-card)',
+                borderRadius: 'var(--radius-lg)',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Chat Header */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingBottom: 10,
+                  borderBottom: '1px solid var(--border-subtle)',
+                  marginBottom: 10,
+                  flexShrink: 0,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  <div
+                    style={{
+                      width: 30,
+                      height: 30,
+                      borderRadius: 8,
+                      background: 'var(--accent)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--on-accent)',
+                      flexShrink: 0,
+                    }}
                   >
-                    {showAnalysis ? 'Collapse Analysis' : 'Show Analysis'}
-                  </button>
+                    <Bot size={16} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      Didactic AI
+                      <span className="badge badge-accent" style={{ fontSize: '0.64rem', padding: '1px 5px' }}>
+                        AI Assistant
+                      </span>
+                    </h3>
+                  </div>
                 </div>
 
-                {showAnalysis && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12, paddingTop: 6 }}>
-                    {/* Format breakdown */}
-                    <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border-subtle)' }}>
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 }}>Question Formats</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
-                          <span>Multiple Choice (MCQ):</span>
-                          <strong style={{ color: 'var(--accent)' }}>{mcqs.length} ({mcqPts} pts)</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button
+                    type="button"
+                    onClick={handleResetChat}
+                    className="btn btn-ghost btn-sm"
+                    style={{
+                      height: 26,
+                      padding: '0 8px',
+                      fontSize: '0.74rem',
+                      color: 'var(--text)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      background: 'var(--surface)',
+                    }}
+                    title="Start a fresh chat conversation"
+                  >
+                    <Plus size={13} style={{ color: 'var(--accent)' }} />
+                    <span>New Chat</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsChatCollapsed(true)}
+                    className="btn btn-ghost btn-sm"
+                    style={{ height: 26, width: 26, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
+                    title="Collapse chat to expand assessment canvas"
+                  >
+                    <PanelLeftClose size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Source Material Selector Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 6,
+                  padding: '6px 10px',
+                  background: 'var(--bg)',
+                  borderRadius: 6,
+                  border: '1px solid var(--border-subtle)',
+                  marginBottom: 10,
+                  flexShrink: 0,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                  <BookOpen size={12} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+                  <select
+                    value={activeNoteId || ''}
+                    onChange={(e) => handleSelectSourceNote(e.target.value)}
+                    className="input-text"
+                    style={{
+                      height: 24,
+                      fontSize: '0.74rem',
+                      width: '100%',
+                      padding: '0 6px',
+                      background: 'transparent',
+                      color: 'var(--text)',
+                      borderRadius: 4,
+                      border: 'none',
+                      outline: 'none',
+                    }}
+                  >
+                    {lectureNotesList.length === 0 ? (
+                      <option value="">No materials uploaded</option>
+                    ) : (
+                      lectureNotesList.map((note) => (
+                        <option key={note.id} value={note.id}>
+                          {note.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <input
+                  type="file"
+                  ref={chatFileInputRef}
+                  onChange={handleChatFileUpload}
+                  accept=".pdf,.pptx,.docx,.txt"
+                  style={{ display: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => chatFileInputRef.current?.click()}
+                  disabled={isUploadingChatFile || isChatLoading}
+                  className="btn btn-ghost btn-sm"
+                  style={{ height: 24, padding: '0 6px', fontSize: '0.72rem', flexShrink: 0 }}
+                  title="Upload new lecture document"
+                >
+                  {isUploadingChatFile ? <Loader2 size={11} className="spin" /> : <Paperclip size={11} />}
+                  <span>Upload</span>
+                </button>
+              </div>
+
+              {/* Scrollable Message Thread */}
+              <div
+                ref={chatContainerRef}
+                className="custom-scroll"
+                style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  padding: '8px 4px 12px 2px',
+                  marginBottom: 10,
+                }}
+              >
+                {chatMessages.map((msg) => {
+                  const isUser = msg.role === 'user';
+                  return (
+                    <div
+                      key={msg.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: isUser ? 'flex-end' : 'flex-start',
+                        alignItems: 'flex-start',
+                        gap: 8,
+                      }}
+                    >
+                      {!isUser && (
+                        <div
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 6,
+                            background: 'var(--surface-alt)',
+                            color: 'var(--accent)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: 2,
+                          }}
+                        >
+                          <Bot size={13} />
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
-                          <span>Fill in the Blank:</span>
-                          <strong style={{ color: 'var(--accent)' }}>{fitbs.length} ({fitbPts} pts)</strong>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
-                          <span>Short Answer / Essay:</span>
-                          <strong style={{ color: 'var(--accent)' }}>{written.length} ({writtenPts} pts)</strong>
-                        </div>
+                      )}
+
+                      <div
+                        style={{
+                          maxWidth: '88%',
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          fontSize: '0.82rem',
+                          lineHeight: 1.5,
+                          background: isUser ? 'var(--accent)' : 'var(--bg)',
+                          border: isUser ? '1px solid var(--accent)' : '1px solid var(--border)',
+                          color: isUser ? 'var(--on-accent)' : 'var(--text)',
+                        }}
+                      >
+                        <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                          {msg.content}
+                        </p>
+
+                        {/* 1-Click Blueprint Generation Card */}
+                        {msg.readyToGenerate && (
+                          <div
+                            style={{
+                              marginTop: 10,
+                              padding: '10px 12px',
+                              background: 'var(--surface)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 6,
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 600 }}>
+                              <CheckCircle2 size={14} />
+                              <span>
+                                {assessmentType === 'assignment' ? 'Assignment Blueprint Ready' : 'Exam Blueprint Ready'} ({msg.questionCount || questionCount} Questions)
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleGenerateAssessment(msg.suggestedPrompt, msg.questionCount)}
+                              disabled={loading}
+                              className="btn btn-primary btn-sm"
+                              style={{
+                                border: 'none',
+                                fontSize: '0.78rem',
+                                padding: '6px 14px',
+                                alignSelf: 'flex-start',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                fontWeight: 600,
+                              }}
+                            >
+                              {loading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+                              <span>
+                                {loading
+                                  ? 'Generating with AI...'
+                                  : (assessmentType === 'assignment' ? 'Generate Assignment' : 'Generate Exam Paper')
+                                }
+                              </span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
+                  );
+                })}
 
-                    {/* Bloom's Depth */}
-                    <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border-subtle)' }}>
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 }}>Bloom's Cognitive Depth</div>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-                        {mcqs.length + fitbs.length >= written.length ? 'Balanced Recall & Application' : 'Analytical & Synthesis Focus'}
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                        <span className="badge badge-outline" style={{ fontSize: '0.66rem' }}>
-                          {Math.round(((mcqs.length + fitbs.length) / Math.max(questions.length, 1)) * 100)}% Foundational
-                        </span>
-                        <span className="badge badge-outline" style={{ fontSize: '0.66rem' }}>
-                          {Math.round((written.length / Math.max(questions.length, 1)) * 100)}% Higher-Order
-                        </span>
-                      </div>
+                {isChatLoading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 6px' }}>
+                    <div
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 6,
+                        background: 'var(--surface-alt)',
+                        color: 'var(--accent)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Bot size={13} />
                     </div>
-
-                    {/* Exam Pacing */}
-                    <div style={{ padding: '10px 12px', borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border-subtle)' }}>
-                      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 }}>Estimated Exam Pacing</div>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent)' }}>
-                        ~{pacingMins} minutes
-                      </div>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                        Normed at 1.5 min/MCQ, 2 min/FITB, 5 min/Written
-                      </div>
+                    <div
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        background: 'var(--bg)',
+                        border: '1px solid var(--border)',
+                        fontSize: '0.78rem',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <Loader2 size={12} className="spin" />
+                      <span>Formulating questions & rubrics...</span>
                     </div>
                   </div>
                 )}
-              </>
-            );
-          })()}
-        </div>
-      )}
+              </div>
 
-      {/* Main Studio View */}
-      {questions.length === 0 ? (
-        <div className="cartesia-card" style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)' }}>
-          <FileCheck size={36} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-          <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
-            {assessment ? 'No Questions in Active Assessment' : 'No Assessment Selected'}
-          </h3>
-          <p style={{ fontSize: '0.84rem', maxWidth: 440, margin: '0 auto 16px' }}>
-            Select an assessment from the library above or ask Didactic AI in the chat to create your questions.
-          </p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
-          {/* Left Column: Questions List */}
-          <div className="cartesia-card" style={{ height: 'fit-content' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ fontSize: '0.88rem', fontWeight: 600 }}>Questions ({questions.length})</h3>
-              <span className="badge badge-accent">{totalMaxPoints} pts total</span>
+              {/* Bottom Pinned Chat Input Area */}
+              <div
+                style={{
+                  flexShrink: 0,
+                  background: 'var(--bg)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: '10px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                }}
+              >
+                <textarea
+                  ref={chatInputRef}
+                  rows={2}
+                  value={chatInput}
+                  onChange={(e) => {
+                    setChatInput(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendChatMessage();
+                    }
+                  }}
+                  placeholder="Message Didactic AI..."
+                  className="input-textarea"
+                  style={{
+                    width: '100%',
+                    minHeight: 38,
+                    maxHeight: 140,
+                    resize: 'none',
+                    fontSize: '0.84rem',
+                    padding: 0,
+                    borderRadius: 0,
+                    background: 'transparent',
+                    border: 'none',
+                    outline: 'none',
+                    color: 'var(--text)',
+                    lineHeight: 1.45,
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap',
+                    overflowY: 'auto',
+                  }}
+                  disabled={isChatLoading || loading}
+                />
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingTop: 4,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => chatFileInputRef.current?.click()}
+                    disabled={isUploadingChatFile || isChatLoading || loading}
+                    className="btn btn-ghost btn-sm"
+                    style={{
+                      height: 28,
+                      width: 28,
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: 6,
+                      color: 'var(--text-muted)',
+                    }}
+                    title="Attach lecture notes (PDF, PPTX, DOCX)"
+                  >
+                    {isUploadingChatFile ? <Loader2 size={13} className="spin" /> : <Paperclip size={13} />}
+                  </button>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                      ↵ Enter to send
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSendChatMessage()}
+                      disabled={!chatInput.trim() || isChatLoading || loading}
+                      className="btn btn-primary btn-sm"
+                      style={{
+                        height: 28,
+                        width: 28,
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'var(--accent)',
+                        color: 'var(--on-accent)',
+                        border: 'none',
+                        cursor: !chatInput.trim() || isChatLoading ? 'not-allowed' : 'pointer',
+                        opacity: !chatInput.trim() || isChatLoading ? 0.45 : 1,
+                        borderRadius: 6,
+                      }}
+                      title="Send message"
+                    >
+                      {isChatLoading ? <Loader2 size={13} className="spin" /> : <Send size={13} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ------------------------------------------------------------------- */}
+          {/* RIGHT COLUMN: LIVE ASSESSMENT CANVAS & STUDIO                      */}
+          {/* ------------------------------------------------------------------- */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+            {/* Active Assessment Top Bar */}
+            <div
+              className="cartesia-card"
+              style={{
+                padding: '12px 18px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 10,
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {isChatCollapsed && (
+                  <button
+                    type="button"
+                    onClick={() => setIsChatCollapsed(false)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ height: 30, padding: '0 8px', fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: 5 }}
+                    title="Re-open Didactic AI"
+                  >
+                    <PanelLeftOpen size={13} />
+                    <span>Open Didactic AI</span>
+                  </button>
+                )}
+
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 8,
+                    background: 'var(--surface-alt)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--accent)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <FileCheck size={16} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <h2 style={{ fontSize: '0.96rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                      {assessmentTitle || assessment?.title || 'Draft Assessment Canvas'}
+                    </h2>
+                    {isLocked ? (
+                      <span className="badge" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning)', fontSize: '0.68rem', padding: '1px 6px' }}>
+                        Locked
+                      </span>
+                    ) : (
+                      <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                        Active Canvas
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: 0, marginTop: 2 }}>
+                    {questions.length} questions • {totalMaxPoints} total marks • Cloud Synchronized
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {assessment && (
+                  <>
+                    <button
+                      onClick={(e) => handleDownloadPdf(e, assessment.id, false)}
+                      disabled={isDownloadingPdf}
+                      className="btn btn-primary btn-sm"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        border: 'none',
+                        padding: '6px 12px',
+                        fontSize: '0.78rem',
+                        fontWeight: 500,
+                      }}
+                      title="Download printable student exam paper with candidate instructions and ruled answer lines"
+                    >
+                      {isDownloadingPdf ? <Loader2 size={12} className="spin" /> : <Download size={12} />}
+                      <span>{assessmentType === 'assignment' || /assignment|project|coursework|homework/i.test(assessmentTitle || assessment?.title || '') ? 'Download Assignment (PDF)' : 'Download Exam Paper (PDF)'}</span>
+                    </button>
+
+                    <button
+                      onClick={(e) => handleDownloadPdf(e, assessment.id, true)}
+                      disabled={isDownloadingPdf}
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        border: '1px solid var(--border)',
+                        color: 'var(--text)',
+                        padding: '6px 12px',
+                        fontSize: '0.78rem',
+                        fontWeight: 500,
+                      }}
+                      title="Download official instructor solution key with answer keys and rubric criteria"
+                    >
+                      <FileText size={12} />
+                      <span>{assessmentType === 'assignment' || /assignment|project|coursework|homework/i.test(assessmentTitle || assessment?.title || '') ? 'Solution & Rubric (PDF)' : 'Download Solution Key (PDF)'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab && setActiveTab('grading')}
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        border: '1px solid var(--border)',
+                        color: 'var(--text)',
+                        padding: '6px 12px',
+                        fontSize: '0.78rem',
+                        fontWeight: 500,
+                      }}
+                      title="Open Paper Grading Studio"
+                    >
+                      <GraduationCap size={13} />
+                      <span>Grade Papers</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleNewAssessment}
+                  className="btn btn-ghost btn-sm"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    color: 'var(--text-muted)',
+                    padding: '6px 10px',
+                    fontSize: '0.76rem',
+                  }}
+                  title="Start a new assessment from scratch"
+                >
+                  <Plus size={13} />
+                  <span>New Assessment</span>
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-              {questions.map((q, idx) => {
-                const isSelected = activeQuestionIndex === idx;
-                return (
+            {/* Paper Grading Workflow Banner */}
+            {assessment && showGradingBanner && (
+              <div
+                className="cartesia-card"
+                style={{
+                  padding: '10px 16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div
-                    key={q.id || idx}
-                    onClick={() => setActiveQuestionIndex(idx)}
                     style={{
-                      padding: '8px 10px',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      background: isSelected ? 'var(--surface-alt)' : 'var(--surface)',
-                      border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
-                      transition: 'all 0.15s ease',
+                      width: 30,
+                      height: 30,
+                      borderRadius: 8,
+                      background: 'var(--surface-alt)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--accent)',
+                      flexShrink: 0,
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.82rem', color: isSelected ? 'var(--accent)' : 'var(--text)' }}>
-                        Question {idx + 1}
+                    <GraduationCap size={15} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <h4 style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                        Ready to Grade Student Answer Papers?
+                      </h4>
+                      <span className="badge badge-accent" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
+                        Paper Grading
                       </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        {/\b[A-D]\)/.test(q.text || '') && (
-                          <span className="badge badge-accent" style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
-                            MCQ
-                          </span>
-                        )}
-                        {(/____|fill in the blank/i.test(q.text || '') || q.question_type === 'fill_in_the_blank') && (
-                          <span className="badge badge-outline" style={{ fontSize: '0.62rem', padding: '1px 5px' }}>
-                            FITB
-                          </span>
-                        )}
-                        <span className="badge badge-outline" style={{ fontSize: '0.68rem' }}>
-                          {q.max_marks || q.max_points || 10} pts
-                        </span>
-                      </div>
                     </div>
-                    <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
-                      {q.text || q.prompt || 'Drafting question...'}
+                    <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                      Upload scanned student answer papers (PDF, DOCX, images) to evaluate automatically against these rubrics.
                     </p>
                   </div>
-                );
-              })}
-            </div>
+                </div>
 
-            {!isLocked && (
-              <button onClick={handleAddQuestion} className="btn btn-secondary btn-sm" style={{ width: '100%' }}>
-                <Plus size={13} />
-                <span>Add Question</span>
-              </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab && setActiveTab('grading')}
+                    className="btn btn-primary btn-sm"
+                    style={{
+                      border: 'none',
+                      padding: '5px 12px',
+                      fontSize: '0.78rem',
+                      fontWeight: 500,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <span>Open Paper Grading Studio</span>
+                    <ArrowRight size={13} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowGradingBanner(false)}
+                    className="btn btn-ghost btn-sm"
+                    style={{
+                      padding: '4px 6px',
+                      color: 'var(--text-muted)',
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                    }}
+                    title="Dismiss banner"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
             )}
-          </div>
 
-          {/* Right Column: Question & Rubrics Detail */}
-          {currentQ && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Question Editor Card */}
-              <div className="cartesia-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="badge badge-accent">Question {activeQuestionIndex + 1}</span>
-                    <span className="badge badge-outline">
-                      {currentQ.source === 'teacher' ? 'Author: Teacher' : 'Author: AI'}
-                    </span>
+            {isLocked && (
+              <div style={{ padding: '10px 14px', borderRadius: 6, background: 'var(--warning-bg)', border: '1px solid var(--warning)', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem' }}>
+                <Lock size={15} />
+                <span>This assessment is server-locked because student work has been submitted or graded. Questions and rubrics are immutable.</span>
+              </div>
+            )}
+
+            {error && (
+              <div style={{ padding: 12, borderRadius: 6, background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: '0.82rem' }}>
+                {error}
+              </div>
+            )}
+
+            {/* Assessment Pedagogical Analysis & Cognitive Breakdown Matrix */}
+            {questions.length > 0 && (
+              <div
+                className="cartesia-card"
+                style={{
+                  padding: '12px 16px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                {(() => {
+                  const mcqs = questions.filter((q) => /\b[A-D]\)/.test(q.text || ''));
+                  const fitbs = questions.filter((q) => /____|fill in the blank/i.test(q.text || ''));
+                  const written = questions.filter((q) => !/\b[A-D]\)/.test(q.text || '') && !/____|fill in the blank/i.test(q.text || ''));
+                  const mcqPts = mcqs.reduce((sum, q) => sum + (parseFloat(q.max_marks || q.max_points) || 1), 0);
+                  const fitbPts = fitbs.reduce((sum, q) => sum + (parseFloat(q.max_marks || q.max_points) || 1), 0);
+                  const writtenPts = written.reduce((sum, q) => sum + (parseFloat(q.max_marks || q.max_points) || 5), 0);
+                  const pacingMins = Math.round(mcqs.length * 1.5 + fitbs.length * 2 + written.length * 5);
+
+                  return (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: showAnalysis ? 10 : 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <TrendingUp size={15} style={{ color: 'var(--accent)' }} />
+                          <h3 style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                            Pedagogical Analysis & Cognitive Matrix
+                          </h3>
+                          <span className="badge badge-accent" style={{ fontSize: '0.64rem', padding: '1px 5px' }}>
+                            Blueprint
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowAnalysis(!showAnalysis)}
+                          className="btn btn-ghost btn-sm"
+                          style={{ fontSize: '0.74rem', padding: '2px 8px', color: 'var(--text-muted)' }}
+                        >
+                          {showAnalysis ? 'Collapse Analysis' : 'Show Analysis'}
+                        </button>
+                      </div>
+
+                      {showAnalysis && (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, paddingTop: 4 }}>
+                          {/* Question Formats */}
+                          <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border-subtle)' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 }}>Question Formats</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem' }}>
+                                <span>MCQs:</span>
+                                <strong style={{ color: 'var(--accent)' }}>{mcqs.length} ({mcqPts} pts)</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem' }}>
+                                <span>Fill in the Blank:</span>
+                                <strong style={{ color: 'var(--accent)' }}>{fitbs.length} ({fitbPts} pts)</strong>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.76rem' }}>
+                                <span>Written / Essay:</span>
+                                <strong style={{ color: 'var(--accent)' }}>{written.length} ({writtenPts} pts)</strong>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Bloom's Depth */}
+                          <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border-subtle)' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 }}>Bloom's Depth</div>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                              {mcqs.length + fitbs.length >= written.length ? 'Foundational Recall' : 'Analytical Synthesis'}
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
+                              <span className="badge badge-outline" style={{ fontSize: '0.64rem' }}>
+                                {Math.round(((mcqs.length + fitbs.length) / Math.max(questions.length, 1)) * 100)}% Foundational
+                              </span>
+                              <span className="badge badge-outline" style={{ fontSize: '0.64rem' }}>
+                                {Math.round((written.length / Math.max(questions.length, 1)) * 100)}% Higher-Order
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Estimated Pacing */}
+                          <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--bg)', border: '1px solid var(--border-subtle)' }}>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 2, fontWeight: 500 }}>Estimated Pacing</div>
+                            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent)' }}>
+                              ~{pacingMins} minutes
+                            </div>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                              1.5m MCQ • 2m FITB • 5m Written
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Main Studio View: Canvas Waiting Room OR Questions Editor */}
+            {questions.length === 0 ? (
+              <div
+                className="cartesia-card"
+                style={{
+                  textAlign: 'center',
+                  padding: '48px 24px',
+                  color: 'var(--text-muted)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    background: 'var(--surface-alt)',
+                    color: 'var(--accent)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Sparkles size={24} />
+                </div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                  Live Assessment Canvas
+                </h3>
+                <p style={{ fontSize: '0.84rem', maxWidth: 460, margin: 0, lineHeight: 1.5 }}>
+                  Converse with Didactic AI on the left to generate questions, or click below to start drafting questions manually.
+                </p>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={handleAddQuestion}
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px' }}
+                  >
+                    <Plus size={14} />
+                    <span>+ Add Manual Question</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsRubricModalOpen(true)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px' }}
+                  >
+                    <Sparkles size={14} />
+                    <span>Build Rubrics for Question</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateAssessment('5 balanced questions with complete answer keys and rubrics', 5)}
+                    disabled={loading}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px' }}
+                  >
+                    {loading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
+                    <span>Generate 5-Question Blueprint</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Two-Column Question Browser & Rubric Editor inside the Canvas */
+              <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 14 }}>
+                {/* Questions List Sidebar */}
+                <div className="cartesia-card" style={{ height: 'fit-content', padding: '14px 12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <h3 style={{ fontSize: '0.86rem', fontWeight: 600 }}>Questions ({questions.length})</h3>
+                    <span className="badge badge-accent" style={{ fontSize: '0.66rem' }}>{totalMaxPoints} pts</span>
                   </div>
 
-                  {!isLocked && questions.length > 1 && (
-                    <button
-                      onClick={() => handleDeleteQuestion(activeQuestionIndex)}
-                      className="btn btn-ghost btn-sm"
-                      style={{ color: 'var(--danger)' }}
-                      title="Delete question"
-                    >
-                      <Trash2 size={14} />
-                      <span>Delete</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                    {questions.map((q, idx) => {
+                      const isSelected = activeQuestionIndex === idx;
+                      return (
+                        <div
+                          key={q.id || idx}
+                          onClick={() => setActiveQuestionIndex(idx)}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                            background: isSelected ? 'var(--surface-alt)' : 'var(--surface)',
+                            border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 600, fontSize: '0.8rem', color: isSelected ? 'var(--accent)' : 'var(--text)' }}>
+                              Question {idx + 1}
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              {/\b[A-D]\)/.test(q.text || '') && (
+                                <span className="badge badge-accent" style={{ fontSize: '0.6rem', padding: '1px 4px' }}>
+                                  MCQ
+                                </span>
+                              )}
+                              {(/____|fill in the blank/i.test(q.text || '') || q.question_type === 'fill_in_the_blank') && (
+                                <span className="badge badge-outline" style={{ fontSize: '0.6rem', padding: '1px 4px' }}>
+                                  FITB
+                                </span>
+                              )}
+                              <span className="badge badge-outline" style={{ fontSize: '0.66rem' }}>
+                                {q.max_marks || q.max_points || 10} pts
+                              </span>
+                            </div>
+                          </div>
+                          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
+                            {q.text || q.prompt || 'Drafting question...'}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {!isLocked && (
+                    <button onClick={handleAddQuestion} className="btn btn-secondary btn-sm" style={{ width: '100%', fontSize: '0.76rem' }}>
+                      <Plus size={12} />
+                      <span>Add Question</span>
                     </button>
                   )}
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Question Prompt</label>
-                  <textarea
-                    rows={3}
-                    value={currentQ.text || currentQ.prompt || ''}
-                    onChange={(e) => handleUpdateQuestion(activeQuestionIndex, 'text', e.target.value)}
-                    disabled={isLocked}
-                    className="input-textarea"
-                    style={{ fontSize: '0.88rem' }}
-                    placeholder="Enter the examination question prompt..."
-                  />
-                </div>
-
-                {/* Official Answer Key / Model Solution Box */}
-                <div
-                  style={{
-                    margin: '12px 0',
-                    padding: '10px 14px',
-                    borderRadius: 8,
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                      <CheckCircle2 size={14} />
-                      <span>Official Answer Key & Model Solution</span>
-                    </label>
-                    <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                      Ground Truth Key
-                    </span>
-                  </div>
-                  <textarea
-                    rows={2}
-                    value={
-                      currentQ.reference_answer ||
-                      (currentQ.student_hint?.includes('Answer Key:')
-                        ? currentQ.student_hint.split(/\n(?:Learning Objective|Objective|Hint):/i)[0].replace(/^(?:Official\s+)?Answer\s+Key:\s*/i, '').trim()
-                        : currentQ.student_hint || '')
-                    }
-                    onChange={(e) => {
-                      const newKey = e.target.value;
-                      handleUpdateQuestion(activeQuestionIndex, 'reference_answer', newKey);
-                      handleUpdateQuestion(activeQuestionIndex, 'student_hint', `Official Answer Key: ${newKey}`);
-                    }}
-                    disabled={isLocked}
-                    className="input-textarea"
-                    style={{
-                      fontSize: '0.84rem',
-                      background: 'var(--bg)',
-                      borderColor: 'var(--border)',
-                      color: 'var(--text)',
-                      borderRadius: 6,
-                    }}
-                    placeholder="Enter the official answer key or correct choice (e.g. 'B) It requires a sorted array')..."
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 12 }}>
-                  <div className="form-group">
-                    <label className="form-label">Max Marks</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="1"
-                      value={currentQ.max_marks || currentQ.max_points || 10}
-                      onChange={(e) => handleUpdateQuestion(activeQuestionIndex, 'max_marks', parseFloat(e.target.value) || 10)}
-                      disabled={isLocked}
-                      className="input-text"
-                      style={{ fontSize: '0.86rem' }}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Student Hint (Optional)</label>
-                    <input
-                      type="text"
-                      value={currentQ.student_hint || ''}
-                      onChange={(e) => handleUpdateQuestion(activeQuestionIndex, 'student_hint', e.target.value)}
-                      disabled={isLocked}
-                      className="input-text"
-                      style={{ fontSize: '0.86rem' }}
-                      placeholder="e.g. Consider mutual exclusion vs deadlock conditions..."
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Type-Aware Evaluation Schema: Objective vs Subjective Rubric */}
-              {(() => {
-                const isCurrentQMcq = /\b[A-D]\)/.test(currentQ?.text || '');
-                const isCurrentQFitb = /____|fill in the blank/i.test(currentQ?.text || '') || currentQ?.question_type === 'fill_in_the_blank';
-                const isCurrentQObjective = isCurrentQMcq || isCurrentQFitb;
-
-                if (isCurrentQObjective) {
-                  return (
-                    <div className="cartesia-card">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                {/* Question & Rubric Detail Editor */}
+                {currentQ && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {/* Question Prompt Card */}
+                    <div className="cartesia-card" style={{ padding: '16px 18px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <CheckCircle2 size={16} style={{ color: 'var(--accent)' }} />
-                          <h3 style={{ fontSize: '0.92rem', fontWeight: 600, margin: 0 }}>
-                            Evaluation Schema: Question {activeQuestionIndex + 1}
-                          </h3>
-                          <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                            {isCurrentQMcq ? 'Multiple Choice (MCQ)' : 'Fill in the Blank'}
+                          <span className="badge badge-accent">Question {activeQuestionIndex + 1}</span>
+                          <span className="badge badge-outline">
+                            {currentQ.source === 'teacher' ? 'Author: Teacher' : 'Author: AI'}
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span className="badge badge-outline" style={{ fontSize: '0.72rem' }}>
-                            Binary Key Scoring ({currentQ.max_marks || currentQ.max_points || 1} pt)
-                          </span>
-                          {!isLocked && (
-                            <button
-                              type="button"
-                              onClick={() => handleAddCriterion(activeQuestionIndex)}
-                              className="btn btn-secondary btn-sm"
-                              style={{ fontSize: '0.74rem', height: 26, padding: '0 8px' }}
-                              title="Attach custom partial credit criteria for this question if needed"
-                            >
-                              <Plus size={11} />
-                              <span>Add Custom Rubric</span>
-                            </button>
-                          )}
-                        </div>
+                        {!isLocked && questions.length > 1 && (
+                          <button
+                            onClick={() => handleDeleteQuestion(activeQuestionIndex)}
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: 'var(--danger)', fontSize: '0.76rem' }}
+                            title="Delete question"
+                          >
+                            <Trash2 size={13} />
+                            <span>Delete</span>
+                          </button>
+                        )}
                       </div>
 
-                      <div style={{ padding: '12px 14px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border-subtle)', marginBottom: 10 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)' }}>
-                            {isCurrentQMcq ? 'Objective Choice Verification' : 'Exact Term Verification'}
-                          </span>
-                        </div>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
-                          {isCurrentQMcq
-                            ? 'This question is evaluated objectively against the Official Answer Key above (100% binary scoring). Full points are awarded when the student indicates the designated option (A, B, C, or D). Subjective multi-criteria rubrics are bypassed for objective questions to ensure fast, fair, and reliable grading.'
-                            : 'This question is evaluated directly against the target term in the Official Answer Key above. Full points are awarded when the student supplies the correct term or accepted domain synonym.'}
-                        </p>
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '0.8rem' }}>Question Prompt</label>
+                        <textarea
+                          rows={3}
+                          value={currentQ.text || currentQ.prompt || ''}
+                          onChange={(e) => handleUpdateQuestion(activeQuestionIndex, 'text', e.target.value)}
+                          disabled={isLocked}
+                          className="input-textarea"
+                          style={{ fontSize: '0.86rem' }}
+                          placeholder="Enter the examination question prompt..."
+                        />
                       </div>
 
-                      {/* If teacher added custom criteria */}
-                      {(currentQ.rubric?.criteria || []).length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                          <span style={{ fontSize: '0.74rem', color: 'var(--text)', fontWeight: 600 }}>
-                            Custom Evaluation Criteria:
+                      {/* Official Answer Key / Model Solution Box */}
+                      <div
+                        style={{
+                          margin: '12px 0',
+                          padding: '10px 14px',
+                          borderRadius: 8,
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                            <CheckCircle2 size={13} />
+                            <span>Official Answer Key & Model Solution</span>
+                          </label>
+                          <span className="badge badge-accent" style={{ fontSize: '0.64rem', padding: '1px 5px' }}>
+                            Ground Truth Key
                           </span>
-                          {currentQ.rubric.criteria.map((crit, cIdx) => (
-                            <div
-                              key={crit.id || cIdx}
-                              style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 90px auto',
-                                gap: 10,
-                                alignItems: 'center',
-                                padding: '8px 10px',
-                                borderRadius: 4,
-                                background: 'var(--bg)',
-                                border: '1px solid var(--border-subtle)',
-                              }}
-                            >
-                              <input
-                                type="text"
-                                value={crit.description || crit.name || ''}
-                                onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'description', e.target.value)}
-                                disabled={isLocked}
-                                className="input-text"
-                                style={{ fontSize: '0.82rem' }}
-                                placeholder="Criterion description..."
-                              />
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <input
-                                  type="number"
-                                  step="0.5"
-                                  value={crit.max_points ?? crit.max_score ?? 0}
-                                  onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'max_points', parseFloat(e.target.value) || 0)}
-                                  disabled={isLocked}
-                                  className="input-text"
-                                  style={{ fontSize: '0.82rem', textAlign: 'center' }}
-                                />
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>pts</span>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={
+                            currentQ.reference_answer ||
+                            (currentQ.student_hint?.includes('Answer Key:')
+                              ? currentQ.student_hint.split(/\n(?:Learning Objective|Objective|Hint):/i)[0].replace(/^(?:Official\s+)?Answer\s+Key:\s*/i, '').trim()
+                              : currentQ.student_hint || '')
+                          }
+                          onChange={(e) => {
+                            const newKey = e.target.value;
+                            handleUpdateQuestion(activeQuestionIndex, 'reference_answer', newKey);
+                            handleUpdateQuestion(activeQuestionIndex, 'student_hint', `Official Answer Key: ${newKey}`);
+                          }}
+                          disabled={isLocked}
+                          className="input-textarea"
+                          style={{
+                            fontSize: '0.82rem',
+                            background: 'var(--bg)',
+                            borderColor: 'var(--border)',
+                            color: 'var(--text)',
+                            borderRadius: 6,
+                          }}
+                          placeholder="Enter the official answer key or correct choice (e.g. 'B) It requires a sorted array')..."
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 12 }}>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.8rem' }}>Max Marks</label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="1"
+                            value={currentQ.max_marks || currentQ.max_points || 10}
+                            onChange={(e) => handleUpdateQuestion(activeQuestionIndex, 'max_marks', parseFloat(e.target.value) || 10)}
+                            disabled={isLocked}
+                            className="input-text"
+                            style={{ fontSize: '0.84rem' }}
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.8rem' }}>Student Hint (Optional)</label>
+                          <input
+                            type="text"
+                            value={currentQ.student_hint || ''}
+                            onChange={(e) => handleUpdateQuestion(activeQuestionIndex, 'student_hint', e.target.value)}
+                            disabled={isLocked}
+                            className="input-text"
+                            style={{ fontSize: '0.84rem' }}
+                            placeholder="e.g. Consider mutual exclusion vs deadlock conditions..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Type-Aware Evaluation Schema: Objective vs Subjective Rubric */}
+                    {(() => {
+                      const isCurrentQMcq = /\b[A-D]\)/.test(currentQ?.text || '');
+                      const isCurrentQFitb = /____|fill in the blank/i.test(currentQ?.text || '') || currentQ?.question_type === 'fill_in_the_blank';
+                      const isCurrentQObjective = isCurrentQMcq || isCurrentQFitb;
+
+                      if (isCurrentQObjective) {
+                        return (
+                          <div className="cartesia-card" style={{ padding: '16px 18px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <CheckCircle2 size={16} style={{ color: 'var(--accent)' }} />
+                                <h3 style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
+                                  Evaluation Schema: Question {activeQuestionIndex + 1}
+                                </h3>
+                                <span className="badge badge-accent" style={{ fontSize: '0.66rem', padding: '1px 6px' }}>
+                                  {isCurrentQMcq ? 'Multiple Choice (MCQ)' : 'Fill in the Blank'}
+                                </span>
                               </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span className="badge badge-outline" style={{ fontSize: '0.7rem' }}>
+                                  Binary Key Scoring ({currentQ.max_marks || currentQ.max_points || 1} pt)
+                                </span>
+                                {!isLocked && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAddCriterion(activeQuestionIndex)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.74rem', height: 26, padding: '0 8px' }}
+                                    title="Attach custom partial credit criteria for this question if needed"
+                                  >
+                                    <Plus size={11} />
+                                    <span>Add Custom Rubric</span>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border-subtle)', marginBottom: 10 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)' }}>
+                                  {isCurrentQMcq ? 'Objective Choice Verification' : 'Exact Term Verification'}
+                                </span>
+                              </div>
+                              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+                                {isCurrentQMcq
+                                  ? 'This question is evaluated objectively against the Official Answer Key above (100% binary scoring). Full points are awarded when the student indicates the designated option (A, B, C, or D). Subjective multi-criteria rubrics are bypassed for objective questions to ensure fast, fair, and reliable grading.'
+                                  : 'This question is evaluated directly against the target term in the Official Answer Key above. Full points are awarded when the student supplies the correct term or accepted domain synonym.'}
+                              </p>
+                            </div>
+
+                            {/* If teacher added custom criteria */}
+                            {(currentQ.rubric?.criteria || []).length > 0 && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                                <span style={{ fontSize: '0.74rem', color: 'var(--text)', fontWeight: 600 }}>
+                                  Custom Evaluation Criteria:
+                                </span>
+                                {currentQ.rubric.criteria.map((crit, cIdx) => (
+                                  <div
+                                    key={crit.id || cIdx}
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns: '1fr 90px auto',
+                                      gap: 10,
+                                      alignItems: 'center',
+                                      padding: '8px 10px',
+                                      borderRadius: 4,
+                                      background: 'var(--bg)',
+                                      border: '1px solid var(--border-subtle)',
+                                    }}
+                                  >
+                                    <input
+                                      type="text"
+                                      value={crit.description || crit.name || ''}
+                                      onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'description', e.target.value)}
+                                      disabled={isLocked}
+                                      className="input-text"
+                                      style={{ fontSize: '0.8rem' }}
+                                      placeholder="Criterion description..."
+                                    />
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        value={crit.max_points ?? crit.max_score ?? 0}
+                                        onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'max_points', parseFloat(e.target.value) || 0)}
+                                        disabled={isLocked}
+                                        className="input-text"
+                                        style={{ fontSize: '0.8rem', textAlign: 'center' }}
+                                      />
+                                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>pts</span>
+                                    </div>
+                                    {!isLocked && (
+                                      <button
+                                        onClick={() => handleDeleteCriterion(activeQuestionIndex, cIdx)}
+                                        className="btn btn-ghost btn-sm"
+                                        style={{ padding: 4, color: 'var(--text-muted)' }}
+                                        title="Remove criterion"
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="cartesia-card" style={{ padding: '16px 18px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <Award size={16} style={{ color: 'var(--accent)' }} />
+                              <h3 style={{ fontSize: '0.9rem', fontWeight: 600 }}>Grading Rubric for Question {activeQuestionIndex + 1}</h3>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               {!isLocked && (
                                 <button
-                                  onClick={() => handleDeleteCriterion(activeQuestionIndex, cIdx)}
-                                  className="btn btn-ghost btn-sm"
-                                  style={{ padding: 4, color: 'var(--text-muted)' }}
-                                  title="Remove criterion"
+                                  type="button"
+                                  onClick={() => handleBuildRubricFromPrompt(currentQ, activeQuestionIndex)}
+                                  disabled={generatingRubricId === (currentQ.id || `q-${activeQuestionIndex}`)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 5,
+                                    border: '1px solid var(--border)',
+                                    color: 'var(--text)',
+                                    background: 'var(--surface)',
+                                    fontSize: '0.76rem',
+                                  }}
+                                  title="Generate standardized grading criteria and point distribution with AI for this question prompt"
                                 >
-                                  <Trash2 size={13} />
+                                  {generatingRubricId === (currentQ.id || `q-${activeQuestionIndex}`) ? (
+                                    <Loader2 size={12} className="spin" />
+                                  ) : (
+                                    <Sparkles size={12} />
+                                  )}
+                                  <span>✨ Generate Rubric with AI</span>
+                                </button>
+                              )}
+                              {currentQ.id && !isLocked && (
+                                <button
+                                  onClick={() => handleRegenerateRubric(currentQ, activeQuestionIndex)}
+                                  disabled={generatingRubricId === currentQ.id}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: '0.76rem' }}
+                                  title="Regenerate rubric with AI"
+                                >
+                                  <RefreshCw size={11} className={generatingRubricId === currentQ.id ? 'spin' : ''} />
+                                  <span>Regenerate</span>
+                                </button>
+                              )}
+                              {!isLocked && (
+                                <button
+                                  onClick={() => handleAddCriterion(activeQuestionIndex)}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ fontSize: '0.76rem' }}
+                                >
+                                  <Plus size={11} />
+                                  <span>Add Criterion</span>
                                 </button>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
+                          </div>
 
-                return (
-                  <div className="cartesia-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Award size={16} style={{ color: 'var(--accent)' }} />
-                        <h3 style={{ fontSize: '0.92rem', fontWeight: 600 }}>Grading Rubric for Question {activeQuestionIndex + 1}</h3>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        {!isLocked && (
-                          <button
-                            type="button"
-                            onClick={() => handleBuildRubricFromPrompt(currentQ, activeQuestionIndex)}
-                            disabled={generatingRubricId === (currentQ.id || `q-${activeQuestionIndex}`)}
-                            className="btn btn-secondary btn-sm"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 5,
-                              border: '1px solid var(--border)',
-                              color: 'var(--text)',
-                              background: 'var(--surface)',
-                            }}
-                            title="Generate standardized grading criteria and point distribution with AI for this question prompt"
-                          >
-                            {generatingRubricId === (currentQ.id || `q-${activeQuestionIndex}`) ? (
-                              <Loader2 size={12} className="spin" />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            {(currentQ.rubric?.criteria || []).length === 0 ? (
+                              <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                No rubric criteria defined. Click Add Criterion or Generate Rubric above.
+                              </div>
                             ) : (
-                              <Sparkles size={12} />
-                            )}
-                            <span>✨ Generate Rubric with AI</span>
-                          </button>
-                        )}
-                        {currentQ.id && !isLocked && (
-                          <button
-                            onClick={() => handleRegenerateRubric(currentQ, activeQuestionIndex)}
-                            disabled={generatingRubricId === currentQ.id}
-                            className="btn btn-secondary btn-sm"
-                            title="Regenerate rubric with AI"
-                          >
-                            <RefreshCw size={12} className={generatingRubricId === currentQ.id ? 'spin' : ''} />
-                            <span>Regenerate</span>
-                          </button>
-                        )}
-                        {!isLocked && (
-                          <button
-                            onClick={() => handleAddCriterion(activeQuestionIndex)}
-                            className="btn btn-secondary btn-sm"
-                          >
-                            <Plus size={12} />
-                            <span>Add Criterion</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {(currentQ.rubric?.criteria || []).length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                          No rubric criteria defined. Click Add Criterion or Regenerate Rubric above.
-                        </div>
-                      ) : (
-                        currentQ.rubric.criteria.map((crit, cIdx) => (
-                          <div
-                            key={crit.id || cIdx}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '1fr 90px auto',
-                              gap: 10,
-                              alignItems: 'center',
-                              padding: '8px 10px',
-                              borderRadius: 4,
-                              background: 'var(--surface)',
-                              border: '1px solid var(--border-subtle)',
-                            }}
-                          >
-                            <input
-                              type="text"
-                              value={crit.description || crit.name || ''}
-                              onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'description', e.target.value)}
-                              disabled={isLocked}
-                              className="input-text"
-                              style={{ fontSize: '0.82rem' }}
-                              placeholder="Criterion description..."
-                            />
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <input
-                                type="number"
-                                step="0.5"
-                                value={crit.max_points ?? crit.max_score ?? 0}
-                                onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'max_points', parseFloat(e.target.value) || 0)}
-                                disabled={isLocked}
-                                className="input-text"
-                                style={{ fontSize: '0.82rem', textAlign: 'center' }}
-                              />
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>pts</span>
-                            </div>
-                            {!isLocked && (
-                              <button
-                                onClick={() => handleDeleteCriterion(activeQuestionIndex, cIdx)}
-                                className="btn btn-ghost btn-sm"
-                                style={{ padding: 4, color: 'var(--text-muted)' }}
-                                title="Remove criterion"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                              currentQ.rubric.criteria.map((crit, cIdx) => (
+                                <div
+                                  key={crit.id || cIdx}
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 90px auto',
+                                    gap: 10,
+                                    alignItems: 'center',
+                                    padding: '8px 10px',
+                                    borderRadius: 4,
+                                    background: 'var(--surface)',
+                                    border: '1px solid var(--border-subtle)',
+                                  }}
+                                >
+                                  <input
+                                    type="text"
+                                    value={crit.description || crit.name || ''}
+                                    onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'description', e.target.value)}
+                                    disabled={isLocked}
+                                    className="input-text"
+                                    style={{ fontSize: '0.8rem' }}
+                                    placeholder="Criterion description..."
+                                  />
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <input
+                                      type="number"
+                                      step="0.5"
+                                      value={crit.max_points ?? crit.max_score ?? 0}
+                                      onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'max_points', parseFloat(e.target.value) || 0)}
+                                      disabled={isLocked}
+                                      className="input-text"
+                                      style={{ fontSize: '0.8rem', textAlign: 'center' }}
+                                    />
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>pts</span>
+                                  </div>
+                                  {!isLocked && (
+                                    <button
+                                      onClick={() => handleDeleteCriterion(activeQuestionIndex, cIdx)}
+                                      className="btn btn-ghost btn-sm"
+                                      style={{ padding: 4, color: 'var(--text-muted)' }}
+                                      title="Remove criterion"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
+                                </div>
+                              ))
                             )}
                           </div>
-                        ))
-                      )}
-                    </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                );
-              })()}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Custom Question Rubric Generator Modal */}
+      {/* ========================================================================= */}
+      {/* 3. CUSTOM QUESTION RUBRIC GENERATOR MODAL                                 */}
+      {/* ========================================================================= */}
       {isRubricModalOpen && (
         <div
           style={{
@@ -1734,7 +2363,7 @@ You can review question details, refine answer keys, or add custom questions in 
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
+            backgroundColor: 'rgba(0, 0, 0, 0.45)',
             backdropFilter: 'blur(4px)',
             display: 'flex',
             alignItems: 'center',
@@ -1853,7 +2482,6 @@ You can review question details, refine answer keys, or add custom questions in 
           </div>
         </div>
       )}
-
 
     </div>
   );

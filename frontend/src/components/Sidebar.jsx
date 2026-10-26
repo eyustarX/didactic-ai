@@ -10,6 +10,10 @@ import {
   LogOut,
   LogIn,
   Layers,
+  Plus,
+  MessageSquare,
+  History,
+  Trash2,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -27,12 +31,16 @@ export default function Sidebar({
   currentUser,
   onOpenAuth,
   onSignOut,
+  chatSessions = [],
+  activeChatSessionId = null,
+  onNewChat,
+  onSelectChatSession,
+  onDeleteChatSession,
 }) {
   const [isHovered, setIsHovered] = React.useState(false);
 
   const handleNavClick = (id) => {
     setActiveTab(id);
-    // On small screens, close sidebar drawer after selecting a tab
     if (window.innerWidth <= 860) {
       setCollapsed(true);
     }
@@ -108,7 +116,23 @@ export default function Sidebar({
             </button>
           </div>
 
-          {/* Navigation Menu */}
+          {/* Top: + New Chat Button (ChatGPT Style) */}
+          <div className="sidebar-new-chat-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                if (onNewChat) onNewChat();
+                if (window.innerWidth <= 860) setCollapsed(true);
+              }}
+              className="sidebar-new-chat-btn"
+              title="Start a fresh chat conversation"
+            >
+              <Plus size={16} className="new-chat-icon" />
+              <span className="new-chat-text">New Chat</span>
+            </button>
+          </div>
+
+          {/* Navigation Menu (Direct Items, No "MAIN NAVIGATION" Header) */}
           <nav className="nav-menu">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon;
@@ -126,6 +150,54 @@ export default function Sidebar({
               );
             })}
           </nav>
+
+          {/* Divider */}
+          <div className="sidebar-divider" />
+
+          {/* Recent Chats Section */}
+          <div className="sidebar-recent-section">
+            <div className="sidebar-recent-header">
+              <span className="sidebar-recent-title">
+                <History size={12} style={{ opacity: 0.7 }} />
+                <span>Recent Chats</span>
+              </span>
+            </div>
+
+            <div className="sidebar-recent-chats-list custom-scroll">
+              {chatSessions.length === 0 ? (
+                <div className="sidebar-empty-chats">No previous chats</div>
+              ) : (
+                chatSessions.map((session) => {
+                  const isSelected = activeChatSessionId === session.id && activeTab === 'assessment';
+                  return (
+                    <div
+                      key={session.id}
+                      className={`sidebar-chat-item ${isSelected ? 'active' : ''}`}
+                      onClick={() => {
+                        if (onSelectChatSession) onSelectChatSession(session);
+                        if (window.innerWidth <= 860) setCollapsed(true);
+                      }}
+                      title={session.title || 'Conversation'}
+                    >
+                      <MessageSquare size={13} className="chat-item-icon" />
+                      <span className="chat-item-title">{session.title || 'Conversation'}</span>
+                      <button
+                        type="button"
+                        className="chat-item-delete-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onDeleteChatSession) onDeleteChatSession(session.id);
+                        }}
+                        title="Delete chat"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
 
           {/* Lower Sidebar Profile Section */}
           <div className="sidebar-profile-section">

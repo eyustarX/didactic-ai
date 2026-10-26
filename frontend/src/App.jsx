@@ -9,7 +9,7 @@ import AssessmentTab from './pages/AssessmentTab';
 import AssessmentsLibraryTab from './pages/AssessmentsLibraryTab';
 import GradingTab from './pages/GradingTab';
 import AnalyticsTab from './pages/AnalyticsTab';
-import { fetchAnalytics, fetchLectureNotes, fetchLectureNoteDetail, fetchAssessment } from './services/api';
+import { fetchAnalytics, fetchLectureNotes, fetchLectureNoteDetail, fetchAssessment, fetchChatSessions, deleteChatSession } from './services/api';
 import { SAMPLE_LECTURE_TITLE, SAMPLE_LECTURE_CONTENT } from './data/sampleData';
 
 export default function App() {
@@ -39,6 +39,47 @@ export default function App() {
 
   // Analytics state
   const [analyticsData, setAnalyticsData] = useState(null);
+
+  // Chat History & Session State (ChatGPT Style)
+  const [chatSessions, setChatSessions] = useState([]);
+  const [activeChatSessionId, setActiveChatSessionId] = useState(null);
+
+  const loadChatSessions = async () => {
+    try {
+      const sessions = await fetchChatSessions(currentUser?.id);
+      if (Array.isArray(sessions)) {
+        setChatSessions(sessions);
+      }
+    } catch (err) {
+      console.warn('Failed to load chat sessions:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadChatSessions();
+  }, [currentUser?.id]);
+
+  const handleNewChat = () => {
+    setActiveChatSessionId(null);
+    setActiveTab('assessment');
+  };
+
+  const handleSelectChatSession = (session) => {
+    setActiveChatSessionId(session.id);
+    setActiveTab('assessment');
+  };
+
+  const handleDeleteChatSession = async (sessionId) => {
+    try {
+      await deleteChatSession(sessionId, currentUser?.id);
+      setChatSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      if (activeChatSessionId === sessionId) {
+        setActiveChatSessionId(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete chat session:', err);
+    }
+  };
 
   useEffect(() => {
     fetchAnalytics().then((a) => setAnalyticsData(a)).catch(() => {});
@@ -149,6 +190,11 @@ export default function App() {
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthOpen(true)}
         onSignOut={handleSignOut}
+        chatSessions={chatSessions}
+        activeChatSessionId={activeChatSessionId}
+        onNewChat={handleNewChat}
+        onSelectChatSession={handleSelectChatSession}
+        onDeleteChatSession={handleDeleteChatSession}
       />
 
       {/* Main Content Area */}
@@ -196,6 +242,9 @@ export default function App() {
               setAssessment={setAssessment}
               setActiveTab={setActiveTab}
               currentUser={currentUser}
+              activeChatSessionId={activeChatSessionId}
+              setActiveChatSessionId={setActiveChatSessionId}
+              onChatSessionsChange={loadChatSessions}
             />
           )}
 

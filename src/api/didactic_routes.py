@@ -47,6 +47,8 @@ from src.db.models import (
     Student,
     Submission,
     SubmissionQuestionScore,
+    ChatSession,
+    ChatMessage,
 )
 from src.db.session import get_session
 from src.services.storage_service import get_storage
@@ -89,6 +91,20 @@ class CopilotChatReq(BaseModel):
     messages: List[Dict[str, Any]]
     lecture_note_id: Optional[str] = None
     lecture_title: Optional[str] = None
+
+
+class CreateChatSessionReq(BaseModel):
+    title: Optional[str] = "New Conversation"
+    lecture_note_id: Optional[str] = None
+    assessment_id: Optional[str] = None
+
+
+class SaveChatMessageReq(BaseModel):
+    role: str
+    content: str
+    ready_to_generate: Optional[bool] = False
+    suggested_prompt: Optional[str] = None
+    question_count: Optional[int] = None
 
 
 class AssessmentGenerateReq(BaseModel):
@@ -675,6 +691,7 @@ def generate_assessment_endpoint(
 
 
 @router.post("/assessments/copilot-chat")
+@router.post("/assessments/didactic-ai-chat")
 def copilot_chat_endpoint(
     req: CopilotChatReq,
     lecturer_id: str = Depends(get_current_lecturer),
@@ -705,6 +722,171 @@ def copilot_chat_endpoint(
         lecture_content=lecture_content,
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Chat History & Session Management Endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/chat/sessions")
+def list_chat_sessions(
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    sessions = (
+        session.query(ChatSession)
+        .filter(ChatSession.lecturer_id == lecturer_id)
+        .order_by(ChatSession.updated_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": s.id,
+            "title": s.title,
+            "lecture_note_id": s.lecture_note_id,
+            "lecture_note_name": s.lecture_note.name if s.lecture_note else None,
+            "assessment_id": s.assessment_id,
+            "message_count": len(s.messages),
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+        }
+        for s in sessions
+    ]
+
+
+@router.post("/chat/sessions")
+def create_chat_session(
+    req: CreateChatSessionReq,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    chat_sess = ChatSession(
+        lecturer_id=lecturer_id,
+        title=req.title or "New Conversation",
+        lecture_note_id=req.lecture_note_id,
+        assessment_id=req.assessment_id,
+    )
+    session.add(chat_sess)
+    session.commit()
+    session.refresh(chat_sess)
+    return {
+        "id": chat_sess.id,
+        "title": chat_sess.title,
+        "lecture_note_id": chat_sess.lecture_note_id,
+        "assessment_id": chat_sess.assessment_id,
+        "message_count": 0,
+        "created_at": chat_sess.created_at.isoformat() if chat_sess.created_at else None,
+        "updated_at": chat_sess.updated_at.isoformat() if chat_sess.updated_at else None,
+        "messages": [],
+    }
+
+
+@router.get("/chat/sessions/{session_id}")
+def get_chat_session(
+    session_id: str,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    chat_sess = (
+        session.query(ChatSession)
+        .filter(ChatSession.id == session_id, ChatSession.lecturer_id == lecturer_id)
+        .first()
+    )
+    if not chat_sess:
+        chat_sess = session.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not chat_sess:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Chat session not found.")
+
+    return {
+        "id": chat_sess.id,
+        "title": chat_sess.title,
+        "lecture_note_id": chat_sess.lecture_note_id,
+        "lecture_note_name": chat_sess.lecture_note.name if chat_sess.lecture_note else None,
+        "assessment_id": chat_sess.assessment_id,
+        "created_at": chat_sess.created_at.isoformat() if chat_sess.created_at else None,
+        "updated_at": chat_sess.updated_at.isoformat() if chat_sess.updated_at else None,
+        "messages": [
+            {
+                "id": m.id,
+                "role": m.role,
+                "content": m.content,
+                "ready_to_generate": m.ready_to_generate,
+                "suggested_prompt": m.suggested_prompt,
+                "question_count": m.question_count,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in chat_sess.messages
+        ],
+    }
+
+
+@router.post("/chat/sessions/{session_id}/messages")
+def add_chat_message(
+    session_id: str,
+    req: SaveChatMessageReq,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    chat_sess = (
+        session.query(ChatSession)
+        .filter(ChatSession.id == session_id)
+        .first()
+    )
+    if not chat_sess:
+        chat_sess = ChatSession(
+            id=session_id,
+            lecturer_id=lecturer_id,
+            title="New Conversation",
+        )
+        session.add(chat_sess)
+        session.flush()
+
+    msg = ChatMessage(
+        session_id=chat_sess.id,
+        role=req.role,
+        content=req.content,
+        ready_to_generate=req.ready_to_generate or False,
+        suggested_prompt=req.suggested_prompt,
+        question_count=req.question_count,
+    )
+    session.add(msg)
+
+    # Auto-generate meaningful session title from first user message if default
+    if req.role == "user" and (chat_sess.title in ("New Conversation", "New Chat", "Assessment Draft")):
+        clean_text = req.content.strip().split("\n")[0][:45]
+        if clean_text:
+            chat_sess.title = clean_text
+
+    chat_sess.updated_at = datetime.now(timezone.utc)
+    session.commit()
+    session.refresh(msg)
+    return {
+        "id": msg.id,
+        "session_id": chat_sess.id,
+        "role": msg.role,
+        "content": msg.content,
+        "ready_to_generate": msg.ready_to_generate,
+        "suggested_prompt": msg.suggested_prompt,
+        "question_count": msg.question_count,
+        "created_at": msg.created_at.isoformat() if msg.created_at else None,
+    }
+
+
+@router.delete("/chat/sessions/{session_id}")
+def delete_chat_session(
+    session_id: str,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    chat_sess = (
+        session.query(ChatSession)
+        .filter(ChatSession.id == session_id)
+        .first()
+    )
+    if chat_sess:
+        session.delete(chat_sess)
+        session.commit()
+    return {"status": "ok", "deleted_session_id": session_id}
 
 
 @router.get("/assessments")

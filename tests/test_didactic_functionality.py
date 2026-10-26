@@ -704,3 +704,83 @@ def test_generate_assessment_resilient_fallbacks():
         init_db.close()
     finally:
         app.dependency_overrides.pop(get_session, None)
+
+
+def test_chat_sessions_lifecycle():
+    """Verify listing, creating, messaging, and deleting chat sessions."""
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from src.main import app
+    from src.db.session import get_session
+    from src.db.models import Base
+
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(test_engine)
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    def override_session():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+        headers = {"X-Lecturer-Id": "prof_chat_test"}
+
+        # 1. Initial list empty
+        resp = client.get("/chat/sessions", headers=headers)
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+        # 2. Create session
+        create_resp = client.post("/chat/sessions", json={"title": "Operating Systems Chat"}, headers=headers)
+        assert create_resp.status_code == 200
+        sess = create_resp.json()
+        sess_id = sess["id"]
+        assert sess["title"] == "Operating Systems Chat"
+
+        # 3. Add user message
+        m1 = client.post(
+            f"/chat/sessions/{sess_id}/messages",
+            json={"role": "user", "content": "Create 5 questions on Process Scheduling"},
+            headers=headers,
+        )
+        assert m1.status_code == 200
+        assert m1.json()["role"] == "user"
+
+        # 4. Add assistant message
+        m2 = client.post(
+            f"/chat/sessions/{sess_id}/messages",
+            json={"role": "assistant", "content": "Ready to generate!", "ready_to_generate": True, "question_count": 5},
+            headers=headers,
+        )
+        assert m2.status_code == 200
+        assert m2.json()["ready_to_generate"] is True
+
+        # 5. Fetch session details
+        detail = client.get(f"/chat/sessions/{sess_id}", headers=headers)
+        assert detail.status_code == 200
+        data = detail.json()
+        assert len(data["messages"]) == 2
+        assert data["messages"][0]["role"] == "user"
+        assert data["messages"][1]["role"] == "assistant"
+
+        # 6. Delete session
+        del_resp = client.delete(f"/chat/sessions/{sess_id}", headers=headers)
+        assert del_resp.status_code == 200
+
+        # Verify list is empty again
+        list2 = client.get("/chat/sessions", headers=headers)
+        assert list2.status_code == 200
+        assert len(list2.json()) == 0
+    finally:
+        app.dependency_overrides.pop(get_session, None)

@@ -160,9 +160,72 @@ export async function copilotChat({ messages, lecture_note_id, lecture_title, le
     body: JSON.stringify({ messages, lecture_note_id, lecture_title }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Failed to chat with Copilot' }));
-    throw new Error(err.detail || 'Failed to chat with Copilot');
+    const err = await res.json().catch(() => ({ detail: 'Failed to chat with Didactic AI' }));
+    throw new Error(err.detail || 'Failed to chat with Didactic AI');
   }
+  return await res.json();
+}
+
+export const didacticAiChat = copilotChat;
+
+export async function fetchChatSessions(lecturerId) {
+  const id = resolveLecturerId(lecturerId);
+  const params = id ? `?lecturer_id=${encodeURIComponent(id)}` : '';
+  const res = await fetch(`${API_BASE}/chat/sessions${params}`, {
+    headers: getAuthHeaders(lecturerId),
+  });
+  if (!res.ok) return [];
+  return await res.json();
+}
+
+export async function fetchChatSessionDetails(sessionId, lecturerId) {
+  const id = resolveLecturerId(lecturerId);
+  const params = id ? `?lecturer_id=${encodeURIComponent(id)}` : '';
+  const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}${params}`, {
+    headers: getAuthHeaders(lecturerId),
+  });
+  if (!res.ok) throw new Error('Failed to load chat session');
+  return await res.json();
+}
+
+export async function createChatSession({ title, lecture_note_id, assessment_id, lecturerId } = {}) {
+  const res = await fetch(`${API_BASE}/chat/sessions`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(lecturerId),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ title, lecture_note_id, assessment_id }),
+  });
+  if (!res.ok) throw new Error('Failed to create chat session');
+  return await res.json();
+}
+
+export async function saveChatMessage({ sessionId, role, content, readyToGenerate, suggestedPrompt, questionCount, lecturerId }) {
+  const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}/messages`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(lecturerId),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      role,
+      content,
+      ready_to_generate: readyToGenerate,
+      suggested_prompt: suggestedPrompt,
+      question_count: questionCount,
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to save message');
+  return await res.json();
+}
+
+export async function deleteChatSession(sessionId, lecturerId) {
+  const res = await fetch(`${API_BASE}/chat/sessions/${sessionId}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(lecturerId),
+  });
+  if (!res.ok) throw new Error('Failed to delete chat session');
   return await res.json();
 }
 

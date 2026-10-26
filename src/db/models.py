@@ -212,3 +212,38 @@ class SubmissionQuestionScore(Base):
     # Relationships
     submission = relationship("Submission", back_populates="question_scores")
     question = relationship("Question")
+
+
+class ChatSession(Base):
+    """Conversational Didactic AI chat thread for drafting assessments."""
+    __tablename__ = "chat_sessions"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    lecturer_id = Column(String(100), nullable=False, default="default_lecturer", index=True)
+    title = Column(String(255), nullable=False, default="New Conversation")
+    lecture_note_id = Column(String(36), ForeignKey("lecture_notes.id", ondelete="SET NULL"), nullable=True)
+    assessment_id = Column(String(36), ForeignKey("assessments.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan", order_by="ChatMessage.created_at")
+    lecture_note = relationship("LectureNote")
+    assessment = relationship("Assessment")
+
+
+class ChatMessage(Base):
+    """Single message within a chat session."""
+    __tablename__ = "chat_messages"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    session_id = Column(String(36), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # 'user' | 'assistant'
+    content = Column(Text, nullable=False)
+    ready_to_generate = Column(Boolean, default=False)
+    suggested_prompt = Column(Text, nullable=True)
+    question_count = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    session = relationship("ChatSession", back_populates="messages")
