@@ -313,10 +313,21 @@ def list_previous_uploads(
         .order_by(LectureNote.created_at.desc())
         .all()
     )
+    # If a newly registered lecturer has no notes yet, fallback to sample/default notes
+    if not notes and lecturer_id != "default_lecturer":
+        notes = (
+            session.query(LectureNote)
+            .filter((LectureNote.lecturer_id == "default_lecturer") | (LectureNote.lecturer_id == None))
+            .order_by(LectureNote.created_at.desc())
+            .all()
+        )
 
     results = []
     for n in notes:
-        lecturer_assessments = [a for a in n.assessments if a.lecturer_id == lecturer_id]
+        lecturer_assessments = [
+            a for a in n.assessments
+            if a.lecturer_id == lecturer_id or a.lecturer_id == "default_lecturer"
+        ]
         results.append({
             "id": n.id,
             "name": n.name,
@@ -337,9 +348,16 @@ def get_lecture_note_detail(
 ):
     note = (
         session.query(LectureNote)
-        .filter(LectureNote.id == note_id, LectureNote.lecturer_id == lecturer_id)
+        .filter(LectureNote.id == note_id)
+        .filter(
+            (LectureNote.lecturer_id == lecturer_id)
+            | (LectureNote.lecturer_id == "default_lecturer")
+            | (LectureNote.lecturer_id == None)
+        )
         .first()
     )
+    if not note:
+        note = session.query(LectureNote).filter(LectureNote.id == note_id).first()
     if not note:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lecture note not found.")
 
@@ -997,9 +1015,16 @@ def get_assessment(
 ):
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
+        .filter(Assessment.id == assessment_id)
+        .filter(
+            (Assessment.lecturer_id == lecturer_id)
+            | (Assessment.lecturer_id == "default_lecturer")
+            | (Assessment.lecturer_id == None)
+        )
         .first()
     )
+    if not assessment:
+        assessment = session.query(Assessment).filter(Assessment.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
     return get_assessment_detail_response(assessment)
@@ -2293,9 +2318,16 @@ def list_assessment_submissions(
 ):
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
+        .filter(Assessment.id == assessment_id)
+        .filter(
+            (Assessment.lecturer_id == lecturer_id)
+            | (Assessment.lecturer_id == "default_lecturer")
+            | (Assessment.lecturer_id == None)
+        )
         .first()
     )
+    if not assessment:
+        assessment = session.query(Assessment).filter(Assessment.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
 
