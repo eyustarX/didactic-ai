@@ -248,25 +248,7 @@ body {
   white-space: nowrap;
 }
 
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .nav-item {
-  justify-content: center;
-  padding: 10px 0;
-}
 
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .nav-item span {
-  display: none;
-}
-
-.sidebar.collapsed.hover-expanded .nav-item,
-.sidebar.collapsed:hover .nav-item {
-  justify-content: flex-start;
-  padding: 8px 10px;
-}
-
-.sidebar.collapsed.hover-expanded .nav-item span,
-.sidebar.collapsed:hover .nav-item span {
-  display: inline;
-}
 
 .nav-item:hover {
   color: var(--text);
@@ -1654,14 +1636,7 @@ body {
   color: var(--accent);
 }
 
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .sidebar-new-chat-btn {
-  justify-content: center;
-  padding: 8px 0;
-}
 
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .new-chat-text {
-  display: none;
-}
 
 .sidebar-divider {
   height: 1px;
@@ -1695,9 +1670,7 @@ body {
   color: var(--text-muted);
 }
 
-.sidebar.collapsed:not(.hover-expanded):not(:hover) .sidebar-recent-section {
-  display: none;
-}
+
 
 .sidebar-recent-chats-list {
   flex: 1;
@@ -1802,77 +1775,148 @@ body {
 }
 
 /* =========================================================================
-   Collapsed Icon Rail Elements (ChatGPT Style)
+   Collapsed Icon Rail Elements (ChatGPT Style - Pure Icon Mode)
    ========================================================================= */
 
+/* New Chat Icon Button */
 .sidebar.collapsed .sidebar-new-chat-wrap {
   display: flex;
   justify-content: center;
+  align-items: center;
   margin: 8px 0;
   width: 100%;
 }
 
-.sidebar.collapsed .sidebar-new-chat-btn {
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  justify-content: center;
+.sidebar.collapsed .sidebar-new-chat-btn,
+.sidebar.collapsed:hover .sidebar-new-chat-btn,
+.sidebar.collapsed .sidebar-new-chat-btn:hover {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  padding: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
   border-radius: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
+  cursor: pointer;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.sidebar.collapsed .new-chat-text {
-  display: none;
+.sidebar.collapsed .sidebar-new-chat-btn:hover {
+  background: var(--surface-alt) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
 }
 
+.sidebar.collapsed .new-chat-icon {
+  margin: 0 !important;
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed .new-chat-text,
+.sidebar.collapsed:hover .new-chat-text,
+.sidebar.collapsed .sidebar-new-chat-btn:hover .new-chat-text {
+  display: none !important;
+}
+
+/* Nav Menu Icons */
 .sidebar.collapsed .nav-menu {
   align-items: center;
   gap: 6px;
+  width: 100%;
 }
 
-.sidebar.collapsed .nav-item {
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  justify-content: center;
+.sidebar.collapsed .nav-item,
+.sidebar.collapsed:hover .nav-item,
+.sidebar.collapsed .nav-item:hover {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
+  padding: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
   border-radius: 8px;
+  cursor: pointer;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.sidebar.collapsed .nav-item span {
-  display: none;
+.sidebar.collapsed .nav-item:hover {
+  background: var(--surface-alt) !important;
+  color: var(--accent) !important;
+}
+
+.sidebar.collapsed .nav-item.active {
+  background: var(--surface-alt) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.sidebar.collapsed .nav-item .nav-icon {
+  margin: 0 !important;
+  flex-shrink: 0;
+}
+
+/* Text spans are STRICTLY hidden in collapsed mode even on hover or touch */
+.sidebar.collapsed .nav-item span,
+.sidebar.collapsed:hover .nav-item span,
+.sidebar.collapsed .nav-item:hover span {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 .sidebar.collapsed .sidebar-divider {
-  width: 22px;
+  width: 24px;
   margin: 10px auto;
 }
 
-.sidebar.collapsed .sidebar-recent-section {
-  display: none;
+/* Recent chats section is strictly hidden in collapsed mode */
+.sidebar.collapsed .sidebar-recent-section,
+.sidebar.collapsed:hover .sidebar-recent-section {
+  display: none !important;
 }
 
-.sidebar.collapsed .sidebar-profile-section {
+/* Profile / Avatar at bottom */
+.sidebar.collapsed .sidebar-profile-section,
+.sidebar.collapsed:hover .sidebar-profile-section {
   margin-top: auto;
   padding-top: 10px;
   border-top: 1px solid var(--border-subtle);
   width: 100%;
-  display: flex;
-  justify-content: center;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
 }
 
-.sidebar.collapsed .sidebar-profile-card {
-  padding: 0;
-  border: none;
-  background: transparent;
-  justify-content: center;
+.sidebar.collapsed .sidebar-profile-card,
+.sidebar.collapsed:hover .sidebar-profile-card {
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  justify-content: center !important;
   cursor: pointer;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
 }
 
 .sidebar.collapsed .sidebar-profile-info,
+.sidebar.collapsed:hover .sidebar-profile-info,
 .sidebar.collapsed .sidebar-profile-action-btn,
-.sidebar.collapsed .sidebar-status-dot {
-  display: none;
+.sidebar.collapsed:hover .sidebar-profile-action-btn,
+.sidebar.collapsed .sidebar-status-dot,
+.sidebar.collapsed:hover .sidebar-status-dot {
+  display: none !important;
 }
 
 .sidebar.collapsed .sidebar-profile-avatar {

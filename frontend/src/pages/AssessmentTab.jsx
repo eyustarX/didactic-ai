@@ -1205,7 +1205,7 @@ export default function AssessmentTab({
                     onClick={() => setIsChatCollapsed(true)}
                     className="btn btn-ghost btn-sm"
                     style={{ height: 26, width: 26, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
-                    title="Collapse chat to expand assessment canvas"
+                    title="Collapse chat to expand workspace"
                   >
                     <PanelLeftClose size={15} />
                   </button>
@@ -1587,7 +1587,7 @@ export default function AssessmentTab({
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <h2 style={{ fontSize: '0.96rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                      {assessmentTitle || assessment?.title || 'Draft Assessment Canvas'}
+                      {assessmentTitle || assessment?.title || (assessmentType === 'assignment' ? 'Draft Assignment' : 'Draft Examination Paper')}
                     </h2>
                     {isLocked && (
                       <span className="badge" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning)', fontSize: '0.68rem', padding: '1px 6px' }}>
@@ -1907,10 +1907,10 @@ export default function AssessmentTab({
                   <Sparkles size={24} />
                 </div>
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
-                  Live Assessment Canvas
+                  Assessment Workspace
                 </h3>
-                <p style={{ fontSize: '0.84rem', maxWidth: 460, margin: 0, lineHeight: 1.5 }}>
-                  Converse with Didactic AI on the left to generate questions, or click below to start drafting questions manually.
+                <p style={{ fontSize: '0.84rem', maxWidth: 480, margin: 0, lineHeight: 1.5 }}>
+                  Ask Didactic AI on the left to generate questions from your lecture notes, or choose an option below to start drafting.
                 </p>
 
                 <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -1947,73 +1947,109 @@ export default function AssessmentTab({
                 </div>
               </div>
             ) : (
-              /* Two-Column Question Browser & Rubric Editor inside the Canvas */
-              <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 14 }}>
-                {/* Questions List Sidebar */}
-                <div className="cartesia-card" style={{ height: 'fit-content', padding: '14px 12px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <h3 style={{ fontSize: '0.86rem', fontWeight: 600 }}>Questions ({questions.length})</h3>
-                    <span className="badge badge-accent" style={{ fontSize: '0.66rem' }}>{totalMaxPoints} pts</span>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+              /* Canvas Question Studio: Horizontal Question Navigation Bar + Side-by-Side Question & Rubric Blocks */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* 1. Horizontal Question Selector Bar */}
+                <div
+                  className="cartesia-card"
+                  style={{
+                    padding: '8px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-lg)',
+                    overflowX: 'auto',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', flex: 1, paddingBottom: 2 }}>
                     {questions.map((q, idx) => {
                       const isSelected = activeQuestionIndex === idx;
+                      const isMcq = /\b[A-D]\)/.test(q.text || '');
+                      const isFitb = /____|fill in the blank/i.test(q.text || '') || q.question_type === 'fill_in_the_blank';
+                      const pts = q.max_marks || q.max_points || 10;
                       return (
-                        <div
+                        <button
                           key={q.id || idx}
+                          type="button"
                           onClick={() => setActiveQuestionIndex(idx)}
                           style={{
-                            padding: '8px 10px',
-                            borderRadius: 6,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 12px',
+                            borderRadius: 8,
                             cursor: 'pointer',
-                            background: isSelected ? 'var(--surface-alt)' : 'var(--surface)',
+                            background: isSelected ? 'var(--accent)' : 'var(--bg)',
+                            color: isSelected ? 'var(--on-accent)' : 'var(--text)',
                             border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border-subtle)',
+                            fontSize: '0.78rem',
+                            fontWeight: isSelected ? 600 : 500,
+                            whiteSpace: 'nowrap',
                             transition: 'all 0.15s ease',
+                            flexShrink: 0,
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontWeight: 600, fontSize: '0.8rem', color: isSelected ? 'var(--accent)' : 'var(--text)' }}>
-                              Question {idx + 1}
-                            </span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              {/\b[A-D]\)/.test(q.text || '') && (
-                                <span className="badge badge-accent" style={{ fontSize: '0.6rem', padding: '1px 4px' }}>
-                                  MCQ
-                                </span>
-                              )}
-                              {(/____|fill in the blank/i.test(q.text || '') || q.question_type === 'fill_in_the_blank') && (
-                                <span className="badge badge-outline" style={{ fontSize: '0.6rem', padding: '1px 4px' }}>
-                                  FITB
-                                </span>
-                              )}
-                              <span className="badge badge-outline" style={{ fontSize: '0.66rem' }}>
-                                {q.max_marks || q.max_points || 10} pts
-                              </span>
-                            </div>
-                          </div>
-                          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>
-                            {q.text || q.prompt || 'Drafting question...'}
-                          </p>
-                        </div>
+                          <span>Question {idx + 1}</span>
+                          <span
+                            style={{
+                              fontSize: '0.66rem',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                              background: isSelected ? 'rgba(255,255,255,0.22)' : 'var(--surface-alt)',
+                              color: isSelected ? 'var(--on-accent)' : 'var(--text-muted)',
+                            }}
+                          >
+                            {isMcq ? 'MCQ • ' : isFitb ? 'FITB • ' : ''}{pts} pts
+                          </span>
+                        </button>
                       );
                     })}
+
+                    {!isLocked && (
+                      <button
+                        type="button"
+                        onClick={handleAddQuestion}
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          padding: '6px 12px',
+                          fontSize: '0.76rem',
+                          height: 32,
+                          flexShrink: 0,
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        <Plus size={13} />
+                        <span>Add Question</span>
+                      </button>
+                    )}
                   </div>
 
-                  {!isLocked && (
-                    <button onClick={handleAddQuestion} className="btn btn-secondary btn-sm" style={{ width: '100%', fontSize: '0.76rem' }}>
-                      <Plus size={12} />
-                      <span>Add Question</span>
-                    </button>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, paddingLeft: 8, borderLeft: '1px solid var(--border-subtle)' }}>
+                    <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>
+                      {questions.length} Questions • {totalMaxPoints} Total Marks
+                    </span>
+                  </div>
                 </div>
 
-                {/* Question & Rubric Detail Editor */}
+                {/* 2. Side-by-Side: Question Block on Left & Rubrics Block on Right */}
                 {currentQ && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {/* Question Prompt Card */}
-                    <div className="cartesia-card" style={{ padding: '16px 18px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+                      gap: 14,
+                      alignItems: 'start',
+                    }}
+                  >
+                    {/* Left Block: Question Prompt, Model Solution & Marks */}
+                    <div className="cartesia-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span className="badge badge-accent">Question {activeQuestionIndex + 1}</span>
                           <span className="badge badge-outline">
@@ -2034,10 +2070,10 @@ export default function AssessmentTab({
                         )}
                       </div>
 
-                      <div className="form-group">
+                      <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ fontSize: '0.8rem' }}>Question Prompt</label>
                         <textarea
-                          rows={3}
+                          rows={4}
                           value={currentQ.text || currentQ.prompt || ''}
                           onChange={(e) => handleUpdateQuestion(activeQuestionIndex, 'text', e.target.value)}
                           disabled={isLocked}
@@ -2050,7 +2086,6 @@ export default function AssessmentTab({
                       {/* Official Answer Key / Model Solution Box */}
                       <div
                         style={{
-                          margin: '12px 0',
                           padding: '10px 14px',
                           borderRadius: 8,
                           background: 'var(--surface)',
@@ -2070,7 +2105,7 @@ export default function AssessmentTab({
                           </span>
                         </div>
                         <textarea
-                          rows={2}
+                          rows={3}
                           value={
                             currentQ.reference_answer ||
                             (currentQ.student_hint?.includes('Answer Key:')
@@ -2096,7 +2131,7 @@ export default function AssessmentTab({
                       </div>
 
                       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 12 }}>
-                        <div className="form-group">
+                        <div className="form-group" style={{ marginBottom: 0 }}>
                           <label className="form-label" style={{ fontSize: '0.8rem' }}>Max Marks</label>
                           <input
                             type="number"
@@ -2110,7 +2145,7 @@ export default function AssessmentTab({
                           />
                         </div>
 
-                        <div className="form-group">
+                        <div className="form-group" style={{ marginBottom: 0 }}>
                           <label className="form-label" style={{ fontSize: '0.8rem' }}>Student Hint (Optional)</label>
                           <input
                             type="text"
@@ -2125,7 +2160,7 @@ export default function AssessmentTab({
                       </div>
                     </div>
 
-                    {/* Type-Aware Evaluation Schema: Objective vs Subjective Rubric */}
+                    {/* Right Block: Type-Aware Evaluation Schema: Objective vs Subjective Rubric */}
                     {(() => {
                       const isCurrentQMcq = /\b[A-D]\)/.test(currentQ?.text || '');
                       const isCurrentQFitb = /____|fill in the blank/i.test(currentQ?.text || '') || currentQ?.question_type === 'fill_in_the_blank';
@@ -2133,8 +2168,8 @@ export default function AssessmentTab({
 
                       if (isCurrentQObjective) {
                         return (
-                          <div className="cartesia-card" style={{ padding: '16px 18px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                          <div className="cartesia-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <CheckCircle2 size={16} style={{ color: 'var(--accent)' }} />
                                 <h3 style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
@@ -2164,7 +2199,7 @@ export default function AssessmentTab({
                               </div>
                             </div>
 
-                            <div style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border-subtle)', marginBottom: 10 }}>
+                            <div style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border-subtle)' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                                 <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)' }}>
                                   {isCurrentQMcq ? 'Objective Choice Verification' : 'Exact Term Verification'}
@@ -2179,7 +2214,7 @@ export default function AssessmentTab({
 
                             {/* If teacher added custom criteria */}
                             {(currentQ.rubric?.criteria || []).length > 0 && (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
                                 <span style={{ fontSize: '0.74rem', color: 'var(--text)', fontWeight: 600 }}>
                                   Custom Evaluation Criteria:
                                 </span>
@@ -2237,11 +2272,11 @@ export default function AssessmentTab({
                       }
 
                       return (
-                        <div className="cartesia-card" style={{ padding: '16px 18px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                        <div className="cartesia-card" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <Award size={16} style={{ color: 'var(--accent)' }} />
-                              <h3 style={{ fontSize: '0.9rem', fontWeight: 600 }}>Grading Rubric for Question {activeQuestionIndex + 1}</h3>
+                              <h3 style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>Grading Rubric for Question {activeQuestionIndex + 1}</h3>
                             </div>
 
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
