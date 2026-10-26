@@ -194,8 +194,40 @@ def generate_rubric(
     max_marks: float = 10.0,
 ) -> Dict[str, Any]:
     """
-    Generates a structured rubric for a question using live AI agents.
+    Generates a structured evaluation rubric tailored by question type:
+    - Objective (MCQ): Single binary key verification (100% of marks).
+    - Objective (Fill-in-the-Blank): Target terminology exact / synonym match (100% of marks).
+    - Subjective (Short Answer, Essay, Problem, Coding): Multi-criteria pedagogical rubric with proportional weights.
     """
+    is_mcq = bool(re.search(r'\b[A-D]\)', question_text) or re.search(r'options?:', question_text, re.I))
+    is_fitb = bool(re.search(r'____|fill in the blank', question_text, re.I))
+
+    if is_mcq:
+        return {
+            "question_type": "multiple_choice",
+            "is_objective": True,
+            "criteria": [
+                {
+                    "description": "Correct Choice Selection: Selects the designated option (A, B, C, or D) matching the official answer key.",
+                    "max_points": float(max_marks),
+                    "source": "ai",
+                }
+            ],
+        }
+
+    if is_fitb:
+        return {
+            "question_type": "fill_in_the_blank",
+            "is_objective": True,
+            "criteria": [
+                {
+                    "description": "Target Term Accuracy: Accurately supplies the exact target terminology or accepted domain synonym.",
+                    "max_points": float(max_marks),
+                    "source": "ai",
+                }
+            ],
+        }
+
     from src.services.engine_adapter import ai_engine
     engine = ai_engine()
 
@@ -217,7 +249,7 @@ def generate_rubric(
                 "max_points": round(max_marks * c.weight, 2),
                 "source": "ai",
             })
-        return {"criteria": criteria}
+        return {"question_type": "subjective", "is_objective": False, "criteria": criteria}
     except Exception:
         p1 = round(max_marks * 0.40, 2)
         p2 = round(max_marks * 0.30, 2)
@@ -240,7 +272,7 @@ def generate_rubric(
                 "source": "ai",
             },
         ]
-        return {"criteria": criteria}
+        return {"question_type": "subjective", "is_objective": False, "criteria": criteria}
 
 
 def grade_submission(
@@ -248,7 +280,8 @@ def grade_submission(
     student_submission_text: str,
 ) -> Dict[str, Any]:
     """
-    Evaluates student submission against assessment questions using live AI agents.
+    Evaluates student submission against assessment questions using live AI agents
+    with type-aware objective scoring for MCQs and FITBs, and multi-criteria rubrics for subjective questions.
     """
     from src.services.engine_adapter import ai_engine
     from src.ai.schemas import Question, QuestionType, AssessmentRubric, RubricCriterion
@@ -258,13 +291,107 @@ def grade_submission(
     total_score = 0.0
     question_results = []
 
-    for q in questions:
+    for q_idx, q in enumerate(questions):
         q_id = q.get("id")
         q_text = q.get("text", "")
         max_marks = float(q.get("max_marks", 10.0))
         raw_criteria = q.get("criteria", [])
+        ref_ans = q.get("reference_answer") or q.get("student_hint") or ""
 
-        # Build domain schemas
+        is_mcq = bool(re.search(r'\b[A-D]\)', q_text) or re.search(r'options?:', q_text, re.I))
+        is_fitb = bool(re.search(r'____|fill in the blank', q_text, re.I))
+
+        # -------------------------------------------------------------
+        # 1. Objective Multiple Choice Grading
+        # -------------------------------------------------------------
+        if is_mcq:
+            key_match = re.search(r'(?:Official\s+Answer\s+Key:\s*)?([A-D])(?:\)|\b|\s)', ref_ans, re.I)
+            expected_letter = key_match.group(1).upper() if key_match else None
+
+            q_num = q_idx + 1
+            pattern_q = rf'(?:Q(?:uestion)?\s*{q_num}[:\.\)]\s*)([A-D])\b'
+            student_match = re.search(pattern_q, cleaned, re.I)
+
+            student_choice = None
+            if student_match:
+                student_choice = student_match.group(1).upper()
+            elif expected_letter and re.search(rf'\b{expected_letter}\)', cleaned):
+                student_choice = expected_letter
+            elif expected_letter and re.search(rf'\b{expected_letter}\b', cleaned):
+                student_choice = expected_letter
+
+            is_correct = bool(expected_letter and student_choice and expected_letter == student_choice)
+            score = max_marks if is_correct else 0.0
+            total_score += score
+
+            if is_correct:
+                feedback = f"Correct choice selected ({expected_letter}). Full marks awarded based on answer key."
+                citation = f"Selected Option: {expected_letter}"
+            else:
+                feedback = f"Incorrect choice. Expected {expected_letter or 'official answer key'}, but student indicated {student_choice or 'no matching choice'}."
+                citation = f"Student response excerpt: '{cleaned[:45]}...'"
+
+            question_results.append({
+                "question_id": q_id,
+                "question_text": q_text,
+                "score": score,
+                "points_awarded": score,
+                "max_score": max_marks,
+                "max_points": max_marks,
+                "feedback": feedback,
+                "evidence_citation": citation,
+                "matched_student_answer": citation,
+                "is_objective": True,
+                "criterion_scores": [
+                    {
+                        "description": "Correct Choice Selection",
+                        "score": score,
+                    }
+                ],
+            })
+            continue
+
+        # -------------------------------------------------------------
+        # 2. Objective Fill-in-the-Blank Grading
+        # -------------------------------------------------------------
+        if is_fitb:
+            clean_ref = re.sub(r'^(?:Official\s+)?Answer\s+Key:\s*', '', ref_ans, flags=re.I).split('\n')[0].strip().strip('"\'')
+            expected_term = clean_ref.lower()
+
+            is_matched = bool(expected_term and expected_term in cleaned.lower())
+            score = max_marks if is_matched else 0.0
+            total_score += score
+
+            if is_matched:
+                feedback = f"Correct target term '{clean_ref}' supplied. Full marks awarded."
+                citation = f"Term supplied: '{clean_ref}'"
+            else:
+                feedback = f"Incorrect or missing term. Expected: '{clean_ref}'."
+                citation = f"Student response excerpt: '{cleaned[:45]}...'"
+
+            question_results.append({
+                "question_id": q_id,
+                "question_text": q_text,
+                "score": score,
+                "points_awarded": score,
+                "max_score": max_marks,
+                "max_points": max_marks,
+                "feedback": feedback,
+                "evidence_citation": citation,
+                "matched_student_answer": citation,
+                "is_objective": True,
+                "criterion_scores": [
+                    {
+                        "description": "Target Term Accuracy",
+                        "score": score,
+                    }
+                ],
+            })
+            continue
+
+        # -------------------------------------------------------------
+        # 3. Subjective / Open-Ended / Problem / Coding Grading
+        # -------------------------------------------------------------
         rubric_criteria = []
         crit_weight = 1.0 / max(len(raw_criteria), 1)
         for c in raw_criteria:
@@ -292,10 +419,10 @@ def grade_submission(
         )
 
         domain_q = Question(
-            id=str(q_id or "Q1"),
+            id=str(q_id or f"Q{q_idx+1}"),
             question_type=QuestionType.SHORT_ANSWER,
             prompt=q_text,
-            reference_answer=q.get("student_hint") or q_text,
+            reference_answer=ref_ans or q_text,
             max_points=max_marks,
             learning_objective=q.get("tested_key_point_titles", ["Concept"])[0] if q.get("tested_key_point_titles") else "Understand topic",
         )
@@ -327,6 +454,7 @@ def grade_submission(
                 "feedback": report.summary_feedback or "Demonstrates sound conceptual understanding aligned with reference answer.",
                 "evidence_citation": citation,
                 "matched_student_answer": citation,
+                "is_objective": False,
                 "criterion_scores": crit_scores,
             })
         except Exception:
@@ -359,6 +487,7 @@ def grade_submission(
                 "feedback": f"Demonstrated grasp of {len(overlap)} core technical concepts with relevant terminology.",
                 "evidence_citation": citation,
                 "matched_student_answer": citation,
+                "is_objective": False,
                 "criterion_scores": crit_scores,
             })
 

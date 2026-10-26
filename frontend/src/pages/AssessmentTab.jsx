@@ -1463,118 +1463,231 @@ export default function AssessmentTab({
                 </div>
               </div>
 
-              {/* Rubric Card for this Question */}
-              <div className="cartesia-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Award size={16} style={{ color: 'var(--accent)' }} />
-                    <h3 style={{ fontSize: '0.92rem', fontWeight: 600 }}>Grading Rubric for Question {activeQuestionIndex + 1}</h3>
-                  </div>
+              {/* Type-Aware Evaluation Schema: Objective vs Subjective Rubric */}
+              {(() => {
+                const isCurrentQMcq = /\b[A-D]\)/.test(currentQ?.text || '');
+                const isCurrentQFitb = /____|fill in the blank/i.test(currentQ?.text || '') || currentQ?.question_type === 'fill_in_the_blank';
+                const isCurrentQObjective = isCurrentQMcq || isCurrentQFitb;
 
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {!isLocked && (
-                      <button
-                        type="button"
-                        onClick={() => handleBuildRubricFromPrompt(currentQ, activeQuestionIndex)}
-                        disabled={generatingRubricId === (currentQ.id || `q-${activeQuestionIndex}`)}
-                        className="btn btn-secondary btn-sm"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          border: '1px solid var(--border)',
-                          color: 'var(--text)',
-                          background: 'var(--surface)',
-                        }}
-                        title="Synthesize normalized grading criteria and point distribution with AI for this question prompt"
-                      >
-                        {generatingRubricId === (currentQ.id || `q-${activeQuestionIndex}`) ? (
-                          <Loader2 size={12} className="spin" />
-                        ) : (
-                          <Sparkles size={12} />
-                        )}
-                        <span>✨ Generate Rubric with AI</span>
-                      </button>
-                    )}
-                    {currentQ.id && !isLocked && (
-                      <button
-                        onClick={() => handleRegenerateRubric(currentQ, activeQuestionIndex)}
-                        disabled={generatingRubricId === currentQ.id}
-                        className="btn btn-secondary btn-sm"
-                        title="Regenerate rubric with AI"
-                      >
-                        <RefreshCw size={12} className={generatingRubricId === currentQ.id ? 'spin' : ''} />
-                        <span>Regenerate</span>
-                      </button>
-                    )}
-                    {!isLocked && (
-                      <button
-                        onClick={() => handleAddCriterion(activeQuestionIndex)}
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <Plus size={12} />
-                        <span>Add Criterion</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(currentQ.rubric?.criteria || []).length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                      No rubric criteria defined. Click Add Criterion or Regenerate Rubric above.
-                    </div>
-                  ) : (
-                    currentQ.rubric.criteria.map((crit, cIdx) => (
-                      <div
-                        key={crit.id || cIdx}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: '1fr 90px auto',
-                          gap: 10,
-                          alignItems: 'center',
-                          padding: '8px 10px',
-                          borderRadius: 4,
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border-subtle)',
-                        }}
-                      >
-                        <input
-                          type="text"
-                          value={crit.description || crit.name || ''}
-                          onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'description', e.target.value)}
-                          disabled={isLocked}
-                          className="input-text"
-                          style={{ fontSize: '0.82rem' }}
-                          placeholder="Criterion description..."
-                        />
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <input
-                            type="number"
-                            step="0.5"
-                            value={crit.max_points ?? crit.max_score ?? 0}
-                            onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'max_points', parseFloat(e.target.value) || 0)}
-                            disabled={isLocked}
-                            className="input-text"
-                            style={{ fontSize: '0.82rem', textAlign: 'center' }}
-                          />
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>pts</span>
+                if (isCurrentQObjective) {
+                  return (
+                    <div className="cartesia-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <CheckCircle2 size={16} style={{ color: 'var(--accent)' }} />
+                          <h3 style={{ fontSize: '0.92rem', fontWeight: 600, margin: 0 }}>
+                            Evaluation Schema: Question {activeQuestionIndex + 1}
+                          </h3>
+                          <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                            {isCurrentQMcq ? 'Multiple Choice (MCQ)' : 'Fill in the Blank'}
+                          </span>
                         </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span className="badge badge-outline" style={{ fontSize: '0.72rem' }}>
+                            Binary Key Scoring ({currentQ.max_marks || currentQ.max_points || 1} pt)
+                          </span>
+                          {!isLocked && (
+                            <button
+                              type="button"
+                              onClick={() => handleAddCriterion(activeQuestionIndex)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ fontSize: '0.74rem', height: 26, padding: '0 8px' }}
+                              title="Attach custom partial credit criteria for this question if needed"
+                            >
+                              <Plus size={11} />
+                              <span>Add Custom Rubric</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ padding: '12px 14px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border-subtle)', marginBottom: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent)' }}>
+                            {isCurrentQMcq ? 'Objective Choice Verification' : 'Exact Term Verification'}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.45 }}>
+                          {isCurrentQMcq
+                            ? 'This question is evaluated objectively against the Official Answer Key above (100% binary scoring). Full points are awarded when the student indicates the designated option (A, B, C, or D). Subjective multi-criteria rubrics are bypassed for objective questions to ensure fast, fair, and reliable grading.'
+                            : 'This question is evaluated directly against the target term in the Official Answer Key above. Full points are awarded when the student supplies the correct term or accepted domain synonym.'}
+                        </p>
+                      </div>
+
+                      {/* If teacher added custom criteria */}
+                      {(currentQ.rubric?.criteria || []).length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text)', fontWeight: 600 }}>
+                            Custom Evaluation Criteria:
+                          </span>
+                          {currentQ.rubric.criteria.map((crit, cIdx) => (
+                            <div
+                              key={crit.id || cIdx}
+                              style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 90px auto',
+                                gap: 10,
+                                alignItems: 'center',
+                                padding: '8px 10px',
+                                borderRadius: 4,
+                                background: 'var(--bg)',
+                                border: '1px solid var(--border-subtle)',
+                              }}
+                            >
+                              <input
+                                type="text"
+                                value={crit.description || crit.name || ''}
+                                onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'description', e.target.value)}
+                                disabled={isLocked}
+                                className="input-text"
+                                style={{ fontSize: '0.82rem' }}
+                                placeholder="Criterion description..."
+                              />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  value={crit.max_points ?? crit.max_score ?? 0}
+                                  onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'max_points', parseFloat(e.target.value) || 0)}
+                                  disabled={isLocked}
+                                  className="input-text"
+                                  style={{ fontSize: '0.82rem', textAlign: 'center' }}
+                                />
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>pts</span>
+                              </div>
+                              {!isLocked && (
+                                <button
+                                  onClick={() => handleDeleteCriterion(activeQuestionIndex, cIdx)}
+                                  className="btn btn-ghost btn-sm"
+                                  style={{ padding: 4, color: 'var(--text-muted)' }}
+                                  title="Remove criterion"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="cartesia-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Award size={16} style={{ color: 'var(--accent)' }} />
+                        <h3 style={{ fontSize: '0.92rem', fontWeight: 600 }}>Grading Rubric for Question {activeQuestionIndex + 1}</h3>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         {!isLocked && (
                           <button
-                            onClick={() => handleDeleteCriterion(activeQuestionIndex, cIdx)}
-                            className="btn btn-ghost btn-sm"
-                            style={{ padding: 4, color: 'var(--text-muted)' }}
-                            title="Remove criterion"
+                            type="button"
+                            onClick={() => handleBuildRubricFromPrompt(currentQ, activeQuestionIndex)}
+                            disabled={generatingRubricId === (currentQ.id || `q-${activeQuestionIndex}`)}
+                            className="btn btn-secondary btn-sm"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              border: '1px solid var(--border)',
+                              color: 'var(--text)',
+                              background: 'var(--surface)',
+                            }}
+                            title="Synthesize normalized grading criteria and point distribution with AI for this question prompt"
                           >
-                            <Trash2 size={13} />
+                            {generatingRubricId === (currentQ.id || `q-${activeQuestionIndex}`) ? (
+                              <Loader2 size={12} className="spin" />
+                            ) : (
+                              <Sparkles size={12} />
+                            )}
+                            <span>✨ Generate Rubric with AI</span>
+                          </button>
+                        )}
+                        {currentQ.id && !isLocked && (
+                          <button
+                            onClick={() => handleRegenerateRubric(currentQ, activeQuestionIndex)}
+                            disabled={generatingRubricId === currentQ.id}
+                            className="btn btn-secondary btn-sm"
+                            title="Regenerate rubric with AI"
+                          >
+                            <RefreshCw size={12} className={generatingRubricId === currentQ.id ? 'spin' : ''} />
+                            <span>Regenerate</span>
+                          </button>
+                        )}
+                        {!isLocked && (
+                          <button
+                            onClick={() => handleAddCriterion(activeQuestionIndex)}
+                            className="btn btn-secondary btn-sm"
+                          >
+                            <Plus size={12} />
+                            <span>Add Criterion</span>
                           </button>
                         )}
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {(currentQ.rubric?.criteria || []).length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                          No rubric criteria defined. Click Add Criterion or Regenerate Rubric above.
+                        </div>
+                      ) : (
+                        currentQ.rubric.criteria.map((crit, cIdx) => (
+                          <div
+                            key={crit.id || cIdx}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '1fr 90px auto',
+                              gap: 10,
+                              alignItems: 'center',
+                              padding: '8px 10px',
+                              borderRadius: 4,
+                              background: 'var(--surface)',
+                              border: '1px solid var(--border-subtle)',
+                            }}
+                          >
+                            <input
+                              type="text"
+                              value={crit.description || crit.name || ''}
+                              onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'description', e.target.value)}
+                              disabled={isLocked}
+                              className="input-text"
+                              style={{ fontSize: '0.82rem' }}
+                              placeholder="Criterion description..."
+                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <input
+                                type="number"
+                                step="0.5"
+                                value={crit.max_points ?? crit.max_score ?? 0}
+                                onChange={(e) => handleUpdateCriterion(activeQuestionIndex, cIdx, 'max_points', parseFloat(e.target.value) || 0)}
+                                disabled={isLocked}
+                                className="input-text"
+                                style={{ fontSize: '0.82rem', textAlign: 'center' }}
+                              />
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>pts</span>
+                            </div>
+                            {!isLocked && (
+                              <button
+                                onClick={() => handleDeleteCriterion(activeQuestionIndex, cIdx)}
+                                className="btn btn-ghost btn-sm"
+                                style={{ padding: 4, color: 'var(--text-muted)' }}
+                                title="Remove criterion"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

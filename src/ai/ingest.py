@@ -233,6 +233,11 @@ def extract_document_text(
         full_text = extract_from_docx(source)
         paragraphs = [p for p in full_text.split("\n\n") if p.strip()]
         sections = [{"source_ref": f"Section {i+1}", "text": p} for i, p in enumerate(paragraphs)]
+    elif ext in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"):
+        # Image document (scanned paper, camera photo, or handwritten worksheet)
+        image_name = Path(filename).name if filename else "scanned_image"
+        full_text = f"[Scanned Image Document: {image_name}]"
+        sections = [{"source_ref": "Image 1", "text": full_text}]
     else:
         if isinstance(source, bytes):
             full_text = source.decode("utf-8", errors="replace")

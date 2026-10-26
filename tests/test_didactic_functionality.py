@@ -367,3 +367,50 @@ def test_generate_rubric_from_custom_question():
     total_pts = sum(c.get("max_points", 0) for c in data["criteria"])
     assert abs(total_pts - 20.0) < 0.1
 
+
+def test_generate_rubric_mcq_type_aware():
+    """Verify objective MCQs get a clean binary key schema instead of bloated essay rubrics."""
+    from fastapi.testclient import TestClient
+    from src.main import app
+    client = TestClient(app)
+
+    resp = client.post(
+        "/rubrics/generate-from-question",
+        json={
+            "question_text": "Which algorithm has O(n log n) worst-case time complexity?\nA) Bubble sort\nB) Merge sort\nC) Insertion sort\nD) Quick sort",
+            "max_marks": 2.0,
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("is_objective") is True
+    assert data.get("question_type") == "multiple_choice"
+    assert len(data["criteria"]) == 1
+    assert data["criteria"][0]["max_points"] == 2.0
+
+
+def test_grade_submission_mcq_binary_key():
+    """Verify MCQ grading is binary and objective against answer key without essay critique."""
+    from src.ai.didactic_service import grade_submission
+
+    questions = [
+        {
+            "id": "q1",
+            "text": "Which keyword declares a block-scoped variable in modern JavaScript?\nA) var\nB) let\nC) global\nD) def",
+            "max_marks": 2.0,
+            "reference_answer": "B) let",
+            "criteria": [],
+        }
+    ]
+
+    # Correct submission
+    report_correct = grade_submission(questions, "Student Answer Paper\nQ1: B")
+    assert report_correct["question_results"][0]["score"] == 2.0
+    assert "Correct choice" in report_correct["question_results"][0]["feedback"]
+
+    # Incorrect submission
+    report_wrong = grade_submission(questions, "Student Answer Paper\nQ1: A")
+    assert report_wrong["question_results"][0]["score"] == 0.0
+    assert "Incorrect choice" in report_wrong["question_results"][0]["feedback"]
+
+
