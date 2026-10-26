@@ -14,25 +14,6 @@
 
 ---
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Architecture](#architecture)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Backend Setup](#backend-setup)
-  - [Frontend Setup](#frontend-setup)
-  - [Environment Variables](#environment-variables)
-- [Testing & Benchmarking](#testing--benchmarking)
-- [Cloud Deployment (AWS SAM)](#cloud-deployment-aws-sam)
-- [API Reference](#api-reference)
-- [License](#license)
-
----
-
 ## Overview
 
 **Didactic AI** is an open-source evaluation platform designed for higher education educators. It bridges the gap between course materials and objective evaluation by:
@@ -52,23 +33,36 @@
 - **Decomposed Grading Engine:** Evaluates student answers criterion-by-criterion, citing exact phrases from student papers to support awarded marks.
 - **Remediation Loop:** Generates concept-level explanations for identified student gaps and formulates follow-up practice problems.
 - **Cohort Learning Analytics:** Aggregates student scores, calculates class averages, and highlights common misconceptions across parallel course sections.
-- **Multi-Provider AI Core:** Pluggable engine supporting Amazon Bedrock (Claude 3 Haiku, Titan Embeddings), Google Gemini, and a deterministic offline test simulator.
+- **Robust AI Engine:** Powered by Google Gemini and local semantic vector models, with a built-in offline simulator for instant local testing.
 - **Security & Guardrails:** Strict Pydantic schema validation with automated retries and input sanitization against prompt injection.
 
 ---
 
 ## Architecture
 
-![System Architecture](docs/architecture.svg)
+```
+[ React 18 + Vite Frontend ]
+           │
+           │ HTTPS (REST API)
+           ▼
+[ FastAPI Backend (Python 3.11) ]
+  ├── Document Parser & Semantic Chunker
+  ├── RAG Lecture Retriever (Sentence-Transformers)
+  ├── Decomposed Grading Agent
+  └── Pydantic Validation & Retries
+           │
+     ┌─────┴─────────────────────┐
+     ▼                           ▼
+[ PostgreSQL (Neon) ]   [ Google Gemini API ]
+(Gradebooks, Rubrics,    (Curriculum Analysis,
+ Assessments, Chats)     Rubrics & Grading)
+```
 
-The platform follows a modular, decoupled architecture:
-
-- **Client:** React 18 single-page application built with Vite and Tailwind CSS.
-- **API Gateway:** Amazon API Gateway HTTP API (v2) managing route dispatch, rate-limiting, and CORS.
-- **Compute Layer:** FastAPI backend running natively or containerized on AWS Lambda (Python 3.11).
-- **Persistence Layer:** PostgreSQL (Neon) and Amazon DynamoDB for relational gradebooks and rubric storage; Amazon S3 for lecture materials.
-- **Intelligence Layer:** Amazon Bedrock Converse API / Google Gemini API grounded with local vector and TF-IDF retrieval (RAG).
-- **Observability:** Native Prometheus metrics endpoint (`/metrics`) and Amazon CloudWatch telemetry.
+- **Frontend:** React 18 single-page application built with Vite and modern CSS.
+- **Backend API:** FastAPI running on Uvicorn with asynchronous endpoints.
+- **Database:** PostgreSQL (Neon serverless cloud database) via SQLAlchemy ORM.
+- **AI & NLP:** Google Gemini API grounded with local semantic text retrieval (RAG).
+- **Observability:** Prometheus metrics stream exposed at `/metrics`.
 
 ---
 
@@ -76,13 +70,13 @@ The platform follows a modular, decoupled architecture:
 
 | Layer | Technologies |
 | :--- | :--- |
-| **Frontend** | React 18, Vite, Lucide Icons, CSS3 Variables |
+| **Frontend** | React 18, Vite, Lucide Icons, Modern CSS |
 | **Backend** | Python 3.11, FastAPI, Pydantic v2, SQLAlchemy, Uvicorn |
-| **AI / NLP** | Amazon Bedrock (Claude 3 Haiku), Google Gemini, PyPDF, Sentence-Transformers |
-| **Database** | PostgreSQL (Neon), Amazon DynamoDB |
-| **Infrastructure** | AWS SAM (Serverless Application Model), Amazon S3, AWS Lambda, API Gateway |
-| **Monitoring** | Prometheus (`prometheus-fastapi-instrumentator`), Amazon CloudWatch |
-| **CI/CD** | GitHub Actions, Pytest |
+| **AI & NLP** | Google Gemini API, PyPDF, Sentence-Transformers |
+| **Database** | PostgreSQL (Neon Serverless Postgres) |
+| **Deployment & Containers** | Docker, Hugging Face Spaces / Render |
+| **Observability** | Prometheus (`prometheus-fastapi-instrumentator`) |
+| **CI/CD & Testing** | GitHub Actions, Pytest |
 
 ---
 
@@ -101,7 +95,7 @@ didactic-ai/
 │
 ├── src/                        # Backend source code
 │   ├── ai/                     # AI engine, prompts, RAG, and benchmark suite
-│   │   ├── engine.py           # Provider implementations (Bedrock, Gemini, Mock)
+│   │   ├── engine.py           # Provider implementations (Gemini, Mock)
 │   │   ├── eval_benchmark.py   # Automated consistency & security benchmark
 │   │   ├── ingest.py           # PDF/PPTX document text extraction
 │   │   ├── prompts.py          # Structured prompt templates
@@ -113,13 +107,11 @@ didactic-ai/
 │   ├── core/                   # Application settings and configurations
 │   ├── db/                     # SQLAlchemy models and database sessions
 │   ├── services/               # Grading, analytics, and engine adapters
-│   ├── lambda_handler.py       # AWS Lambda entrypoint adapter
 │   └── main.py                 # FastAPI application root
 │
-├── infra/                      # Infrastructure as Code
-│   ├── template.yaml           # AWS SAM serverless infrastructure template
-│   ├── teardown.sh             # Linux/macOS teardown script
-│   └── teardown.bat            # Windows teardown script
+├── infra/                      # Infrastructure & container configurations
+│   └── docker/
+│       └── backend.Dockerfile  # Production container definition
 │
 ├── docs/                       # Architecture diagrams and benchmark reports
 │   ├── architecture.svg
@@ -194,19 +186,13 @@ didactic-ai/
 
 ## Environment Variables
 
-Create a `.env` file in the project root directory with the following configuration:
+Create a `.env` file in the project root directory with your credentials:
 
 ```env
-# Database Configuration (PostgreSQL / Neon, or leave blank for local SQLite)
+# Database Configuration (PostgreSQL / Neon, or leave empty for local SQLite)
 DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 
-# AI Provider Settings
-# If no API keys are provided, the system defaults to the deterministic offline simulator.
-USE_AWS_BEDROCK=false
-AWS_REGION=us-east-1
-BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
-
-# Google Gemini (Alternative Free Provider)
+# Google Gemini API Key (Free from Google AI Studio)
 GEMINI_API_KEY=your_gemini_api_key_here
 
 # Application Settings
@@ -228,47 +214,39 @@ pytest -v
 
 ### AI Evaluation Benchmark
 
-Run the automated evaluation benchmark to measure grading variance, criterion adherence, and prompt injection safety:
+Run the automated evaluation benchmark to measure grading consistency across repeated runs, rubric adherence, and adversarial safety:
 
 ```bash
 python src/ai/eval_benchmark.py
 ```
 
-Results are generated and saved to [`docs/benchmark_results.md`](docs/benchmark_results.md).
+Results are saved to [`docs/benchmark_results.md`](docs/benchmark_results.md).
 
 ---
 
-## Cloud Deployment (AWS SAM)
+## Deployment (Docker & Cloud Hosting)
 
-The project includes an **AWS Serverless Application Model (SAM)** template in [`infra/template.yaml`](infra/template.yaml) provisioning:
-- **Amazon S3:** Document upload bucket with CORS and AES-256 encryption.
-- **Amazon DynamoDB:** On-demand table for rubrics and gradebooks.
-- **Amazon API Gateway:** HTTP API routing requests to Lambda.
-- **AWS Lambda:** Python 3.11 execution runtime with least-privilege IAM policies.
-- **AWS Budgets:** Active $1.00 budget alert for zero-cost compliance.
+### Docker Deployment
 
-### Deploy
+The application includes a production-ready container definition in [`infra/docker/backend.Dockerfile`](infra/docker/backend.Dockerfile):
 
 ```bash
-cd infra
-sam build
-sam deploy --guided --stack-name didactic-ai-prod
+# Build the Docker image
+docker build -f infra/docker/backend.Dockerfile -t didactic-ai-backend .
+
+# Run the container
+docker run -p 8000:8000 \
+  -e DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require" \
+  -e GEMINI_API_KEY="your_api_key" \
+  didactic-ai-backend
 ```
 
-### Teardown
+### Hosting on Hugging Face Spaces / Render
 
-To cleanly remove all deployed AWS resources:
-
-```bash
-# Linux / macOS
-bash infra/teardown.sh didactic-ai-prod us-east-1
-
-# Windows
-.\infra\teardown.bat didactic-ai-prod us-east-1
-
-# Or via SAM CLI directly
-sam delete --stack-name didactic-ai-prod --no-prompts
-```
+1. Create a new **Docker Space** on Hugging Face Spaces or a **Web Service** on Render.
+2. Link your GitHub repository.
+3. Configure the environment variables (`DATABASE_URL`, `GEMINI_API_KEY`) in the platform settings.
+4. The service will build from the Dockerfile and launch on port 8000.
 
 ---
 
