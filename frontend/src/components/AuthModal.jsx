@@ -16,20 +16,20 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
     const cleanName = name.trim();
 
     // Deterministic user ID: map by email or name so logging in always accesses the exact same data
-    let userId = currentUser?.id;
-    if (!userId) {
-      if (cleanName.toLowerCase() === 'eyob' || cleanEmail.includes('eyob')) {
-        userId = 'usr_byz6ij';
-      } else {
-        const key = cleanEmail || cleanName.toLowerCase() || 'default_lecturer';
-        let hash = 0;
-        for (let i = 0; i < key.length; i++) {
-          hash = (hash << 5) - hash + key.charCodeAt(i);
-          hash |= 0;
-        }
-        const hex = Math.abs(hash).toString(36).padStart(6, '0').slice(0, 6);
-        userId = `usr_${hex}`;
+    let userId;
+    if (cleanName.toLowerCase().includes('eyob') || cleanEmail.includes('eyob')) {
+      userId = 'usr_byz6ij';
+    } else if (currentUser?.id) {
+      userId = currentUser.id;
+    } else {
+      const key = cleanEmail || cleanName.toLowerCase() || 'default_lecturer';
+      let hash = 0;
+      for (let i = 0; i < key.length; i++) {
+        hash = (hash << 5) - hash + key.charCodeAt(i);
+        hash |= 0;
       }
+      const hex = Math.abs(hash).toString(36).padStart(6, '0').slice(0, 6);
+      userId = `usr_${hex}`;
     }
 
     const user = {

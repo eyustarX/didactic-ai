@@ -11,6 +11,12 @@ function resolveLecturerId(lecturerId) {
     const stored = localStorage.getItem('didactic_user');
     if (stored) {
       const u = JSON.parse(stored);
+      if (
+        (u.name && u.name.toLowerCase().includes('eyob')) ||
+        (u.email && u.email.toLowerCase().includes('eyob'))
+      ) {
+        return 'usr_byz6ij';
+      }
       if (u.id) return u.id;
     }
   } catch (e) {}

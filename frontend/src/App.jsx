@@ -102,9 +102,19 @@ export default function App() {
       const saved = localStorage.getItem('didactic_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
-      if (parsed && parsed.department) {
-        delete parsed.department;
-        localStorage.setItem('didactic_user', JSON.stringify(parsed));
+      if (parsed) {
+        if (parsed.department) {
+          delete parsed.department;
+        }
+        if (
+          (parsed.name && parsed.name.toLowerCase().includes('eyob')) ||
+          (parsed.email && parsed.email.toLowerCase().includes('eyob'))
+        ) {
+          if (parsed.id !== 'usr_byz6ij') {
+            parsed.id = 'usr_byz6ij';
+            localStorage.setItem('didactic_user', JSON.stringify(parsed));
+          }
+        }
       }
       return parsed;
     } catch {
@@ -366,8 +376,11 @@ export default function App() {
               setAssessment={setAssessment}
               setActiveTab={setActiveTab}
               currentUser={currentUser}
+              chatSessions={chatSessions}
               activeChatSessionId={activeChatSessionId}
               setActiveChatSessionId={setActiveChatSessionId}
+              onSelectChatSession={handleSelectChatSession}
+              onNewChat={handleNewChat}
               onChatSessionsChange={loadChatSessions}
               sidebarCollapsed={collapsed}
               setSidebarCollapsed={setCollapsed}

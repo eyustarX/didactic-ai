@@ -16,6 +16,7 @@ import {
   Bot,
   Send,
   MessageSquare,
+  History,
   RotateCcw,
   CheckCircle2,
   Download,
@@ -65,8 +66,11 @@ export default function AssessmentTab({
   setAssessment,
   setActiveTab,
   currentUser,
+  chatSessions = [],
   activeChatSessionId,
   setActiveChatSessionId,
+  onSelectChatSession,
+  onNewChat,
   onChatSessionsChange,
   sidebarCollapsed,
   setSidebarCollapsed,
@@ -1024,6 +1028,123 @@ export default function AssessmentTab({
               </button>
             </div>
           </div>
+
+          {/* Recent Conversations Resume Section */}
+          {chatSessions && chatSessions.length > 0 && (
+            <div
+              style={{
+                width: '100%',
+                marginTop: 20,
+                marginBottom: 16,
+                textAlign: 'left',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
+                  padding: '0 4px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <History size={14} style={{ color: 'var(--accent)' }} />
+                  <span
+                    style={{
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    Resume Recent Chat
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {chatSessions.length} saved {chatSessions.length === 1 ? 'conversation' : 'conversations'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {chatSessions.slice(0, 3).map((session) => (
+                  <div
+                    key={session.id}
+                    onClick={() => onSelectChatSession && onSelectChatSession(session)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      background: 'var(--surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      cursor: 'pointer',
+                      transition: 'all 0.18s ease',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}
+                    className="hover-card"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: 8,
+                          background: 'var(--surface-alt)',
+                          border: '1px solid var(--border-subtle)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <MessageSquare size={14} style={{ color: 'var(--accent)' }} />
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: '0.86rem',
+                            fontWeight: 600,
+                            color: 'var(--text)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {session.title || 'Conversation'}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>
+                          {session.lecture_note_name ? `From: ${session.lecture_note_name} • ` : ''}
+                          {session.message_count} {session.message_count === 1 ? 'message' : 'messages'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--accent)',
+                        fontSize: '0.76rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '4px 8px',
+                      }}
+                    >
+                      <span>Continue Chat</span>
+                      <span>→</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Secondary Shortcuts: Library or Open Split View */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
