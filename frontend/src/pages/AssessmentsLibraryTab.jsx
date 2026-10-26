@@ -231,7 +231,7 @@ export default function AssessmentsLibraryTab({
 
         <div className="cartesia-card" style={{ padding: '14px 16px' }}>
           <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
-            Questions Synthesized
+            Questions Generated
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--accent)', marginTop: 4 }}>
             {totalQuestions}

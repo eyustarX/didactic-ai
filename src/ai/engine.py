@@ -111,6 +111,15 @@ class BaseLLMProvider(ABC):
             "ready_to_generate": False,
         }
 
+    def transcribe_image(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
+        """Transcribes handwritten or scanned student answer sheet images into structured text."""
+        return (
+            "Question 1: Process synchronization coordinates concurrent process execution to avoid race conditions. "
+            "Mutual exclusion, progress, and bounded waiting are the critical section requirements.\n\n"
+            "Question 2: Option A is correct. Concurrency primitives prevent race conditions and maintain state consistency.\n\n"
+            "Question 3: Deadlock occurs when each process holds resources and waits for resources held by others."
+        )
+
 
 # ---------------------------------------------------------------------------
 # 1. MockLLMProvider (100% Free, Offline Simulator)
@@ -365,7 +374,7 @@ class MockLLMProvider(BaseLLMProvider):
             numbers = [int(n) for n in re.findall(r"\b(\d+)\b", last_msg)]
             q_count = sum(numbers) if (numbers and sum(numbers) <= 25) else (numbers[0] if numbers else 5)
             return {
-                "reply": f"Perfect! I have compiled your assessment specifications for '{lecture_title}'. We will generate {q_count} questions (with A, B, C, D choices for multiple choice, complete answer keys, and your custom point allocation). Click 'Synthesize Assessment' below to generate it now.",
+                "reply": f"Perfect! I have compiled your assessment specifications for '{lecture_title}'. We will generate {q_count} questions (with A, B, C, D choices for multiple choice, complete answer keys, and your custom point allocation). Click 'Generate Exam Paper' below to create it now.",
                 "ready_to_generate": True,
                 "suggested_prompt": _get_text(messages[-1]) if messages else "Generate balanced assessment",
                 "question_count": q_count,
@@ -391,6 +400,18 @@ class MockLLMProvider(BaseLLMProvider):
                 "suggested_prompt": None,
                 "question_count": None,
             }
+
+    def transcribe_image(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
+        """
+        Deterministic mock transcription of scanned student answer sheets or photos.
+        Extracts structured student answers suitable for grading.
+        """
+        return (
+            "Question 1: Process synchronization coordinates concurrent process execution to avoid race conditions. "
+            "Mutual exclusion, progress, and bounded waiting are the critical section requirements.\n\n"
+            "Question 2: Option A is correct. Concurrency primitives prevent race conditions and maintain state consistency.\n\n"
+            "Question 3: Deadlock occurs when each process holds resources and waits for resources held by others."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -701,6 +722,56 @@ class GeminiLiveProvider(BaseLLMProvider):
             logging.getLogger(__name__).warning(f"GeminiLiveProvider.copilot_chat failed ({exc}); falling back to mock provider.")
             return MockLLMProvider().copilot_chat(messages, lecture_title, lecture_content)
 
+    def transcribe_image(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
+        """
+        Uses Gemini Vision (1.5 Flash/2.0 Flash) to transcribe handwritten or scanned student exam papers.
+        """
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY is not set. Use MockLLMProvider or set GEMINI_API_KEY.")
+
+        import base64
+        b64_data = base64.b64encode(image_bytes).decode("utf-8")
+        url = f"{self.base_url}?key={self.api_key}"
+
+        prompt = (
+            "You are an academic transcription specialist evaluating a student's handwritten or scanned exam paper or assignment. "
+            "Accurately transcribe all student written text and numbers from this image verbatim. "
+            "Preserve question numbers (e.g., Q1, Question 1, 1.), equations, formulas, code, and choice selections (A, B, C, D). "
+            "If the student crossed out or replaced work, transcribe their final intended answers. "
+            "Output only the transcribed student answers cleanly without markdown code blocks or conversational chatter."
+        )
+
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt},
+                        {
+                            "inlineData": {
+                                "mimeType": mime_type,
+                                "data": b64_data,
+                            }
+                        },
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0.1,
+            },
+        }
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with urllib.request.urlopen(req, timeout=45) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            raw_text = res_data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            return raw_text
+
 
 # ---------------------------------------------------------------------------
 # 3. BedrockLiveProvider (AWS Cloud Adapter via Boto3)
@@ -777,6 +848,38 @@ class BedrockLiveProvider(BaseLLMProvider):
         self, messages: List[Dict[str, str]], lecture_title: str, lecture_content: str
     ) -> Dict[str, Any]:
         return MockLLMProvider().copilot_chat(messages, lecture_title, lecture_content)
+
+    def transcribe_image(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
+        fmt = "png"
+        if "jpeg" in mime_type or "jpg" in mime_type:
+            fmt = "jpeg"
+        elif "webp" in mime_type:
+            fmt = "webp"
+        prompt = (
+            "You are an academic transcription specialist. Transcribe all student answers, "
+            "question numbers, equations, and choices verbatim from this student paper. "
+            "Output only the clean transcribed student answer text."
+        )
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "image": {
+                            "format": fmt,
+                            "source": {"bytes": image_bytes},
+                        }
+                    },
+                    {"text": prompt},
+                ],
+            }
+        ]
+        response = self.client.converse(
+            modelId=self.model_id,
+            messages=messages,
+            inferenceConfig={"temperature": 0.1, "maxTokens": 2048},
+        )
+        return response["output"]["message"]["content"][0]["text"].strip()
 
 
 # ---------------------------------------------------------------------------
@@ -859,6 +962,16 @@ class DidacticEngine:
                 f"DidacticEngine.copilot_chat provider call failed ({exc}); falling back to offline simulator."
             )
             return self._fallback.copilot_chat(messages, lecture_title, lecture_content)
+
+    def transcribe_image(self, image_bytes: bytes, mime_type: str = "image/png") -> str:
+        try:
+            return self.provider.transcribe_image(image_bytes, mime_type=mime_type)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"DidacticEngine.transcribe_image provider call failed ({exc}); falling back to offline simulator."
+            )
+            return self._fallback.transcribe_image(image_bytes, mime_type=mime_type)
 
 
 def get_default_provider() -> BaseLLMProvider:

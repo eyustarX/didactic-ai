@@ -308,7 +308,7 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
 
         <p className="hero-lead">
           Rooted in didactic instructional design, Didactic AI transforms curriculum notes into rigorous examinations,
-          synthesizes objective multi-criteria rubrics, and evaluates student answer sheets with transparent, evidence-grounded feedback.
+          generates objective multi-criteria rubrics, and evaluates student answer sheets with transparent, evidence-grounded feedback.
         </p>
 
         <div className="hero-actions">
@@ -406,7 +406,7 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
 
           <div className="bloom-card reveal-on-scroll">
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 600 }}>
-              <span>3. Synthesis & Evaluation</span>
+              <span>3. Question Generation & Evaluation</span>
               <span style={{ color: 'var(--accent)' }}>60%</span>
             </div>
             <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: 2 }}>
@@ -483,7 +483,7 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
         <div className="section-header reveal-on-scroll">
           <h2 className="section-title">Automated Assessment & Whole-PDF Grading</h2>
           <p className="section-desc">
-            Synthesizes university-standard questions from lecture concepts, then segments and scores student PDF submissions with line-by-line evidence matching.
+            Generates university-standard questions from lecture concepts, then segments and scores student PDF submissions with line-by-line evidence matching.
           </p>
         </div>
 

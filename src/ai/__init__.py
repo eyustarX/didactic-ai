@@ -53,6 +53,8 @@ from src.ai.ingest import (
     extract_from_docx,
     extract_from_pptx,
     extract_text_from_pdf,
+    extract_text_from_image,
+    prepare_image_for_ai,
     ingest_pdf,
 )
 

@@ -168,7 +168,7 @@ def extract_from_pptx(
 
 
 def extract_from_docx(source: Union[bytes, str, io.BytesIO]) -> str:
-    """Extracts text from a Word (.docx) document."""
+    """Extracts text from a Word (.docx) document including paragraphs and table rows."""
     from docx import Document
 
     if isinstance(source, bytes):
@@ -179,8 +179,82 @@ def extract_from_docx(source: Union[bytes, str, io.BytesIO]) -> str:
         stream = source
 
     doc = Document(stream)
-    paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-    return "\n\n".join(paragraphs)
+    lines: List[str] = []
+    for p in doc.paragraphs:
+        t = p.text.strip()
+        if t:
+            lines.append(t)
+
+    # Extract tables (common in student exams / answer sheets)
+    for table in doc.tables:
+        for row in table.rows:
+            row_cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+            if row_cells:
+                lines.append(" | ".join(row_cells))
+
+    return "\n\n".join(lines)
+
+
+def prepare_image_for_ai(
+    image_source: Union[bytes, str, io.BytesIO], max_dim: int = 2048
+) -> Tuple[bytes, str]:
+    """
+    Normalizes rotation (EXIF), converts color profiles, resizes large smartphone photos
+    if they exceed max_dim, and returns clean (jpeg_bytes, 'image/jpeg').
+    """
+    from PIL import Image, ImageOps
+
+    if isinstance(image_source, bytes):
+        stream = io.BytesIO(image_source)
+    elif isinstance(image_source, io.BytesIO):
+        stream = image_source
+    else:
+        stream = io.BytesIO(Path(image_source).read_bytes())
+
+    img = Image.open(stream)
+    try:
+        img = ImageOps.exif_transpose(img)
+    except Exception:
+        pass
+
+    # Resize if smartphone photo exceeds max_dim
+    w, h = img.size
+    if max(w, h) > max_dim:
+        scale = max_dim / float(max(w, h))
+        new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
+        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+    # Convert non-RGB modes (RGBA, CMYK, Palette) for JPEG encoding
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+
+    out_buf = io.BytesIO()
+    img.save(out_buf, format="JPEG", quality=88, optimize=True)
+    return out_buf.getvalue(), "image/jpeg"
+
+
+def extract_text_from_image(
+    source: Union[bytes, str, io.BytesIO],
+    filename: str = "image.png",
+) -> str:
+    """
+    Extracts / transcribes student answers from an exam photo, scan, or diagram.
+    Uses AI vision (Gemini / Bedrock / Mock) with PIL preprocessing.
+    """
+    try:
+        clean_bytes, mime_type = prepare_image_for_ai(source)
+    except Exception:
+        if isinstance(source, bytes):
+            clean_bytes = source
+        elif isinstance(source, io.BytesIO):
+            clean_bytes = source.getvalue()
+        else:
+            clean_bytes = Path(source).read_bytes()
+        mime_type = "image/png" if filename.lower().endswith(".png") else "image/jpeg"
+
+    from src.services.engine_adapter import ai_engine
+    engine = ai_engine()
+    return engine.transcribe_image(clean_bytes, mime_type=mime_type)
 
 
 class DocumentExtractionResult(tuple):
@@ -214,7 +288,7 @@ def extract_document_text(
     file_type: Optional[str] = None,
 ) -> DocumentExtractionResult:
     """
-    Extracts cleaned text and section chunks from PDF, PPTX, DOCX, or TXT.
+    Extracts cleaned text and section chunks from PDF, PPTX, DOCX, Images, or TXT.
     Compatible with both (source, filename) and (source, filename, file_type).
     """
     ext = Path(filename).suffix.lower() if filename else f".{file_type or 'txt'}"
@@ -233,11 +307,15 @@ def extract_document_text(
         full_text = extract_from_docx(source)
         paragraphs = [p for p in full_text.split("\n\n") if p.strip()]
         sections = [{"source_ref": f"Section {i+1}", "text": p} for i, p in enumerate(paragraphs)]
-    elif ext in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"):
+    elif ext in (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".heic"):
         # Image document (scanned paper, camera photo, or handwritten worksheet)
         image_name = Path(filename).name if filename else "scanned_image"
-        full_text = f"[Scanned Image Document: {image_name}]"
-        sections = [{"source_ref": "Image 1", "text": full_text}]
+        try:
+            full_text = extract_text_from_image(source, filename=image_name)
+        except Exception as exc:
+            full_text = f"Warning: Failed to transcribe image '{image_name}': {exc}"
+            warnings.append(str(exc))
+        sections = [{"source_ref": f"Image: {image_name}", "text": full_text}]
     else:
         if isinstance(source, bytes):
             full_text = source.decode("utf-8", errors="replace")

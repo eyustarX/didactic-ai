@@ -414,3 +414,269 @@ def test_grade_submission_mcq_binary_key():
     assert "Incorrect choice" in report_wrong["question_results"][0]["feedback"]
 
 
+# ---------------------------------------------------------------------------
+# 6. Test Multi-Format Document Extraction (DOCX Tables, Scanned Images)
+# ---------------------------------------------------------------------------
+
+def test_extract_document_text_docx_with_tables():
+    """Verify DOCX extraction captures both body paragraphs and table rows."""
+    from docx import Document
+    from src.ai.ingest import extract_document_text
+
+    doc = Document()
+    doc.add_heading("Midterm Exam Answers", level=1)
+    doc.add_paragraph("Question 1: Process synchronization coordinates execution order.")
+    
+    table = doc.add_table(rows=2, cols=2)
+    table.cell(0, 0).text = "Criterion"
+    table.cell(0, 1).text = "Student Response"
+    table.cell(1, 0).text = "Deadlock Definition"
+    table.cell(1, 1).text = "Circular wait and mutual exclusion leading to blocked state."
+
+    doc_bytes = io.BytesIO()
+    doc.save(doc_bytes)
+    doc_bytes.seek(0)
+
+    result = extract_document_text(doc_bytes.getvalue(), filename="student_exam.docx")
+    text = result.full_text
+
+    assert "Midterm Exam Answers" in text
+    assert "Process synchronization coordinates execution order" in text
+    assert "Deadlock Definition" in text
+    assert "Circular wait and mutual exclusion" in text
+
+
+def test_extract_document_text_image_scan():
+    """Verify image extraction invokes multimodal vision transcription pipeline."""
+    from PIL import Image
+    from src.ai.ingest import extract_document_text, prepare_image_for_ai
+
+    # Generate synthetic image mimicking a smartphone photo of exam paper
+    img = Image.new("RGB", (800, 600), color=(250, 250, 250))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    raw_bytes = buf.getvalue()
+
+    # Test image normalization helper
+    norm_bytes, mime = prepare_image_for_ai(raw_bytes, max_dim=500)
+    assert mime == "image/jpeg"
+    assert len(norm_bytes) > 0
+
+    # Test end-to-end extraction from image
+    result = extract_document_text(raw_bytes, filename="handwritten_submission.png")
+    text = result.full_text
+
+    assert len(text) > 0
+    assert "Question 1" in text or "synchronization" in text.lower()
+
+
+def test_grade_submission_multi_format_endpoints():
+    """Test full API pipeline: uploading docx and image answers, grading, and file download."""
+    from fastapi.testclient import TestClient
+    from docx import Document
+    from PIL import Image
+    from sqlalchemy.pool import StaticPool
+    from src.main import app
+    from src.db.session import get_session
+
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(test_engine)
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    def override_session():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+        headers = {"X-Lecturer-Id": "prof_test_multiformat"}
+
+        # 1. Upload lecture note to create an assessment
+        note_resp = client.post(
+            "/lecture-notes/upload",
+            data={"note_title": "Concurrency Module", "pasted_text": "Process synchronization and mutual exclusion prevent race conditions."},
+            headers=headers,
+        )
+        assert note_resp.status_code == 200
+        note_id = note_resp.json()["id"]
+
+        assess_resp = client.post(
+            "/assessments/generate",
+            json={"lecture_note_id": note_id, "ticked_part_ids": [], "custom_instructions": "Create 2 short answer questions"},
+            headers=headers,
+        )
+        assert assess_resp.status_code == 200
+        assessment_id = assess_resp.json()["id"]
+
+        # 2. Grade DOCX submission
+        doc = Document()
+        doc.add_paragraph("Question 1: Mutual exclusion ensures only one process enters critical section at a time.")
+        doc.add_paragraph("Question 2: Concurrency primitives prevent race conditions.")
+        doc_buf = io.BytesIO()
+        doc.save(doc_buf)
+        docx_bytes = doc_buf.getvalue()
+
+        grade_docx_resp = client.post(
+            f"/assessments/{assessment_id}/grade-submission",
+            data={"student_name": "Jordan Smith", "student_number": "STU-DOCX-01"},
+            files={"file": ("student_exam.docx", docx_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+            headers=headers,
+        )
+        assert grade_docx_resp.status_code == 200
+        docx_data = grade_docx_resp.json()
+        assert docx_data["file_type"] == "docx"
+        assert docx_data["file_name"] == "student_exam.docx"
+        assert "Mutual exclusion" in docx_data["extracted_text"]
+        assert docx_data["total_score"] > 0
+        sub_id = docx_data["submission_id"]
+
+        # 3. Test downloading stored DOCX file
+        file_resp = client.get(f"/submissions/{sub_id}/file", headers=headers)
+        assert file_resp.status_code == 200
+        assert "wordprocessingml" in file_resp.headers["Content-Type"]
+        assert len(file_resp.content) == len(docx_bytes)
+
+        # 4. Grade PNG Image submission (e.g. smartphone photo of exam)
+        img = Image.new("RGB", (600, 400), color=(255, 255, 255))
+        img_buf = io.BytesIO()
+        img.save(img_buf, format="PNG")
+        png_bytes = img_buf.getvalue()
+
+        grade_img_resp = client.post(
+            f"/assessments/{assessment_id}/grade-submission",
+            data={"student_name": "Alex Taylor", "student_number": "STU-IMG-02"},
+            files={"file": ("scanned_page.png", png_bytes, "image/png")},
+            headers=headers,
+        )
+        assert grade_img_resp.status_code == 200
+        img_data = grade_img_resp.json()
+        assert img_data["file_type"] == "png"
+        assert img_data["file_name"] == "scanned_page.png"
+        assert len(img_data["extracted_text"]) > 0
+        assert img_data["total_score"] > 0
+
+        # 5. Test downloading stored Image file
+        img_sub_id = img_data["submission_id"]
+        file_img_resp = client.get(f"/submissions/{img_sub_id}/file", headers=headers)
+        assert file_img_resp.status_code == 200
+        assert file_img_resp.headers["Content-Type"] == "image/png"
+        assert len(file_img_resp.content) == len(png_bytes)
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+
+
+
+
+def test_generate_assessment_resilient_fallbacks():
+    """
+    Verify that assessment generation never fails even when:
+    1. Key points are not ticked.
+    2. Note has no key points at all.
+    3. Note was created under a different lecturer ID.
+    4. Lecture note ID is auto-fallback.
+    """
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from src.main import app
+    from src.db.session import get_session
+    from src.db.models import Base, LectureNote, LectureNoteKeyPoint
+
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(test_engine)
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    def override_session():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+        init_db = TestingSessionLocal()
+
+        # 1. Create a note with unticked key points under another lecturer
+        other_note = LectureNote(
+            lecturer_id="guest_lecturer",
+            name="Operating Systems Concepts",
+            file_type="text",
+            extracted_text="Virtual memory, paging, and demand segmentation.",
+            ingest_status="done",
+        )
+        init_db.add(other_note)
+        init_db.flush()
+
+        kp_unticked = LectureNoteKeyPoint(
+            lecture_note_id=other_note.id,
+            position=0,
+            title="Paging",
+            summary="Virtual address translation mechanism",
+            type="concept",
+            source_ref="Section 3",
+            included=False,  # NOT TICKED!
+        )
+        init_db.add(kp_unticked)
+        init_db.commit()
+
+        # Generate assessment as a different lecturer (prof_smith) with unticked key points
+        headers = {"X-Lecturer-Id": "prof_smith"}
+        resp = client.post(
+            "/assessments/generate",
+            json={"lecture_note_id": other_note.id, "question_count": 3, "title": "Midterm Exam on Memory"},
+            headers=headers,
+        )
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        data = resp.json()
+        assert data["title"] == "Midterm Exam on Memory"
+        assert len(data["questions"]) == 3
+        assert data["questions"][0]["text"] is not None
+
+        # 2. Test generation when note has NO key points at all
+        bare_note = LectureNote(
+            lecturer_id="prof_smith",
+            name="Compiler Design",
+            file_type="text",
+            extracted_text="Lexical analysis, parsing with LL(1) and LR(1), and intermediate code generation.",
+            ingest_status="done",
+        )
+        init_db.add(bare_note)
+        init_db.commit()
+
+        resp2 = client.post(
+            "/assessments/generate",
+            json={"lecture_note_id": bare_note.id, "question_count": 2},
+            headers=headers,
+        )
+        assert resp2.status_code == 200
+        data2 = resp2.json()
+        assert len(data2["questions"]) == 2
+
+        # 3. Test generation with auto-fallback note (empty note id)
+        resp3 = client.post(
+            "/assessments/generate",
+            json={"lecture_note_id": "", "title": "Interactive Exam Paper", "prompt": "Create 3 questions on Python async/await", "question_count": 3},
+            headers=headers,
+        )
+        assert resp3.status_code == 200
+        data3 = resp3.json()
+        assert len(data3["questions"]) == 3
+        init_db.close()
+    finally:
+        app.dependency_overrides.pop(get_session, None)

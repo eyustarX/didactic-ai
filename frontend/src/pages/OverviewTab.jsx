@@ -35,7 +35,7 @@ export default function OverviewTab({
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: 640, lineHeight: 1.6 }}>
           Didactic AI decompiles complex curriculum notes into Bloom-indexed learning objectives,
-          synthesizes standardized 100% normalized rubrics, and grades open-ended student work with
+          generates standardized 100% normalized rubrics, and grades open-ended student work with
           verifiable textual evidence citations.
         </p>
 
@@ -128,7 +128,7 @@ export default function OverviewTab({
           </div>
           <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 4 }}>Rubrics Studio</h4>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.84rem' }}>
-            Synthesize normalized evaluation rubrics with mathematically guaranteed 100% weights.
+            Generate standardized evaluation rubrics with mathematically guaranteed 100% weights.
           </p>
         </div>
 

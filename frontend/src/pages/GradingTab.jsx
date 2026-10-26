@@ -21,6 +21,10 @@ import {
   FileText,
   Clock,
   ArrowRight,
+  Download,
+  Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import ExcelJS from 'exceljs';
 import {
@@ -49,6 +53,7 @@ export default function GradingTab({
   const [studentName, setStudentName] = useState('');
   const [studentNumber, setStudentNumber] = useState('');
   const [studentFile, setStudentFile] = useState(null);
+  const [showExtractedText, setShowExtractedText] = useState(false);
   const [isGrading, setIsGrading] = useState(false);
 
   // Manual Score Entry State
@@ -956,22 +961,34 @@ export default function GradingTab({
           <label className="dropzone" style={{ position: 'relative', marginBottom: 16 }}>
             <input
               type="file"
-              accept=".pdf"
+              accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.txt"
               onChange={handleFileChange}
               style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
               disabled={isGrading}
             />
             <div className="dropzone-icon">
-              {isGrading ? <Loader2 size={22} className="spin" /> : <UploadCloud size={22} />}
+              {isGrading ? (
+                <Loader2 size={22} className="spin" />
+              ) : studentFile ? (
+                /\.(png|jpe?g|webp)$/i.test(studentFile.name) ? (
+                  <ImageIcon size={22} style={{ color: '#8b5cf6' }} />
+                ) : /\.(docx?)$/i.test(studentFile.name) ? (
+                  <FileText size={22} style={{ color: '#2563eb' }} />
+                ) : (
+                  <UploadCloud size={22} />
+                )
+              ) : (
+                <UploadCloud size={22} />
+              )}
             </div>
             <div>
               <p style={{ fontWeight: 500, fontSize: '0.88rem', marginBottom: 2 }}>
-                {studentFile ? studentFile.name : 'Select or drop student exam paper PDF'}
+                {studentFile ? studentFile.name : 'Select or drop student exam paper (PDF, Word DOCX, Image, or Text)'}
               </p>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
                 {studentFile
                   ? `${(studentFile.size / 1024).toFixed(1)} KB — Ready to grade with AI`
-                  : 'Upload scanned or digital PDF with student answers for all questions'}
+                  : 'Supports typed PDF/Word DOCX, smartphone exam photos (PNG/JPG), and text files'}
               </p>
             </div>
           </label>
@@ -1216,6 +1233,29 @@ export default function GradingTab({
                 </div>
 
                 <button
+                  type="button"
+                  onClick={() => setShowExtractedText(!showExtractedText)}
+                  className="btn btn-secondary btn-sm"
+                  title="Inspect raw extracted or vision-transcribed text from this student paper"
+                >
+                  {showExtractedText ? <ChevronUp size={13} /> : <Eye size={13} />}
+                  <span>{showExtractedText ? 'Hide Transcribed Paper' : 'View Transcribed Paper'}</span>
+                </button>
+
+                {(gradingReport.file_url || gradingReport.submission_id) && (
+                  <a
+                    href={`/api/submissions/${gradingReport.submission_id}/file`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-secondary btn-sm"
+                    title="Download or view student original submission file"
+                  >
+                    <Download size={13} />
+                    <span>Download Paper</span>
+                  </a>
+                )}
+
+                <button
                   onClick={handleConfirmScore}
                   disabled={isConfirming || isConfirmed}
                   className={`btn btn-sm ${isConfirmed ? 'btn-secondary' : 'btn-primary'}`}
@@ -1230,6 +1270,41 @@ export default function GradingTab({
                 </button>
               </div>
             </div>
+
+            {showExtractedText && (
+              <div
+                style={{
+                  background: 'var(--bg)',
+                  padding: 14,
+                  borderRadius: 6,
+                  border: '1px solid var(--border)',
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Extracted & Transcribed Submission Text:
+                  </span>
+                  <span className="badge badge-outline" style={{ fontSize: '0.68rem' }}>
+                    {gradingReport.file_type ? gradingReport.file_type.toUpperCase() : 'DOCUMENT'}
+                  </span>
+                </div>
+                <pre
+                  style={{
+                    margin: 0,
+                    fontSize: '0.8rem',
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--text)',
+                    whiteSpace: 'pre-wrap',
+                    maxHeight: 250,
+                    overflowY: 'auto',
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {gradingReport.extracted_text || gradingReport.extracted_pdf_text || 'No extracted text recorded.'}
+                </pre>
+              </div>
+            )}
 
             {gradingReport.summary_feedback && (
               <div style={{ background: 'var(--surface)', padding: 12, borderRadius: 6, border: '1px solid var(--border-subtle)', fontSize: '0.84rem', color: 'var(--text-muted)' }}>
@@ -1414,6 +1489,7 @@ export default function GradingTab({
               <tr>
                 <th>Student ID</th>
                 <th>Student Name</th>
+                <th>Format</th>
                 <th>Score</th>
                 <th>Percentage</th>
                 <th>Tier</th>
@@ -1441,6 +1517,21 @@ export default function GradingTab({
                         {sub.student_number || `STU-2026-${String(idx + 1).padStart(3, '0')}`}
                       </td>
                       <td style={{ fontWeight: 600 }}>{sub.student_name}</td>
+                      <td>
+                        <span
+                          className="badge"
+                          style={{
+                            fontSize: '0.68rem',
+                            textTransform: 'uppercase',
+                            fontWeight: 600,
+                            color: sub.file_type === 'docx' ? '#2563eb' : (sub.file_type === 'png' || sub.file_type === 'jpg' || sub.file_type === 'jpeg') ? '#8b5cf6' : sub.file_type === 'pdf' ? '#ef4444' : 'var(--text-muted)',
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border-subtle)',
+                          }}
+                        >
+                          {sub.file_type || (sub.has_file ? 'FILE' : 'MANUAL')}
+                        </span>
+                      </td>
                       <td>
                         {sub.total_score} / {sub.max_score || assessment?.max_score || 100}
                       </td>
@@ -1472,6 +1563,20 @@ export default function GradingTab({
                             <span>Review</span>
                           </button>
 
+                          {sub.has_file && sub.id && (
+                            <a
+                              href={`/api/submissions/${sub.id}/file`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-secondary btn-sm"
+                              style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
+                              title="Download student original paper"
+                            >
+                              <Download size={11} />
+                              <span>Paper</span>
+                            </a>
+                          )}
+
                           {!isRowConfirmed && (
                             <button
                               onClick={() => handleConfirmRowScore(sub)}
@@ -1491,7 +1596,7 @@ export default function GradingTab({
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-muted)' }}>
                     {searchTerm ? (
                       `No student submissions found matching "${searchTerm}".`
                     ) : (

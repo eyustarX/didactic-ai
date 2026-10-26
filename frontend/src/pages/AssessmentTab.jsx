@@ -230,11 +230,6 @@ export default function AssessmentTab({
   };
 
   const handleGenerateAssessment = async (overridePrompt, overrideCount) => {
-    if (!lectureContent && !activeNoteId) {
-      setError('Please upload or select lecture notes in Curriculum & Ingest first.');
-      return;
-    }
-
     setLoading(true);
     setError(null);
 
@@ -244,17 +239,27 @@ export default function AssessmentTab({
 
     try {
       let noteIdToUse = activeNoteId;
-      if (!noteIdToUse && lectureContent) {
+      if (!noteIdToUse) {
+        // Auto-create a lecture note record from lectureContent or promptToUse so assessment is safely linked
+        const textToIngest = (lectureContent && lectureContent.trim().length >= 10)
+          ? lectureContent
+          : (promptToUse && promptToUse.trim().length >= 10)
+            ? promptToUse
+            : `Course Material and Learning Objectives: ${lectureTitle || assessmentTitle || 'Core University Curriculum'}`;
+        const titleToUse = lectureTitle || assessmentTitle || (assessmentType === 'assignment' ? 'Assignment Brief' : 'Exam Document');
+
         try {
           const resp = await uploadLectureNote({
-            pastedText: lectureContent,
-            noteTitle: lectureTitle || 'Lecture Notes',
+            pastedText: textToIngest,
+            noteTitle: titleToUse,
             lecturerId: currentUser?.id,
           });
           const note = resp.lecture_note || resp;
           if (note?.id) {
             noteIdToUse = note.id;
             if (setActiveNoteId) setActiveNoteId(note.id);
+            if (setLectureTitle && !lectureTitle) setLectureTitle(titleToUse);
+            if (setLectureContent && !lectureContent) setLectureContent(textToIngest);
           }
         } catch (noteErr) {
           console.warn('Could not auto-create lecture note for assessment:', noteErr);
@@ -266,14 +271,16 @@ export default function AssessmentTab({
         data = await generateAssessmentFromParts({
           lecture_note_id: noteIdToUse,
           question_count: count,
-          title: assessmentTitle || `Assessment: ${lectureTitle || 'Lecture'}`,
+          title: assessmentTitle || `Assessment: ${lectureTitle || (assessmentType === 'assignment' ? 'Assignment' : 'Exam')}`,
           prompt: promptToUse?.trim() || undefined,
           lecturerId: currentUser?.id,
         });
       } else {
         data = await generateAssessment({
-          lecture_title: lectureTitle || 'Lecture Assessment',
-          lecture_content: lectureContent,
+          lecture_title: lectureTitle || assessmentTitle || (assessmentType === 'assignment' ? 'Course Assignment' : 'Course Exam'),
+          lecture_content: (lectureContent && lectureContent.trim().length >= 10)
+            ? lectureContent
+            : (promptToUse && promptToUse.trim().length >= 10 ? promptToUse : 'Core course curriculum concepts and learning objectives.'),
           question_count: count,
         });
       }
@@ -281,6 +288,19 @@ export default function AssessmentTab({
       setAssessment(data);
       if (data.title) setAssessmentTitle(data.title);
       setActiveQuestionIndex(0);
+
+      // Add instant feedback confirmation into the chat
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `success-${Date.now()}`,
+          role: 'assistant',
+          content: `🎉 Successfully created **${data.title || (assessmentType === 'assignment' ? 'Assignment' : 'Exam Paper')}** with ${data.questions?.length || count} questions!
+
+You can review question details, refine answer keys, or add custom questions in the editor on the right.`,
+          readyToGenerate: false,
+        },
+      ]);
     } catch (err) {
       setError(err.message || 'Failed to generate assessment');
     } finally {
@@ -734,38 +754,50 @@ export default function AssessmentTab({
                 >
                   <p style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{msg.content}</p>
 
-                  {/* If agent flagged readyToGenerate, show 1-click synthesis button */}
+                  {/* If agent flagged readyToGenerate, show 1-click generation button */}
                   {msg.readyToGenerate && (
                     <div
                       style={{
-                        marginTop: 10,
-                        padding: '10px 12px',
+                        marginTop: 12,
+                        padding: '12px 14px',
                         background: 'var(--surface-alt)',
                         border: '1px solid var(--border)',
                         borderRadius: 8,
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 8,
+                        gap: 10,
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>
-                        <CheckCircle2 size={14} />
-                        <span>Specifications ready ({msg.questionCount || questionCount} Questions)</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: 'var(--accent)', fontWeight: 600 }}>
+                        <CheckCircle2 size={15} />
+                        <span>
+                          {assessmentType === 'assignment' ? 'Assignment Blueprint Ready' : 'Exam Blueprint Ready'} ({msg.questionCount || questionCount} Questions)
+                        </span>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleGenerateAssessment(msg.suggestedPrompt, msg.questionCount)}
-                        disabled={loading || (!lectureContent && !activeNoteId)}
+                        disabled={loading}
                         className="btn btn-primary btn-sm"
                         style={{
                           border: 'none',
-                          fontSize: '0.8rem',
-                          padding: '6px 14px',
+                          fontSize: '0.82rem',
+                          padding: '8px 16px',
                           alignSelf: 'flex-start',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          fontWeight: 600,
+                          cursor: loading ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        {loading ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
-                        <span>Synthesize Assessment Now</span>
+                        {loading ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
+                        <span>
+                          {loading
+                            ? (assessmentType === 'assignment' ? 'Generating Assignment with AI...' : 'Generating Exam Paper with AI...')
+                            : (assessmentType === 'assignment' ? 'Generate Assignment Brief' : 'Generate Exam Paper')
+                          }
+                        </span>
                       </button>
                     </div>
                   )}
@@ -1282,7 +1314,7 @@ export default function AssessmentTab({
             {assessment ? 'No Questions in Active Assessment' : 'No Assessment Selected'}
           </h3>
           <p style={{ fontSize: '0.84rem', maxWidth: 440, margin: '0 auto 16px' }}>
-            Select an assessment from the library above or enter a question count and click <strong>Generate Assessment</strong>.
+            Select an assessment from the library above or ask Didactic AI in the chat to create your questions.
           </p>
         </div>
       ) : (
@@ -1597,7 +1629,7 @@ export default function AssessmentTab({
                               color: 'var(--text)',
                               background: 'var(--surface)',
                             }}
-                            title="Synthesize normalized grading criteria and point distribution with AI for this question prompt"
+                            title="Generate standardized grading criteria and point distribution with AI for this question prompt"
                           >
                             {generatingRubricId === (currentQ.id || `q-${activeQuestionIndex}`) ? (
                               <Loader2 size={12} className="spin" />
@@ -1748,7 +1780,7 @@ export default function AssessmentTab({
                   Build Rubrics for Your Question
                 </h3>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                  Provide your custom exam or assignment question. Didactic AI will synthesize normalized criteria with point allocations.
+                  Provide your custom exam or assignment question. Didactic AI will generate standardized criteria with point allocations.
                 </p>
               </div>
             </div>
@@ -1815,7 +1847,7 @@ export default function AssessmentTab({
                 }}
               >
                 {isGeneratingCustomRubric ? <Loader2 size={13} className="spin" /> : <Sparkles size={13} />}
-                <span>{isGeneratingCustomRubric ? 'Synthesizing Rubric...' : 'Synthesize Rubric & Add Question'}</span>
+                <span>{isGeneratingCustomRubric ? 'Generating Rubric...' : 'Generate Rubric & Add Question'}</span>
               </button>
             </div>
           </div>
