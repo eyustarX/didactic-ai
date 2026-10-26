@@ -784,3 +784,139 @@ def test_chat_sessions_lifecycle():
         assert len(list2.json()) == 0
     finally:
         app.dependency_overrides.pop(get_session, None)
+
+
+def test_isolated_text_answers_and_regrade():
+    """
+    Verifies that:
+    1. Formats like:
+       1, b
+       2. b
+       3. c
+       4. d
+       5. b...
+       are accurately split per question into isolated student answers (not treated as one blob).
+    2. Regrade endpoints work smoothly to re-run AI evaluation and re-grade individual questions.
+    """
+    from fastapi.testclient import TestClient
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from src.main import app
+    from src.db.session import get_session
+    from src.db.models import Base, LectureNote, Assessment, Question, Rubric, RubricCriterion, Student
+
+    test_engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(test_engine)
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    def override_session():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+        db = TestingSessionLocal()
+        headers = {"x-lecturer-id": "default_lecturer"}
+
+        note = LectureNote(lecturer_id="default_lecturer", name="Biology 101", file_type="pdf", ingest_status="done")
+        db.add(note)
+        db.flush()
+
+        assessment = Assessment(
+            lecturer_id="default_lecturer",
+            lecture_note_id=note.id,
+            title="Cell Biology Exam",
+            max_score=50.0,
+            status="draft",
+        )
+        db.add(assessment)
+        db.flush()
+
+        # Add 5 questions (3 MCQs, 1 FITB, 1 short answer)
+        q1 = Question(assessment_id=assessment.id, position=0, text="Which organelle produces ATP? A) Ribosome B) Mitochondria C) Lysosome D) Vacuole", student_hint="Official Answer Key: B", max_marks=10.0)
+        q2 = Question(assessment_id=assessment.id, position=1, text="What is the site of protein synthesis? A) Golgi B) Ribosome C) ER D) Nucleus", student_hint="Official Answer Key: B", max_marks=10.0)
+        q3 = Question(assessment_id=assessment.id, position=2, text="What molecule carries genetic information? A) Protein B) Lipid C) DNA D) Carbohydrate", student_hint="Official Answer Key: C", max_marks=10.0)
+        q4 = Question(assessment_id=assessment.id, position=3, text="Select the phase where chromosomes align. A) Anaphase B) Prophase C) Telophase D) Metaphase", student_hint="Official Answer Key: D", max_marks=10.0)
+        q5 = Question(assessment_id=assessment.id, position=4, text="The process of cell division is ____. Answer Key: mitosis", student_hint="Official Answer Key: mitosis", max_marks=10.0)
+        db.add_all([q1, q2, q3, q4, q5])
+        db.commit()
+
+        # Input matching user's exact reported excerpt:
+        user_pasted_answers = """1, b
+2. b
+3. c
+4. d
+5. b..."""
+
+        grade_resp = client.post(
+            f"/assessments/{assessment.id}/grade-submission",
+            data={
+                "student_name": "Jordan Smith",
+                "student_number": "STU-BIO-01",
+                "pasted_text": user_pasted_answers,
+            },
+            headers=headers,
+        )
+        assert grade_resp.status_code == 200
+        res = grade_resp.json()
+        sub_id = res["submission_id"]
+
+        q_results = res["question_results"]
+        assert len(q_results) == 5
+
+        # Verify Q1 got 'b' and NOT the entire text
+        assert q_results[0]["matched_student_answer"] == "b"
+        assert q_results[0]["score"] == 10.0
+        assert "Selected Option: B" in q_results[0]["evidence_citation"]
+
+        # Verify Q2 got 'b'
+        assert q_results[1]["matched_student_answer"] == "b"
+        assert q_results[1]["score"] == 10.0
+
+        # Verify Q3 got 'c'
+        assert q_results[2]["matched_student_answer"] == "c"
+        assert q_results[2]["score"] == 10.0
+
+        # Verify Q4 got 'd'
+        assert q_results[3]["matched_student_answer"] == "d"
+        assert q_results[3]["score"] == 10.0
+
+        # Verify Q5 was isolated to 'b' (not the full block)
+        assert q_results[4]["matched_student_answer"] == "b"
+
+        # -------------------------------------------------------------
+        # Test Regrade Endpoint: /assessments/{assessment_id}/submissions/{sub_id}/regrade
+        # -------------------------------------------------------------
+        regrade_resp = client.post(
+            f"/assessments/{assessment.id}/submissions/{sub_id}/regrade",
+            headers=headers,
+        )
+        assert regrade_resp.status_code == 200
+        regrade_data = regrade_resp.json()
+        assert regrade_data["status"] == "graded"
+        assert len(regrade_data["question_results"]) == 5
+        assert regrade_data["question_results"][0]["matched_student_answer"] == "b"
+
+        # -------------------------------------------------------------
+        # Test Single Question Regrade Endpoint
+        # -------------------------------------------------------------
+        regrade_q_resp = client.post(
+            f"/assessments/{assessment.id}/submissions/{sub_id}/regrade-question",
+            json={"question_id": q1.id},
+            headers=headers,
+        )
+        assert regrade_q_resp.status_code == 200
+        regrade_q_data = regrade_q_resp.json()
+        assert regrade_q_data["question_id"] == q1.id
+        assert regrade_q_data["total_score"] >= 40.0
+    finally:
+        app.dependency_overrides.pop(get_session, None)

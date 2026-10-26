@@ -30,6 +30,8 @@ import ExcelJS from 'exceljs';
 import {
   gradeStudentSubmission,
   confirmSubmissionScore,
+  regradeSubmission,
+  regradeSubmissionQuestion,
   fetchAssessmentSubmissions,
   fetchAssessments,
   fetchAssessmentDetail,
@@ -73,6 +75,10 @@ export default function GradingTab({
   const [gradingReport, setGradingReport] = useState(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isRegrading, setIsRegrading] = useState(false);
+  const [regradingSubId, setRegradingSubId] = useState(null);
+  const [regradingQId, setRegradingQId] = useState(null);
+  const [regradeMsg, setRegradeMsg] = useState(null);
 
   // Dedicated Gradebook for the active assessment
   const [submissions, setSubmissions] = useState([]);
@@ -407,6 +413,69 @@ export default function GradingTab({
     }
   };
 
+  const handleRegradeSubmission = async (targetSub) => {
+    const subToRegrade = targetSub || gradingReport;
+    if (!subToRegrade || (!subToRegrade.id && !subToRegrade.submission_id)) return;
+    const subId = subToRegrade.id || subToRegrade.submission_id;
+
+    setIsRegrading(true);
+    setRegradingSubId(subId);
+    setGradingError(null);
+    setRegradeMsg(null);
+
+    try {
+      const updated = await regradeSubmission(subId, assessment?.id, currentUser?.email);
+      setGradingReport(updated);
+      setIsConfirmed(false);
+      setRegradeMsg('Paper successfully re-graded with fresh AI evaluation.');
+      setTimeout(() => setRegradeMsg(null), 5000);
+      if (reportRef.current) {
+        reportRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+      await loadSubmissions();
+    } catch (err) {
+      setGradingError(`Regrading failed: ${err.message}`);
+    } finally {
+      setIsRegrading(false);
+      setRegradingSubId(null);
+    }
+  };
+
+  const handleRegradeQuestion = async (questionId, qIdx) => {
+    if (!gradingReport || (!gradingReport.id && !gradingReport.submission_id)) return;
+    const subId = gradingReport.id || gradingReport.submission_id;
+
+    setRegradingQId(questionId);
+    setGradingError(null);
+    try {
+      const res = await regradeSubmissionQuestion(subId, questionId, assessment?.id, currentUser?.email);
+      if (res.question_result) {
+        setGradingReport((prev) => {
+          if (!prev) return prev;
+          const updatedQR = [...(prev.question_results || [])];
+          updatedQR[qIdx] = {
+            ...updatedQR[qIdx],
+            ...res.question_result,
+            points_awarded: res.question_result.points_awarded ?? res.question_result.score,
+          };
+          return {
+            ...prev,
+            total_score: res.total_score,
+            ai_total: res.total_score,
+            question_results: updatedQR,
+          };
+        });
+        setRegradeMsg(`Question ${qIdx + 1} re-evaluated successfully.`);
+        setTimeout(() => setRegradeMsg(null), 4000);
+      }
+      await loadSubmissions();
+    } catch (err) {
+      setGradingError(`Question re-evaluation failed: ${err.message}`);
+    } finally {
+      setRegradingQId(null);
+    }
+  };
+
   const handleConfirmRowScore = async (sub) => {
     if (!sub.id) return;
     setConfirmingSubId(sub.id);
@@ -519,19 +588,12 @@ export default function GradingTab({
       { header: 'Total Score', key: 'total_score', width: 14 },
       { header: 'Max Score', key: 'max_score', width: 14 },
       { header: 'Percentage', key: 'percentage', width: 14 },
-      { header: 'Grade Tier', key: 'tier', width: 12 },
       { header: 'Status', key: 'status', width: 16 },
       { header: 'Graded At', key: 'graded_at', width: 22 },
     ];
 
     submissions.forEach((s) => {
       const pct = s.percentage ?? (s.max_score ? Number(((s.total_score / s.max_score) * 100).toFixed(1)) : 0);
-      let tier = 'C';
-      if (pct >= 90) tier = 'A';
-      else if (pct >= 80) tier = 'B';
-      else if (pct >= 70) tier = 'C';
-      else if (pct >= 60) tier = 'D';
-      else tier = 'F';
 
       worksheet.addRow({
         id: s.student_number || s.id,
@@ -540,7 +602,6 @@ export default function GradingTab({
         total_score: s.total_score,
         max_score: s.max_score || assessment?.max_score || 100,
         percentage: `${pct}%`,
-        tier: tier,
         status: (s.status || 'graded').toUpperCase(),
         graded_at: s.graded_at ? s.graded_at.slice(0, 10) : 'Recent',
       });
@@ -1329,6 +1390,17 @@ export default function GradingTab({
                 )}
 
                 <button
+                  type="button"
+                  onClick={() => handleRegradeSubmission(gradingReport)}
+                  disabled={isRegrading}
+                  className="btn btn-secondary btn-sm"
+                  title="Re-run AI grading on this paper from scratch to check or correct any hallucination"
+                >
+                  <RefreshCw size={13} className={isRegrading ? 'spin' : ''} />
+                  <span>{isRegrading ? 'Regrading Paper...' : 'Regrade Paper'}</span>
+                </button>
+
+                <button
                   onClick={handleConfirmScore}
                   disabled={isConfirming || isConfirmed}
                   className={`btn btn-sm ${isConfirmed ? 'btn-secondary' : 'btn-primary'}`}
@@ -1343,6 +1415,13 @@ export default function GradingTab({
                 </button>
               </div>
             </div>
+
+            {regradeMsg && (
+              <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 6, background: 'var(--success-bg)', border: '1px solid var(--border)', color: 'var(--success)', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <CheckCircle2 size={14} />
+                <span>{regradeMsg}</span>
+              </div>
+            )}
 
             {showExtractedText && (
               <div
@@ -1410,7 +1489,7 @@ export default function GradingTab({
                         </span>
                       </div>
 
-                      {/* Interactive Point Adjustment */}
+                      {/* Interactive Point Adjustment & Question Re-evaluation */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Points Awarded:</span>
                         <input
@@ -1426,6 +1505,17 @@ export default function GradingTab({
                         <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>
                           / {qr.max_points}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRegradeQuestion(qr.question_id || fullQ?.id, idx)}
+                          disabled={regradingQId === (qr.question_id || fullQ?.id)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ height: 26, padding: '0 8px', fontSize: '0.74rem', marginLeft: 4 }}
+                          title="Re-evaluate this specific question with AI to check/correct hallucination"
+                        >
+                          <RefreshCw size={11} className={regradingQId === (qr.question_id || fullQ?.id) ? 'spin' : ''} />
+                          <span>{regradingQId === (qr.question_id || fullQ?.id) ? 'Re-evaluating...' : 'Check with AI'}</span>
+                        </button>
                       </div>
                     </div>
 
@@ -1565,7 +1655,6 @@ export default function GradingTab({
                 <th>Format</th>
                 <th>Score</th>
                 <th>Percentage</th>
-                <th>Tier</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
@@ -1612,11 +1701,6 @@ export default function GradingTab({
                         {pct}%
                       </td>
                       <td>
-                        <span className={`badge ${pct >= 85 ? 'badge-accent' : 'badge-outline'}`} style={{ fontSize: '0.68rem' }}>
-                          {tier}
-                        </span>
-                      </td>
-                      <td>
                         <span
                           className={`badge ${isRowConfirmed ? 'badge-accent' : 'badge-outline'}`}
                           style={{ fontSize: '0.7rem' }}
@@ -1634,6 +1718,17 @@ export default function GradingTab({
                           >
                             <Eye size={11} />
                             <span>Review</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleRegradeSubmission(sub)}
+                            disabled={regradingSubId === sub.id}
+                            className="btn btn-secondary btn-sm"
+                            style={{ height: 26, padding: '0 8px', fontSize: '0.74rem' }}
+                            title="Re-run AI grading from scratch on this student paper"
+                          >
+                            <RefreshCw size={11} className={regradingSubId === sub.id ? 'spin' : ''} />
+                            <span>{regradingSubId === sub.id ? 'Regrading...' : 'Regrade'}</span>
                           </button>
 
                           {sub.has_file && sub.id && (

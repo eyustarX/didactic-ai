@@ -78,6 +78,9 @@ Instructions:
 6. For EVERY question, write an authoritative, exact "reference_answer" that serves as the official answer key. Write the answer key directly and concisely without saying "According to the lecture...".
 7. Allocate positive max_points for each question reflecting its depth and complexity (e.g., 1 mark for multiple choice, 1-2 marks for fill-in-the-blank, 2 to 5 marks for short answer, or as specified by the professor).
 8. Specify the learning_objective being evaluated.
+9. DISTINCTIVE & REASONABLE ASSESSMENT TITLE:
+   - Provide a clear, topic-specific "title" in the output that immediately differentiates this assessment (e.g. "Quiz: Binary Search Trees & AVL Rotations", "Midterm: Process Scheduling & Deadlocks", "Assignment: Dynamic Programming & Memoization").
+   - Never output generic names like "Assessment", "New Assessment", or "Diagnostic Test Paper".
 """
 
 

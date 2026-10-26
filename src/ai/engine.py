@@ -69,6 +69,50 @@ def sanitize_exam_question_text(text: str, lecture_title: str = "") -> str:
     return cleaned
 
 
+def synthesize_assessment_title(
+    existing_title: Optional[str],
+    lecture_title: str,
+    custom_instructions: Optional[str] = None,
+    questions: Optional[List[Any]] = None,
+) -> str:
+    """Produces a clean, professional, and distinctive title for generated assessments."""
+    if existing_title and existing_title.strip():
+        clean = existing_title.strip()
+        is_generic = bool(re.match(
+            r"^(assessment|new assessment|draft.*|course assessment|course exam|course assignment|exam document|assignment brief|diagnostic test paper|assessment:\s*(exam|assignment)?)$",
+            clean,
+            re.IGNORECASE
+        ))
+        if not is_generic and not re.match(r"^assessment:\s*$", clean, re.IGNORECASE):
+            return clean
+
+    clean_instr = (custom_instructions or "").lower()
+    if any(w in clean_instr for w in ["assignment", "homework", "problem set", "coursework", "project"]):
+        format_label = "Assignment"
+    elif any(w in clean_instr for w in ["midterm", "final exam", "exam paper", "examination"]):
+        format_label = "Examination"
+    elif any(w in clean_instr for w in ["quiz", "mcq", "fill in the blank", "quick test"]):
+        format_label = "Quiz"
+    else:
+        format_label = "Assessment"
+
+    clean_topic = re.sub(r"\.(pdf|docx|pptx|txt)$", "", lecture_title or "Course Material", flags=re.IGNORECASE).strip()
+    clean_topic = re.sub(r"^(lecture|chapter|unit|ch|lec|module)[\s\-_0-9:]*", "", clean_topic, flags=re.IGNORECASE).strip() or clean_topic
+
+    subtopic = None
+    if custom_instructions:
+        match = re.search(r"(?:on|about|focusing on|covering|topic:?)\s+([a-zA-Z0-9\s\-]{3,40})(?:,|\.|$|\band\b)", custom_instructions, re.IGNORECASE)
+        if match:
+            cand = match.group(1).strip()
+            if cand.lower() not in ["mcqs", "questions", "short answers", "algorithms", "lecture", "notes", "all concepts"]:
+                subtopic = cand.title()
+
+    if subtopic and subtopic.lower() not in clean_topic.lower():
+        return f"{format_label}: {subtopic} ({clean_topic})"
+    return f"{format_label}: {clean_topic}"
+
+
+
 # ---------------------------------------------------------------------------
 # Abstract Provider Interface
 # ---------------------------------------------------------------------------

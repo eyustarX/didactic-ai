@@ -458,6 +458,42 @@ export async function gradeStudentSubmission({
   return await res.json();
 }
 
+export async function regradeSubmission(submissionId, assessmentId, lecturerId) {
+  const url = assessmentId
+    ? `${API_BASE}/assessments/${assessmentId}/submissions/${submissionId}/regrade`
+    : `${API_BASE}/submissions/${submissionId}/regrade`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: getAuthHeaders(lecturerId),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Regrading failed' }));
+    throw new Error(err.detail || 'Regrading failed');
+  }
+  return await res.json();
+}
+
+export async function regradeSubmissionQuestion(submissionId, questionId, assessmentId, lecturerId) {
+  const url = assessmentId
+    ? `${API_BASE}/assessments/${assessmentId}/submissions/${submissionId}/regrade-question`
+    : `${API_BASE}/submissions/${submissionId}/regrade-question`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(lecturerId),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ question_id: questionId }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Question re-evaluation failed' }));
+    throw new Error(err.detail || 'Question re-evaluation failed');
+  }
+  return await res.json();
+}
+
 export async function confirmSubmissionScore(submissionId, totalScore, lecturerId) {
   const res = await fetch(`${API_BASE}/submissions/${submissionId}/confirm`, {
     method: 'POST',

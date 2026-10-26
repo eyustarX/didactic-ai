@@ -275,6 +275,73 @@ def generate_rubric(
         return {"question_type": "subjective", "is_objective": False, "criteria": criteria}
 
 
+def parse_student_answers(text: str, num_questions: int) -> Dict[int, str]:
+    """
+    Parses student answers from free-form text, OCR excerpt, or typed entries.
+    Handles:
+    - Numbered lines: "1, b", "1. b", "1) b", "1: b", "1 - b", "1. b...", "Q1: B", "Question 1: ..."
+    - Mixed commas/semicolons inline: "1, b, 2, b, 3, c, 4, d, 5, b"
+    - Sequential answers / choices: "b, b, c, d, b" or "A\nB\nC\nD"
+    - Question paragraphs: "1. The cell membrane...\n2. Mitochondria produce..."
+    Returns a dict mapping question index (0-based) -> extracted answer string.
+    """
+    answers: Dict[int, str] = {}
+    if not text or not text.strip():
+        return answers
+
+    cleaned = text.strip()
+
+    # 1. Delimited numbered markers like: "1, b", "1. b", "1) b", "Q1: b", "Question 1: ...", "1 - b"
+    marker_pattern = re.compile(
+        r'(?:^|[\n\r]+|\s{2,}|;\s*|,\s*(?=[0-9]{1,3}\s*[:\.\,\)\-\–]))'
+        r'(?:Q(?:uestion)?\s*|Ans(?:wer)?\s*)?([0-9]{1,3})\s*[:\.\,\)\-\–]\s*',
+        re.IGNORECASE
+    )
+    matches = list(marker_pattern.finditer(cleaned))
+    if matches and len(matches) >= min(2, num_questions):
+        for i, match in enumerate(matches):
+            q_num = int(match.group(1))
+            q_idx = q_num - 1
+            start_pos = match.end()
+            end_pos = matches[i + 1].start() if i + 1 < len(matches) else len(cleaned)
+            ans_content = cleaned[start_pos:end_pos].strip()
+            # Clean trailing punctuation from comma/semicolon splits
+            ans_content = re.sub(r'[,;]+$', '', ans_content).strip()
+            if 0 <= q_idx < num_questions or num_questions == 0:
+                answers[q_idx] = ans_content
+
+    if len(answers) >= min(2, num_questions):
+        return answers
+
+    # 2. Pair pattern on single line e.g. "1, b, 2, b, 3, c"
+    pair_pattern = re.compile(r'([0-9]{1,3})\s*,\s*([A-Za-z0-9\.\-\_\s]+?)(?=(?:,\s*[0-9]{1,3}\s*,|$))')
+    pair_matches = list(pair_pattern.finditer(cleaned))
+    if len(pair_matches) >= min(2, num_questions):
+        for pm in pair_matches:
+            q_idx = int(pm.group(1)) - 1
+            answers[q_idx] = pm.group(2).strip()
+        return answers
+
+    # 3. Simple sequence of tokens (e.g. "b, b, c, d, b" or "B\nB\nC\nD\nB")
+    tokens = [t.strip().rstrip('.,;') for t in re.split(r'[\n\r,;\s]+', cleaned) if t.strip()]
+    if len(tokens) == num_questions and num_questions > 0:
+        for idx, t in enumerate(tokens):
+            answers[idx] = t
+        return answers
+
+    # 4. Multi-line numbered by line start e.g. "^1. ... \n ^2. ..."
+    line_pattern = re.compile(r'^\s*(?:Q(?:uestion)?\s*)?([0-9]{1,3})\s*[:\.\,\)\-\–\s]\s*(.*)$', re.MULTILINE | re.IGNORECASE)
+    line_matches = list(line_pattern.finditer(cleaned))
+    if len(line_matches) >= min(2, num_questions):
+        for lm in line_matches:
+            q_idx = int(lm.group(1)) - 1
+            if 0 <= q_idx < num_questions or num_questions == 0:
+                answers[q_idx] = lm.group(2).strip()
+        return answers
+
+    return answers
+
+
 def grade_submission(
     questions: List[Dict[str, Any]],
     student_submission_text: str,
@@ -282,6 +349,7 @@ def grade_submission(
     """
     Evaluates student submission against assessment questions using live AI agents
     with type-aware objective scoring for MCQs and FITBs, and multi-criteria rubrics for subjective questions.
+    Precisely isolates per-question student answers to eliminate hallucination.
     """
     from src.services.engine_adapter import ai_engine
     from src.ai.schemas import Question, QuestionType, AssessmentRubric, RubricCriterion
@@ -291,7 +359,10 @@ def grade_submission(
     total_score = 0.0
     question_results = []
 
+    parsed_answers = parse_student_answers(cleaned, len(questions))
+
     for q_idx, q in enumerate(questions):
+        q_num = q_idx + 1
         q_id = q.get("id")
         q_text = q.get("text", "")
         max_marks = float(q.get("max_marks", 10.0))
@@ -301,6 +372,11 @@ def grade_submission(
         is_mcq = bool(re.search(r'\b[A-D]\)', q_text) or re.search(r'options?:', q_text, re.I))
         is_fitb = bool(re.search(r'____|fill in the blank', q_text, re.I))
 
+        # Extract isolated student response for this question
+        raw_student_ans = parsed_answers.get(q_idx, "").strip()
+        # Clean trailing ellipses or dots if any e.g. "b..." -> "b"
+        cleaned_student_ans = re.sub(r'\.{2,}$', '', raw_student_ans).strip()
+
         # -------------------------------------------------------------
         # 1. Objective Multiple Choice Grading
         # -------------------------------------------------------------
@@ -308,28 +384,36 @@ def grade_submission(
             key_match = re.search(r'(?:Official\s+Answer\s+Key:\s*)?([A-D])(?:\)|\b|\s)', ref_ans, re.I)
             expected_letter = key_match.group(1).upper() if key_match else None
 
-            q_num = q_idx + 1
-            pattern_q = rf'(?:Q(?:uestion)?\s*{q_num}[:\.\)]\s*)([A-D])\b'
-            student_match = re.search(pattern_q, cleaned, re.I)
-
+            # 1. First check parsed answer for this specific question
             student_choice = None
-            if student_match:
-                student_choice = student_match.group(1).upper()
-            elif expected_letter and re.search(rf'\b{expected_letter}\)', cleaned):
-                student_choice = expected_letter
-            elif expected_letter and re.search(rf'\b{expected_letter}\b', cleaned):
-                student_choice = expected_letter
+            if cleaned_student_ans:
+                choice_match = re.search(r'\b([A-D])\b|\(([A-D])\)|^([A-D])\)', cleaned_student_ans, re.I)
+                if choice_match:
+                    student_choice = (choice_match.group(1) or choice_match.group(2) or choice_match.group(3)).upper()
+                elif len(cleaned_student_ans) == 1 and cleaned_student_ans.upper() in "ABCD":
+                    student_choice = cleaned_student_ans.upper()
+
+            # 2. Fallback to searching the full text specifically for this question number (e.g. "1, B", "Q1: B")
+            if not student_choice:
+                pattern_q = rf'(?:^|[\n\r,;\s]+)(?:Q(?:uestion)?\s*|Ans(?:wer)?\s*)?{q_num}\s*[:\.\,\)\-\–\s]\s*\(?([A-D])\)?\b'
+                student_match = re.search(pattern_q, cleaned, re.I)
+                if student_match:
+                    student_choice = student_match.group(1).upper()
+                    if not cleaned_student_ans:
+                        cleaned_student_ans = student_choice
 
             is_correct = bool(expected_letter and student_choice and expected_letter == student_choice)
             score = max_marks if is_correct else 0.0
             total_score += score
 
+            display_answer = cleaned_student_ans if cleaned_student_ans else (f"Option {student_choice}" if student_choice else "No matching answer recorded")
+
             if is_correct:
-                feedback = f"Correct choice selected ({expected_letter}). Full marks awarded based on answer key."
+                feedback = f"Correct choice selected ({expected_letter}). Full marks awarded based on official answer key."
                 citation = f"Selected Option: {expected_letter}"
             else:
                 feedback = f"Incorrect choice. Expected {expected_letter or 'official answer key'}, but student indicated {student_choice or 'no matching choice'}."
-                citation = f"Student response excerpt: '{cleaned[:45]}...'"
+                citation = f"Student answer: '{display_answer}'"
 
             question_results.append({
                 "question_id": q_id,
@@ -340,7 +424,7 @@ def grade_submission(
                 "max_points": max_marks,
                 "feedback": feedback,
                 "evidence_citation": citation,
-                "matched_student_answer": citation,
+                "matched_student_answer": display_answer,
                 "is_objective": True,
                 "criterion_scores": [
                     {
@@ -358,16 +442,19 @@ def grade_submission(
             clean_ref = re.sub(r'^(?:Official\s+)?Answer\s+Key:\s*', '', ref_ans, flags=re.I).split('\n')[0].strip().strip('"\'')
             expected_term = clean_ref.lower()
 
-            is_matched = bool(expected_term and expected_term in cleaned.lower())
+            search_corpus = cleaned_student_ans.lower() if cleaned_student_ans else cleaned.lower()
+            is_matched = bool(expected_term and expected_term in search_corpus)
             score = max_marks if is_matched else 0.0
             total_score += score
+
+            display_answer = cleaned_student_ans if cleaned_student_ans else ("Target term found in submission" if is_matched else "No answer recorded")
 
             if is_matched:
                 feedback = f"Correct target term '{clean_ref}' supplied. Full marks awarded."
                 citation = f"Term supplied: '{clean_ref}'"
             else:
                 feedback = f"Incorrect or missing term. Expected: '{clean_ref}'."
-                citation = f"Student response excerpt: '{cleaned[:45]}...'"
+                citation = f"Student answer: '{display_answer}'"
 
             question_results.append({
                 "question_id": q_id,
@@ -378,7 +465,7 @@ def grade_submission(
                 "max_points": max_marks,
                 "feedback": feedback,
                 "evidence_citation": citation,
-                "matched_student_answer": citation,
+                "matched_student_answer": display_answer,
                 "is_objective": True,
                 "criterion_scores": [
                     {
@@ -427,11 +514,14 @@ def grade_submission(
             learning_objective=q.get("tested_key_point_titles", ["Concept"])[0] if q.get("tested_key_point_titles") else "Understand topic",
         )
 
+        target_answer = cleaned_student_ans if cleaned_student_ans else cleaned
+        display_answer = cleaned_student_ans if cleaned_student_ans else cleaned[:250]
+
         try:
             report = engine.grade_exam_question(
                 question=domain_q,
                 rubric=rubric,
-                student_answer=cleaned,
+                student_answer=target_answer,
             )
             score = report.total_score
             total_score += score
@@ -443,7 +533,7 @@ def grade_submission(
                     "score": ev.score_awarded,
                 })
 
-            citation = report.evaluations[0].evidence_citation if report.evaluations else f"Excerpt: '{cleaned[:50]}...'"
+            citation = report.evaluations[0].evidence_citation if report.evaluations else f"Student answer: '{target_answer[:60]}...'"
             question_results.append({
                 "question_id": q_id,
                 "question_text": q_text,
@@ -453,17 +543,17 @@ def grade_submission(
                 "max_points": max_marks,
                 "feedback": report.summary_feedback or "Demonstrates sound conceptual understanding aligned with reference answer.",
                 "evidence_citation": citation,
-                "matched_student_answer": citation,
+                "matched_student_answer": display_answer,
                 "is_objective": False,
                 "criterion_scores": crit_scores,
             })
         except Exception:
             q_words = set(w.lower() for w in q_text.split() if len(w) > 4)
-            sub_words = set(w.lower() for w in cleaned.split() if len(w) > 3)
+            sub_words = set(w.lower() for w in target_answer.split() if len(w) > 3)
             overlap = q_words.intersection(sub_words)
             cov = len(overlap) / max(len(q_words), 1)
 
-            score = round(max_marks * min(1.0, 0.4 + cov * 0.6) if cleaned else 0.0, 2)
+            score = round(max_marks * min(1.0, 0.4 + cov * 0.6) if target_answer else 0.0, 2)
             total_score += score
 
             crit_scores = []
@@ -474,9 +564,7 @@ def grade_submission(
                     "score": round(c_max * (score / max_marks) if max_marks > 0 else 0.0, 2),
                 })
 
-            sentences = [s.strip() for s in cleaned.split(".") if len(s.strip()) > 5]
-            citation = f"Student stated: '{sentences[0]}'" if sentences else "No substantial response provided."
-
+            citation = f"Student stated: '{display_answer[:60]}...'" if display_answer else "No response provided."
             question_results.append({
                 "question_id": q_id,
                 "question_text": q_text,
@@ -486,7 +574,7 @@ def grade_submission(
                 "max_points": max_marks,
                 "feedback": f"Demonstrated grasp of {len(overlap)} core technical concepts with relevant terminology.",
                 "evidence_citation": citation,
-                "matched_student_answer": citation,
+                "matched_student_answer": display_answer,
                 "is_objective": False,
                 "criterion_scores": crit_scores,
             })

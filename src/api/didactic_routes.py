@@ -166,6 +166,10 @@ class ManualSubmissionReq(BaseModel):
     question_scores: Optional[List[ManualQuestionScoreItem]] = None
 
 
+class RegradeQuestionReq(BaseModel):
+    question_id: str
+
+
 class RubricFromQuestionReq(BaseModel):
     question_text: str
     max_marks: float = 10.0
@@ -1461,6 +1465,8 @@ async def grade_student_submission(
             "id": q.id,
             "text": q.text,
             "max_marks": q.max_marks,
+            "student_hint": q.student_hint,
+            "reference_answer": q.student_hint,
             "criteria": [
                 {"description": c.description, "max_points": c.max_points}
                 for c in (q.rubric.criteria if q.rubric else [])
@@ -1587,6 +1593,183 @@ def get_submission_file(
         media_type=media_type,
         headers={"Content-Disposition": f'inline; filename="{display_name}"'},
     )
+
+
+@router.post("/assessments/{assessment_id}/submissions/{submission_id}/regrade")
+@router.post("/submissions/{submission_id}/regrade")
+def regrade_submission(
+    submission_id: Union[int, str],
+    assessment_id: Optional[str] = None,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    """
+    Re-grades a student's submission paper from scratch using fresh AI evaluation,
+    allowing instructors to re-evaluate answers, correct potential hallucinations,
+    and update the gradebook without losing the student's submission record.
+    """
+    sub_id_int = int(submission_id) if str(submission_id).isdigit() else submission_id
+    submission = session.query(Submission).filter(Submission.id == sub_id_int).first()
+    if not submission:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found.")
+
+    assessment = submission.assessment
+    if not assessment:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
+
+    extracted_text = submission.extracted_text or ""
+    if not extracted_text.strip() and submission.pdf_path:
+        storage = get_storage()
+        try:
+            file_bytes = storage.load_file(submission.pdf_path)
+            extraction = extract_document_text(file_bytes, filename=submission.pdf_path)
+            extracted_text = extraction.full_text if hasattr(extraction, "full_text") else str(extraction)
+            submission.extracted_text = extracted_text
+        except Exception as exc:
+            logger.warning(f"Failed to re-extract file: {exc}")
+
+    if not extracted_text.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No readable student submission text available to re-grade.")
+
+    q_payload = []
+    for q in assessment.questions:
+        q_item = {
+            "id": q.id,
+            "text": q.text,
+            "max_marks": q.max_marks,
+            "student_hint": q.student_hint,
+            "reference_answer": q.student_hint,
+            "criteria": [
+                {"description": c.description, "max_points": c.max_points}
+                for c in (q.rubric.criteria if q.rubric else [])
+            ],
+        }
+        q_payload.append(q_item)
+
+    grading_output = ai_grade_submission(q_payload, extracted_text)
+
+    submission.ai_total = grading_output["ai_total"]
+    submission.total_score = grading_output["ai_total"]
+    submission.score = grading_output["ai_total"]
+    submission.status = "graded"
+    submission.graded_at = datetime.now(timezone.utc)
+    submission.question_scores.clear()
+
+    for qr in grading_output.get("question_results", []):
+        target_qid = qr.get("question_id") or (assessment.questions[0].id if assessment.questions else None)
+        if target_qid:
+            sc = SubmissionQuestionScore(
+                submission_id=submission.id,
+                question_id=target_qid,
+                points=qr.get("points_awarded", 0.0),
+                feedback=f"{qr.get('feedback', '')}\n[Matched excerpt: {qr.get('matched_student_answer', '')[:120]}]",
+            )
+            session.add(sc)
+
+    session.commit()
+    session.refresh(submission)
+
+    student = submission.student
+    ext = (submission.pdf_path.rsplit(".", 1)[-1].lower() if submission.pdf_path and "." in submission.pdf_path else "pdf")
+
+    return {
+        "submission_id": str(submission.id),
+        "id": str(submission.id),
+        "student_id": student.id if student else None,
+        "student_number": student.student_number if student else None,
+        "student_name": student.name if student else "Student",
+        "assessment_id": assessment.id,
+        "assessment_title": assessment.title,
+        "file_type": ext,
+        "file_url": f"/api/submissions/{submission.id}/file" if submission.pdf_path else None,
+        "ai_total": submission.ai_total,
+        "total_score": submission.total_score,
+        "max_score": assessment.max_score,
+        "status": submission.status,
+        "summary_feedback": grading_output.get("summary_feedback", ""),
+        "extracted_pdf_text": submission.extracted_text,
+        "extracted_text": submission.extracted_text,
+        "question_results": grading_output.get("question_results", []),
+        "message": "Submission successfully regraded with AI.",
+    }
+
+
+@router.post("/assessments/{assessment_id}/submissions/{submission_id}/regrade-question")
+@router.post("/submissions/{submission_id}/regrade-question")
+def regrade_submission_question(
+    submission_id: Union[int, str],
+    req: RegradeQuestionReq,
+    assessment_id: Optional[str] = None,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    """
+    Re-evaluates a single specific question in a submission against its rubric / answer key,
+    allowing targeted verification and re-calculation when hallucination is suspected.
+    """
+    sub_id_int = int(submission_id) if str(submission_id).isdigit() else submission_id
+    submission = session.query(Submission).filter(Submission.id == sub_id_int).first()
+    if not submission:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found.")
+
+    assessment = submission.assessment
+    target_q = session.query(Question).filter(Question.id == req.question_id).first()
+    if not target_q:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not found.")
+
+    extracted_text = submission.extracted_text or ""
+    if not extracted_text.strip():
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No student answer text recorded.")
+
+    single_payload = [{
+        "id": target_q.id,
+        "text": target_q.text,
+        "max_marks": target_q.max_marks,
+        "student_hint": target_q.student_hint,
+        "reference_answer": target_q.student_hint,
+        "criteria": [
+            {"description": c.description, "max_points": c.max_points}
+            for c in (target_q.rubric.criteria if target_q.rubric else [])
+        ],
+    }]
+
+    single_out = ai_grade_submission(single_payload, extracted_text)
+    new_qr = single_out.get("question_results", [{}])[0]
+    new_points = float(new_qr.get("points_awarded", 0.0))
+
+    existing_sc = (
+        session.query(SubmissionQuestionScore)
+        .filter(SubmissionQuestionScore.submission_id == submission.id, SubmissionQuestionScore.question_id == target_q.id)
+        .first()
+    )
+    if existing_sc:
+        existing_sc.points = new_points
+        existing_sc.feedback = f"{new_qr.get('feedback', '')}\n[Matched excerpt: {new_qr.get('matched_student_answer', '')[:120]}]"
+    else:
+        existing_sc = SubmissionQuestionScore(
+            submission_id=submission.id,
+            question_id=target_q.id,
+            points=new_points,
+            feedback=f"{new_qr.get('feedback', '')}\n[Matched excerpt: {new_qr.get('matched_student_answer', '')[:120]}]",
+        )
+        session.add(existing_sc)
+
+    session.flush()
+
+    all_scores = session.query(SubmissionQuestionScore).filter(SubmissionQuestionScore.submission_id == submission.id).all()
+    submission.total_score = round(sum(s.points for s in all_scores), 2)
+    submission.status = "graded"
+    session.commit()
+    session.refresh(submission)
+
+    return {
+        "submission_id": str(submission.id),
+        "question_id": target_q.id,
+        "total_score": submission.total_score,
+        "status": submission.status,
+        "question_result": new_qr,
+        "message": f"Question {target_q.position + 1 if hasattr(target_q, 'position') else ''} successfully re-evaluated.",
+    }
 
 
 @router.post("/submissions/{submission_id}/confirm")
