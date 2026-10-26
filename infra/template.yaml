@@ -1,0 +1,299 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Didactic AI - Cloud-Native Serverless Academic Teaching Assistant
+  AWS Community Day 2026 Hackathon | AASTU
+  Team: Mavericks | Lead: Eyob Tamiru
+  Architecture: S3 + DynamoDB + Lambda (Python 3.11) + API Gateway + CloudWatch + Bedrock
+
+Parameters:
+  Environment:
+    Type: String
+    Default: prod
+    AllowedValues: [dev, staging, prod]
+    Description: Deployment stage environment.
+
+  BudgetLimitUSD:
+    Type: Number
+    Default: 1.00
+    Description: Monthly maximum budget limit hard-cap in USD for Zero-Cost Free-Tier guarantee.
+
+  NotificationEmail:
+    Type: String
+    Default: eyob.tamiru@aastu.edu.et
+    Description: Alert email recipient for the $1.00 CloudWatch Budget Alarm.
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 1024
+    Runtime: python3.11
+    Tracing: Active
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        STAGE: !Ref Environment
+        S3_UPLOADS_BUCKET: !Ref LectureUploadsBucket
+        DYNAMODB_TABLE: !Ref AssessmentsAndGradesTable
+        AWS_REGION_NAME: !Ref AWS::Region
+        USE_AWS_BEDROCK: "true"
+        BEDROCK_MODEL_ID: "anthropic.claude-3-haiku-20240307-v1:0"
+        POWERTOOLS_SERVICE_NAME: "didactic-ai"
+        LOG_LEVEL: "INFO"
+
+Resources:
+  # =========================================================================
+  # 1. STORAGE LAYER (Amazon S3) - 100% Free Tier (5 GB standard)
+  # =========================================================================
+  LectureUploadsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "didactic-ai-lectures-${AWS::AccountId}-${Environment}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, PUT, POST, HEAD]
+            AllowedOrigins: ["*"]
+            MaxAge: 3600
+
+  # =========================================================================
+  # 2. PERSISTENCE LAYER (Amazon DynamoDB) - 100% Free Tier (25 GB On-Demand)
+  # =========================================================================
+  AssessmentsAndGradesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "didactic-ai-store-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # =========================================================================
+  # 3. API GATEWAY (HTTP API) - 100% Free Tier (1,000,000 calls / month)
+  # =========================================================================
+  DidacticHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      CorsConfiguration:
+        AllowHeaders:
+          - "Content-Type"
+          - "X-Amz-Date"
+          - "Authorization"
+          - "X-Api-Key"
+          - "X-Lecturer-Id"
+        AllowMethods: [GET, POST, PUT, DELETE, OPTIONS]
+        AllowOrigins: ["*"]
+        MaxAge: 600
+
+  # =========================================================================
+  # 4. COMPUTE & AI ENGINE (AWS Lambda) - 100% Free Tier (1M requests / month)
+  # =========================================================================
+  DidacticBackendFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "didactic-ai-backend-${Environment}"
+      CodeUri: ../
+      Handler: src.lambda_handler.handler
+      Description: Core Didactic AI REST API and evaluation inference handler.
+      Policies:
+        # Enforce IAM Least Privilege: restrict S3 to the dedicated uploads bucket
+        - S3CrudPolicy:
+            BucketName: !Ref LectureUploadsBucket
+        # Restrict DynamoDB to the project table
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AssessmentsAndGradesTable
+        # Amazon Bedrock inference policy for Claude 3 Haiku & Titan
+        - Statement:
+            - Sid: BedrockConversePolicy
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource:
+                - "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku*"
+                - "arn:aws:bedrock:*::foundation-model/amazon.titan-embed*"
+            - Sid: CloudWatchTelemetryPolicy
+              Effect: Allow
+              Action:
+                - cloudwatch:PutMetricData
+              Resource: "*"
+      Events:
+        RootEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DidacticHttpApi
+            Path: /
+            Method: GET
+        HealthEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DidacticHttpApi
+            Path: /health
+            Method: GET
+        UploadEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DidacticHttpApi
+            Path: /upload
+            Method: POST
+        GenerateProxyEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DidacticHttpApi
+            Path: /generate/{proxy+}
+            Method: ANY
+        GradeProxyEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DidacticHttpApi
+            Path: /grade/{proxy+}
+            Method: ANY
+        AnalyticsEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DidacticHttpApi
+            Path: /analytics
+            Method: GET
+        ApiCatchAll:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DidacticHttpApi
+            Path: /api/{proxy+}
+            Method: ANY
+
+  # =========================================================================
+  # 5. COST GOVERNANCE & SAFETY (AWS Budget Alarm) - Failsafe Protection
+  # =========================================================================
+  ZeroCostBudgetAlarm:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: "ZeroCost-Hackathon-Budget-Alarm"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit:
+          Amount: !Ref BudgetLimitUSD
+          Unit: USD
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref NotificationEmail
+
+  # =========================================================================
+  # 6. OBSERVABILITY (Amazon CloudWatch Dashboard)
+  # =========================================================================
+  DidacticObservabilityDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "DidacticAI-${Environment}-Telemetry"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "didactic-ai-backend-${Environment}", { "stat": "Sum" } ],
+                  [ ".", "Errors", ".", ".", { "stat": "Sum" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Invocations & Error Rates"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "didactic-ai-backend-${Environment}", { "stat": "Average" } ],
+                  [ "...", { "stat": "p95" } ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Execution Latency (Avg vs p95)"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  HttpApiEndpoint:
+    Description: Live public HTTP API endpoint for judging & frontend connection.
+    Value: !Sub "https://${DidacticHttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+    Export:
+      Name: !Sub "${AWS::StackName}-HttpApiUrl"
+
+  S3UploadsBucketName:
+    Description: S3 bucket name for lecture document storage.
+    Value: !Ref LectureUploadsBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-S3Bucket"
+
+  DynamoDBTableName:
+    Description: DynamoDB table name for rubrics, assessments, and gradebooks.
+    Value: !Ref AssessmentsAndGradesTable
+    Export:
+      Name: !Sub "${AWS::StackName}-DynamoTable"
+
+  SingleCommandTeardown:
+    Description: Verified single-command infrastructure teardown to prevent orphaned resources.
+    Value: !Sub "sam delete --stack-name ${AWS::StackName} --no-prompts"

@@ -297,6 +297,69 @@ class MockLLMProvider(BaseLLMProvider):
         overlap = answer_words.intersection(ref_words)
         coverage_ratio = len(overlap) / max(len(ref_words), 1)
 
+        # Semantic content words (excluding common non-domain stopwords)
+        stopwords = {
+            "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "with",
+            "by", "of", "is", "are", "was", "were", "be", "been", "being", "have", "has",
+            "had", "do", "does", "did", "it", "its", "that", "this", "these", "those",
+            "as", "if", "each", "which", "who", "whom", "what", "when", "where", "why", "how",
+            "all", "any", "both", "can", "could", "will", "would", "should", "from", "into"
+        }
+        # Collect broad domain context from question prompt, ref answer, objective, and rubric
+        context_text = (
+            (question.reference_answer or "") + " " +
+            (question.prompt or "") + " " +
+            (question.learning_objective or "") + " " +
+            " ".join(c.name + " " + c.description for c in rubric.criteria)
+        ).lower()
+        context_words = set(re.findall(r"\w+", context_text))
+
+        meaningful_ans = {w for w in answer_words if len(w) > 2 and w not in stopwords}
+        meaningful_context = {w for w in context_words if len(w) > 2 and w not in stopwords}
+        meaningful_overlap = meaningful_ans.intersection(meaningful_context)
+
+        # Adversarial Guardrails & Edge-Case Protection
+        is_empty = not cleaned_answer
+        is_injection = bool(re.search(
+            r"(?i)\b(?:ignore\s+(?:all\s+)?(?:previous\s+)?(?:instructions?|rules?|prompts?)|override|award\s+(?:full|10/10|maximum|\d+)\s+points?|give\s+me\s+100%|system\s+prompt|jailbreak|disregard\s+the\s+rubric)\b",
+            cleaned_answer
+        ))
+        is_off_topic_or_gibberish = bool(cleaned_answer and len(meaningful_overlap) == 0)
+
+        if is_empty or is_injection or is_off_topic_or_gibberish:
+            if is_injection:
+                reason = "Anomalous input detected (adversarial prompt injection attempt). Submission flagged for academic review and awarded 0 points."
+                citation = "[SECURITY ALERT: Prompt Injection Attempt Flagged]"
+            elif is_empty:
+                reason = "Empty submission. No answers provided against the rubric criteria."
+                citation = "[Empty Submission]"
+            else:
+                reason = "Unintelligible or off-topic submission. No relevant technical content detected."
+                citation = "[Irrelevant / Off-Topic Submission]"
+
+            evals = [
+                CriterionEvaluation(
+                    criterion_name=c.name,
+                    score_awarded=0.0,
+                    max_score=c.max_score,
+                    strengths=[],
+                    gaps=[f"No valid response provided for '{c.name}'."],
+                    evidence_citation=citation,
+                )
+                for c in rubric.criteria
+            ]
+            max_p = sum(c.max_score for c in rubric.criteria)
+            return GradingReport(
+                submission_id=f"SUB-ANOMALY-{abs(hash(student_answer)) % 10000:04d}",
+                student_id="STUDENT-ANOMALOUS",
+                total_score=0.0,
+                max_possible_score=round(max_p, 2),
+                percentage=0.0,
+                summary_feedback=reason,
+                evaluations=evals,
+                areas_to_review=["Review question prompt and submit authentic academic response."],
+            )
+
         # Extract real citation quote from student answer
         sentences = [s.strip() for s in re.split(r"[.!?\n]", cleaned_answer) if s.strip()]
         citation = f"Student wrote: '{sentences[0]}'" if sentences else "No substantial response provided."
@@ -344,10 +407,6 @@ class MockLLMProvider(BaseLLMProvider):
         sub_words = set(re.findall(r"\w+", cleaned_sub.lower()))
         instruct_words = set(re.findall(r"\w+", assignment_instructions.lower()))
 
-        # Extract real excerpt for citation
-        sentences = [s.strip() for s in re.split(r"[.!?\n]", cleaned_sub) if s.strip()]
-        citation = f"Submission excerpt: '{sentences[0]}'" if sentences else "Empty submission."
-
         # Extract key concept targets from instructions and criteria
         instruct_words = set(re.findall(r"\w+", assignment_instructions.lower()))
         crit_words = set(re.findall(r"\w+", " ".join(c.name + " " + c.description for c in rubric.criteria).lower()))
@@ -357,6 +416,55 @@ class MockLLMProvider(BaseLLMProvider):
 
         matched = [w for w in meaningful_targets if w in cleaned_sub.lower()]
         concept_coverage = len(matched) / max(len(meaningful_targets), 1)
+
+        # Adversarial Guardrails & Edge-Case Protection
+        is_empty = not cleaned_sub
+        is_injection = bool(re.search(
+            r"(?i)\b(?:ignore\s+(?:all\s+)?(?:previous\s+)?(?:instructions?|rules?|prompts?)|override|award\s+(?:full|10/10|maximum|\d+)\s+points?|give\s+me\s+100%|system\s+prompt|jailbreak|disregard\s+the\s+rubric)\b",
+            cleaned_sub
+        ))
+        is_gibberish = bool(
+            cleaned_sub and len(cleaned_sub) >= 8 and len(matched) == 0 and
+            not any(w in cleaned_sub.lower() for w in ["the", "is", "and", "in", "to", "of", "a", "process", "system", "algorithm", "data"])
+        )
+
+        if is_empty or is_injection or is_gibberish:
+            if is_injection:
+                reason = "Anomalous input detected (adversarial prompt injection attempt). Submission flagged for academic review and awarded 0 points."
+                citation = "[SECURITY ALERT: Prompt Injection Attempt Flagged]"
+            elif is_empty:
+                reason = "Empty submission. No answers provided against the rubric criteria."
+                citation = "[Empty Submission]"
+            else:
+                reason = "Unintelligible / off-topic submission. No relevant technical content detected."
+                citation = "[Unintelligible Text Excerpt]"
+
+            evals = [
+                CriterionEvaluation(
+                    criterion_name=c.name,
+                    score_awarded=0.0,
+                    max_score=c.max_score,
+                    strengths=[],
+                    gaps=[f"No valid response provided for '{c.name}'."],
+                    evidence_citation=citation,
+                )
+                for c in rubric.criteria
+            ]
+            max_p = sum(c.max_score for c in rubric.criteria)
+            return GradingReport(
+                submission_id=f"SUB-ANOMALY-{abs(hash(student_submission)) % 10000:04d}",
+                student_id="STUDENT-ANOMALOUS",
+                total_score=0.0,
+                max_possible_score=round(max_p, 2),
+                percentage=0.0,
+                summary_feedback=reason,
+                evaluations=evals,
+                areas_to_review=["Review assignment instructions and resubmit authentic coursework."],
+            )
+
+        # Extract real excerpt for citation
+        sentences = [s.strip() for s in re.split(r"[.!?\n]", cleaned_sub) if s.strip()]
+        citation = f"Submission excerpt: '{sentences[0]}'" if sentences else "Empty submission."
 
         evaluations: List[CriterionEvaluation] = []
         total_awarded = 0.0
