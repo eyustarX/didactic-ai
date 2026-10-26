@@ -60,15 +60,23 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
             position: 'absolute',
             top: 16,
             right: 16,
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--text-muted)',
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--surface-alt)',
+            border: '1px solid var(--border)',
+            color: 'var(--text)',
             cursor: 'pointer',
-            padding: 4,
+            padding: 0,
+            transition: 'all 0.18s ease',
           }}
           title="Close"
+          aria-label="Close"
         >
-          <X size={18} />
+          <X size={22} strokeWidth={2.4} />
         </button>
 
         {/* Modal Header */}

@@ -33,6 +33,7 @@ export default function Sidebar({
   onGoToLanding,
   currentUser,
   onOpenAuth,
+  onOpenProfile,
   onSignOut,
   chatSessions = [],
   activeChatSessionId = null,
@@ -210,7 +211,7 @@ export default function Sidebar({
               isOpen={isProfileMenuOpen}
               onClose={() => setIsProfileMenuOpen(false)}
               currentUser={currentUser}
-              onOpenProfile={onOpenAuth}
+              onOpenProfile={onOpenProfile || onOpenAuth}
               onSignOut={onSignOut}
               theme={theme}
               themeMode={themeMode}

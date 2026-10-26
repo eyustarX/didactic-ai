@@ -18,6 +18,7 @@ export default function Header({
   setCollapsed,
   currentUser,
   onOpenAuth,
+  onOpenProfile,
   onSignOut,
   theme = 'dark',
   themeMode = 'dark',
@@ -61,7 +62,7 @@ export default function Header({
               isOpen={isProfileMenuOpen}
               onClose={() => setIsProfileMenuOpen(false)}
               currentUser={currentUser}
-              onOpenProfile={onOpenAuth}
+              onOpenProfile={onOpenProfile || onOpenAuth}
               onSignOut={onSignOut}
               theme={theme}
               themeMode={themeMode}

@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ExcelJS from 'exceljs';
+import ProfileMenu from '../components/ProfileMenu';
 import {
   Zap,
   ArrowRight,
@@ -13,8 +14,6 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   Sparkles,
-  Sun,
-  Moon,
 } from 'lucide-react';
 
 const GitHubIcon = ({ size = 16, ...props }) => (
@@ -38,9 +37,14 @@ export default function LandingPage({
   onEnterApp,
   currentUser,
   onOpenAuth,
+  onOpenProfile,
+  onSignOut,
   theme = 'dark',
+  themeMode = 'dark',
+  onSelectThemeMode,
   onToggleTheme,
 }) {
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const bloomContainerRef = useRef(null);
   const rubricBodyRef = useRef(null);
   const feedbackContainerRef = useRef(null);
@@ -268,33 +272,48 @@ export default function LandingPage({
             Audit & Export
           </a>
 
-          {/* Theme Toggle Button */}
-          {onToggleTheme && (
-            <button
-              type="button"
-              onClick={onToggleTheme}
-              className="btn btn-secondary btn-sm"
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-              style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              {theme === 'dark' ? (
-                <Sun size={14} style={{ color: 'var(--accent)' }} />
-              ) : (
-                <Moon size={14} style={{ color: 'var(--accent)' }} />
-              )}
-            </button>
-          )}
-
           {/* User Sign In / Profile Button */}
           {currentUser ? (
-            <button
-              onClick={onOpenAuth}
-              className="btn btn-secondary btn-sm"
-              title="Instructor Profile"
-            >
-              <User size={13} style={{ color: 'var(--accent)' }} />
-              <span>{currentUser.name}</span>
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+                className="btn btn-secondary btn-sm"
+                title="Instructor Profile Menu"
+                style={{ display: 'flex', alignItems: 'center', gap: 7 }}
+              >
+                <div
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: '50%',
+                    background: 'var(--accent)',
+                    color: 'var(--on-accent)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    fontSize: '0.68rem',
+                  }}
+                >
+                  {currentUser.name ? currentUser.name.trim().slice(0, 1).toUpperCase() : 'U'}
+                </div>
+                <span>{currentUser.name}</span>
+              </button>
+
+              <ProfileMenu
+                isOpen={isProfileMenuOpen}
+                onClose={() => setIsProfileMenuOpen(false)}
+                currentUser={currentUser}
+                onOpenProfile={onOpenProfile}
+                onSignOut={onSignOut}
+                theme={theme}
+                themeMode={themeMode}
+                onSelectThemeMode={onSelectThemeMode}
+                onToggleTheme={onToggleTheme}
+                position="header"
+              />
+            </div>
           ) : (
             <button onClick={onOpenAuth} className="btn btn-secondary btn-sm">
               <LogIn size={13} />

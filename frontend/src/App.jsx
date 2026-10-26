@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import AuthModal from './components/AuthModal';
+import InstructorProfileModal from './components/InstructorProfileModal';
 import LandingPage from './pages/LandingPage';
 import OverviewTab from './pages/OverviewTab';
 import CurriculumTab from './pages/CurriculumTab';
@@ -105,6 +106,16 @@ export default function App() {
     }
   });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
+  const handleSaveProfile = (updatedUser) => {
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem('didactic_user', JSON.stringify(updatedUser));
+    } catch (e) {
+      console.warn('Failed to persist user profile:', e);
+    }
+  };
 
   // Shared workflow state
   const [activeNoteId, setActiveNoteId] = useState(null);
@@ -240,7 +251,11 @@ export default function App() {
           onEnterApp={handleEnterWorkspace}
           currentUser={currentUser}
           onOpenAuth={() => setIsAuthOpen(true)}
+          onOpenProfile={() => setIsProfileOpen(true)}
+          onSignOut={handleSignOut}
           theme={theme}
+          themeMode={themeMode}
+          onSelectThemeMode={handleSelectThemeMode}
           onToggleTheme={toggleTheme}
         />
         <AuthModal
@@ -251,6 +266,12 @@ export default function App() {
             setCurrentUser(user);
             setView('app');
           }}
+        />
+        <InstructorProfileModal
+          isOpen={isProfileOpen}
+          onClose={() => setIsProfileOpen(false)}
+          currentUser={currentUser}
+          onSave={handleSaveProfile}
         />
       </>
     );
@@ -267,6 +288,7 @@ export default function App() {
         onGoToLanding={() => setView('landing')}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenProfile={() => setIsProfileOpen(true)}
         onSignOut={handleSignOut}
         chatSessions={chatSessions}
         activeChatSessionId={activeChatSessionId}
@@ -288,6 +310,7 @@ export default function App() {
             setCollapsed={setCollapsed}
             currentUser={currentUser}
             onOpenAuth={() => setIsAuthOpen(true)}
+            onOpenProfile={() => setIsProfileOpen(true)}
             onSignOut={handleSignOut}
             theme={theme}
             themeMode={themeMode}
@@ -373,6 +396,13 @@ export default function App() {
         onClose={() => setIsAuthOpen(false)}
         currentUser={currentUser}
         onAuthSuccess={(user) => setCurrentUser(user)}
+      />
+
+      <InstructorProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        currentUser={currentUser}
+        onSave={handleSaveProfile}
       />
     </div>
   );
