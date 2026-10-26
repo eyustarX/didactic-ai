@@ -19,6 +19,82 @@ export default function App() {
     return typeof window !== 'undefined' && window.innerWidth <= 860;
   });
 
+  // Theme Mode ('dark' | 'light' | 'system') - defaults to 'dark'
+  const [themeMode, setThemeMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('didactic_theme_mode');
+      return saved || 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+
+  // Effective resolved theme ('dark' | 'light')
+  const [theme, setTheme] = useState(() => {
+    try {
+      const savedMode = localStorage.getItem('didactic_theme_mode') || 'dark';
+      if (savedMode === 'system') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      return savedMode;
+    } catch {
+      return 'dark';
+    }
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const resolveAndApply = () => {
+      const resolved =
+        themeMode === 'system'
+          ? mediaQuery.matches
+            ? 'dark'
+            : 'light'
+          : themeMode;
+
+      setTheme(resolved);
+      document.documentElement.setAttribute('data-theme', resolved);
+
+      try {
+        localStorage.setItem('didactic_theme_mode', themeMode);
+        localStorage.setItem('didactic_theme', resolved);
+      } catch {}
+    };
+
+    resolveAndApply();
+
+    const handleSystemChange = (e) => {
+      if (themeMode === 'system') {
+        const newResolved = e.matches ? 'dark' : 'light';
+        setTheme(newResolved);
+        document.documentElement.setAttribute('data-theme', newResolved);
+        try {
+          localStorage.setItem('didactic_theme', newResolved);
+        } catch {}
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleSystemChange);
+    return () => mediaQuery.removeEventListener('change', handleSystemChange);
+  }, [themeMode]);
+
+  const toggleTheme = () => {
+    setThemeMode((prev) => {
+      const currentResolved =
+        prev === 'system'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+          : prev;
+      return currentResolved === 'dark' ? 'light' : 'dark';
+    });
+  };
+
+  const handleSelectThemeMode = (mode) => {
+    setThemeMode(mode);
+  };
+
   // User Authentication State (defaults to cached user or unauthenticated)
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -164,6 +240,8 @@ export default function App() {
           onEnterApp={handleEnterWorkspace}
           currentUser={currentUser}
           onOpenAuth={() => setIsAuthOpen(true)}
+          theme={theme}
+          onToggleTheme={toggleTheme}
         />
         <AuthModal
           isOpen={isAuthOpen}
@@ -195,6 +273,10 @@ export default function App() {
         onNewChat={handleNewChat}
         onSelectChatSession={handleSelectChatSession}
         onDeleteChatSession={handleDeleteChatSession}
+        theme={theme}
+        themeMode={themeMode}
+        onSelectThemeMode={handleSelectThemeMode}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Main Content Area */}
@@ -207,6 +289,10 @@ export default function App() {
             currentUser={currentUser}
             onOpenAuth={() => setIsAuthOpen(true)}
             onSignOut={handleSignOut}
+            theme={theme}
+            themeMode={themeMode}
+            onSelectThemeMode={handleSelectThemeMode}
+            onToggleTheme={toggleTheme}
           />
         )}
 
@@ -249,6 +335,8 @@ export default function App() {
               onChatSessionsChange={loadChatSessions}
               sidebarCollapsed={collapsed}
               setSidebarCollapsed={setCollapsed}
+              theme={theme}
+              onToggleTheme={toggleTheme}
             />
           )}
 

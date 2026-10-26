@@ -31,6 +31,8 @@ import {
   Maximize2,
   ChevronRight,
   SlidersHorizontal,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import {
   fetchAssessments,
@@ -67,6 +69,8 @@ export default function AssessmentTab({
   onChatSessionsChange,
   sidebarCollapsed,
   setSidebarCollapsed,
+  theme = 'dark',
+  onToggleTheme,
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -676,6 +680,40 @@ export default function AssessmentTab({
 
   return (
     <div style={{ position: 'relative', width: '100%', minHeight: '80vh' }}>
+
+      {/* Hero Top Bar Controls when Sidebar is Collapsed */}
+      {isHeroView && sidebarCollapsed && setSidebarCollapsed && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            width: '100%',
+            maxWidth: 820,
+            margin: '0 auto 10px auto',
+            padding: '4px 12px',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(false)}
+            className="btn btn-ghost btn-sm"
+            style={{
+              height: 28,
+              padding: '0 8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              color: 'var(--text-muted)',
+              fontSize: '0.76rem',
+            }}
+            title="Open sidebar"
+          >
+            <PanelLeftOpen size={16} />
+            <span>Sidebar</span>
+          </button>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 1. INITIAL / HERO CENTERED CHATGPT-STYLE INTERFACE                        */}

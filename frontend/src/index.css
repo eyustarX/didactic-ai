@@ -1,46 +1,62 @@
-/* tars.pro Design Kit (v1) Tokens & Reset */
-:root {
+/* Didactic AI Brand Design System (Midnight Navy & Teal Palette)
+   Palette Foundation:
+   - Midnight Navy: #0B1220 (Dark backgrounds and brand foundation)
+   - Deep Teal:     #14B8A6 (Primary brand accent and light-theme buttons)
+   - Bright Teal:   #5EEAD4 (Dark-theme buttons and highlights)
+   - Pale Mint:     #ECFDF5 (Light-theme AI insight backgrounds)
+   - Cloud White:   #F8FAFC (Light-theme page and card surfaces)
+*/
+
+:root,
+[data-theme="light"] {
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* tars.pro Monochrome Light Palette */
-  --bg: #ffffff;
-  --surface: #f4f4f4;
-  --surface-muted: #fafafa;
-  --surface-alt: #ebebeb;
-  --border: #e6e6e6;
-  --border-subtle: #f0f0f0;
+  /* Cloud White & Soft Surfaces */
+  --bg: #F8FAFC;
+  --surface: #FFFFFF;
+  --surface-muted: #F1F5F9;
+  --surface-alt: #E2E8F0;
+  --surface-hover: #EDF2F7;
+  --border: #E2E8F0;
+  --border-subtle: #EDF2F7;
 
-  --text: #000000;
-  --text-muted: #6e6e6e;
-  --text-subtle: #8e8e8e;
+  /* Midnight Navy Foundation for Crisp Typography */
+  --text: #0B1220;
+  --text-muted: #64748B;
+  --text-subtle: #94A3B8;
 
-  /* tars.pro Neutral Contrast Accent (#232323) */
-  --accent: #232323;
-  --accent-hover: #000000;
-  --on-accent: #ffffff;
+  /* Deep Teal: Primary brand accent and light-theme buttons */
+  --accent: #14B8A6;
+  --accent-hover: #0D9488;
+  --accent-active: #0F766E;
+  --accent-light: #5EEAD4;
+  --accent-subtle: #ECFDF5;
+  --on-accent: #FFFFFF;
 
-  --success: #232323;
-  --success-bg: #f4f4f4;
-  --warning: #b45309;
-  --warning-bg: #fef3c7;
-  --danger: #b91c1c;
-  --danger-bg: #fee2e2;
+  /* Pale Mint: Light-theme AI insight backgrounds */
+  --ai-insight-bg: #ECFDF5;
+  --ai-insight-border: #A7F3D0;
+  --ai-insight-text: #065F46;
 
-  /* tars.pro 16px Corners Hierarchy */
+  --success: #10B981;
+  --success-bg: #ECFDF5;
+  --warning: #F59E0B;
+  --warning-bg: #FEF3C7;
+  --danger: #EF4444;
+  --danger-bg: #FEE2E2;
+
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-full: 9999px;
 
-  /* tars.pro Soft Neutral Measured Depth */
   --shadow-hairline: 0 0 0 1px var(--border);
-  --shadow-sm: rgba(0, 0, 0, 0.06) 0px 1px 3px 0px;
-  --shadow-card: rgba(0, 0, 0, 0.08) 0px 3px 6px 0px, rgba(0, 0, 0, 0.04) 0px 7px 14px -4px;
-  --shadow-pop: rgba(0, 0, 0, 0.1) 0px 3px 4px 0px, rgba(0, 0, 0, 0.1) 0px 7px 12px -14px;
+  --shadow-sm: rgba(11, 18, 32, 0.05) 0px 1px 3px 0px;
+  --shadow-card: rgba(11, 18, 32, 0.06) 0px 3px 6px 0px, rgba(11, 18, 32, 0.04) 0px 7px 14px -4px;
+  --shadow-pop: rgba(11, 18, 32, 0.1) 0px 4px 12px 0px;
 
-  /* Spacing on the 4px Grid */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -50,6 +66,56 @@
   --space-7: 48px;
 
   --transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  color-scheme: light;
+}
+
+/* Dark Theme: Midnight Navy Foundation & Bright Teal Highlights */
+:root[data-theme="dark"],
+[data-theme="dark"],
+body.dark-theme {
+  /* Midnight Navy: Dark backgrounds and brand foundation */
+  --bg: #0B1220;
+  --surface: #111C30;
+  --surface-muted: #0E1729;
+  --surface-alt: #16243D;
+  --surface-hover: #1A2B49;
+  --border: #1E2D4A;
+  --border-subtle: #152238;
+
+  /* Cloud White & Slate for Clean Dark Contrast */
+  --text: #F8FAFC;
+  --text-muted: #94A3B8;
+  --text-subtle: #64748B;
+
+  /* Bright Teal: Dark-theme buttons and highlights */
+  --accent: #5EEAD4;
+  --accent-hover: #2DD4BF;
+  --accent-active: #14B8A6;
+  --accent-light: #99F6E4;
+  --accent-subtle: rgba(94, 234, 212, 0.12);
+  --on-accent: #0B1220;   /* High-contrast Midnight Navy text on Bright Teal */
+
+  /* Deep Teal Secondary Accent */
+  --accent-deep: #14B8A6;
+
+  /* AI Insight & Highlight glow */
+  --ai-insight-bg: rgba(20, 184, 166, 0.12);
+  --ai-insight-border: rgba(94, 234, 212, 0.28);
+  --ai-insight-text: #5EEAD4;
+
+  --success: #5EEAD4;
+  --success-bg: rgba(94, 234, 212, 0.12);
+  --warning: #FBBF24;
+  --warning-bg: rgba(251, 191, 36, 0.12);
+  --danger: #F87171;
+  --danger-bg: rgba(248, 113, 113, 0.12);
+
+  --shadow-hairline: 0 0 0 1px var(--border);
+  --shadow-sm: rgba(0, 0, 0, 0.45) 0px 2px 4px 0px;
+  --shadow-card: rgba(0, 0, 0, 0.55) 0px 4px 16px 0px, 0 0 0 1px rgba(94, 234, 212, 0.05);
+  --shadow-pop: rgba(0, 0, 0, 0.7) 0px 8px 24px 0px, 0 0 0 1px rgba(94, 234, 212, 0.1);
+
+  color-scheme: dark;
 }
 
 * {
@@ -76,11 +142,11 @@ body {
   background: var(--surface-muted);
 }
 ::-webkit-scrollbar-thumb {
-  background: #d4d2cc;
+  background: var(--border);
   border-radius: var(--radius-sm);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #b8b6af;
+  background: var(--accent);
 }
 
 /* App Layout */
@@ -454,9 +520,10 @@ body {
 }
 
 .badge-accent {
-  background: #232323;
-  color: #ffffff;
-  border-color: #232323;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+  font-weight: 600;
 }
 
 .badge-outline {
@@ -530,9 +597,9 @@ body {
 }
 
 .stat-icon-accent {
-  background: #232323;
-  color: #ffffff;
-  border-color: #232323;
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
 }
 
 .stat-label {
@@ -771,7 +838,7 @@ body {
 .landing-nav {
   height: 74px;
   border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--bg);
   backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
@@ -1938,3 +2005,137 @@ body {
   transform: scale(1.08);
   filter: brightness(1.1);
 }
+
+/* =========================================================================
+   Theme Toggle Components & Utilities
+   ========================================================================= */
+
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--surface-alt);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 10px rgba(94, 234, 212, 0.2);
+}
+
+.sidebar-theme-toggle-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-bottom: 8px;
+}
+
+.sidebar-theme-toggle-btn:hover {
+  background: var(--surface-alt);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.sidebar-theme-toggle-btn .theme-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Collapsed sidebar theme toggle */
+.sidebar.collapsed .sidebar-theme-toggle-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.sidebar.collapsed .sidebar-theme-toggle-btn .sidebar-theme-text {
+  display: none !important;
+}
+
+/* Dark mode specific subtle glows */
+[data-theme="dark"] .cartesia-card {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(94, 234, 212, 0.06);
+}
+
+[data-theme="dark"] .sidebar-new-chat-btn:hover {
+  box-shadow: 0 0 12px rgba(94, 234, 212, 0.2);
+}
+
+[data-theme="dark"] .nav-item.active {
+  box-shadow: 0 0 12px rgba(94, 234, 212, 0.12);
+  border-color: rgba(94, 234, 212, 0.3);
+}
+
+/* =========================================================================
+   Profile Popover Menu (ChatGPT style popover)
+   ========================================================================= */
+
+.profile-popover-menu {
+  transform-origin: bottom center;
+}
+
+@keyframes profileMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.profile-menu-item:hover {
+  background: var(--surface-alt) !important;
+  color: var(--text) !important;
+}
+
+.profile-menu-item:hover svg {
+  color: var(--text) !important;
+}
+
+.profile-menu-appearance-row:hover {
+  background: transparent !important;
+}
+
+.profile-menu-signout:hover {
+  background: var(--danger-bg) !important;
+  color: var(--danger) !important;
+}
+
+.profile-menu-signout:hover svg {
+  color: var(--danger) !important;
+}
+
+.profile-theme-pill-btn:hover {
+  color: var(--text) !important;
+}
+
+.profile-theme-pill-btn.active {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+}
+
+

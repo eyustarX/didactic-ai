@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import ProfileMenu from './ProfileMenu';
 import {
   FileCheck,
   GraduationCap,
@@ -14,6 +15,8 @@ import {
   MessageSquare,
   History,
   Trash2,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -36,7 +39,12 @@ export default function Sidebar({
   onNewChat,
   onSelectChatSession,
   onDeleteChatSession,
+  theme = 'dark',
+  themeMode = 'dark',
+  onSelectThemeMode,
+  onToggleTheme,
 }) {
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const handleNavClick = (id) => {
     setActiveTab(id);
     if (window.innerWidth <= 860) {
@@ -196,11 +204,28 @@ export default function Sidebar({
           </div>
 
           {/* Lower Sidebar Profile Section */}
-          <div className="sidebar-profile-section">
+          <div className="sidebar-profile-section" style={{ position: 'relative' }}>
+            {/* Popover Profile Menu */}
+            <ProfileMenu
+              isOpen={isProfileMenuOpen}
+              onClose={() => setIsProfileMenuOpen(false)}
+              currentUser={currentUser}
+              onOpenProfile={onOpenAuth}
+              onSignOut={onSignOut}
+              theme={theme}
+              themeMode={themeMode}
+              onSelectThemeMode={onSelectThemeMode}
+              onToggleTheme={onToggleTheme}
+              position={collapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}
+            />
+
             {currentUser ? (
               <div
                 className="sidebar-profile-card"
-                onClick={onOpenAuth}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsProfileMenuOpen((prev) => !prev);
+                }}
                 title={`${currentUser.name} (${currentUser.role || 'Instructor'})`}
               >
                 <div className="sidebar-profile-avatar-wrap">

@@ -13,6 +13,8 @@ import {
   FileSpreadsheet,
   CheckCircle2,
   Sparkles,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 const GitHubIcon = ({ size = 16, ...props }) => (
@@ -32,7 +34,13 @@ const GitHubIcon = ({ size = 16, ...props }) => (
   </svg>
 );
 
-export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
+export default function LandingPage({
+  onEnterApp,
+  currentUser,
+  onOpenAuth,
+  theme = 'dark',
+  onToggleTheme,
+}) {
   const bloomContainerRef = useRef(null);
   const rubricBodyRef = useRef(null);
   const feedbackContainerRef = useRef(null);
@@ -259,6 +267,23 @@ export default function LandingPage({ onEnterApp, currentUser, onOpenAuth }) {
           >
             Audit & Export
           </a>
+
+          {/* Theme Toggle Button */}
+          {onToggleTheme && (
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              className="btn btn-secondary btn-sm"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{ padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              {theme === 'dark' ? (
+                <Sun size={14} style={{ color: 'var(--accent)' }} />
+              ) : (
+                <Moon size={14} style={{ color: 'var(--accent)' }} />
+              )}
+            </button>
+          )}
 
           {/* User Sign In / Profile Button */}
           {currentUser ? (

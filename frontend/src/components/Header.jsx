@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Menu, PanelLeftOpen, User, LogOut, LogIn } from 'lucide-react';
+import ProfileMenu from './ProfileMenu';
 
 const TAB_TITLES = {
   overview: 'Platform overview',
@@ -18,7 +19,12 @@ export default function Header({
   currentUser,
   onOpenAuth,
   onSignOut,
+  theme = 'dark',
+  themeMode = 'dark',
+  onSelectThemeMode,
+  onToggleTheme,
 }) {
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   return (
     <header className="top-header">
       <div className="header-left">
@@ -47,10 +53,25 @@ export default function Header({
         <h2 className="page-title">{TAB_TITLES[activeTab] || 'Didactic AI'}</h2>
       </div>
 
-      <div className="header-right">
+      <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {currentUser ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+            {/* Popover Profile Menu */}
+            <ProfileMenu
+              isOpen={isProfileMenuOpen}
+              onClose={() => setIsProfileMenuOpen(false)}
+              currentUser={currentUser}
+              onOpenProfile={onOpenAuth}
+              onSignOut={onSignOut}
+              theme={theme}
+              themeMode={themeMode}
+              onSelectThemeMode={onSelectThemeMode}
+              onToggleTheme={onToggleTheme}
+              position="header"
+            />
+
             <div
+              onClick={() => setIsProfileMenuOpen((prev) => !prev)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -60,7 +81,10 @@ export default function Header({
                 padding: '4px 10px',
                 borderRadius: 'var(--radius-full)',
                 fontSize: '0.8rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
               }}
+              title="Open profile menu"
             >
               <div
                 style={{
@@ -68,7 +92,7 @@ export default function Header({
                   height: 22,
                   borderRadius: '50%',
                   background: 'var(--accent)',
-                  color: '#fff',
+                  color: 'var(--on-accent)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
