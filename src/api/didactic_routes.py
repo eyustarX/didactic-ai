@@ -1890,10 +1890,15 @@ def create_manual_submission(
     if not assessment:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
 
+    sec_val = (req.section or assessment.section or "Section A").strip()
+    year_val = (req.academic_year or assessment.academic_year or "2026").strip()
+    course_val = (req.course_name or assessment.course_name or "General Course").strip()
+    cat_val = (req.assessment_category or assessment.assessment_category or "midterm").strip()
+
     student_num = (req.student_number or f"STU-{uuid.uuid4().hex[:6].upper()}").strip()
     student = (
         session.query(Student)
-        .filter(Student.student_number == student_num)
+        .filter(Student.student_number == student_num, Student.lecturer_id == lecturer_id)
         .first()
     )
     if not student:
@@ -1901,8 +1906,21 @@ def create_manual_submission(
             lecturer_id=assessment.lecturer_id or lecturer_id,
             student_number=student_num,
             name=req.student_name.strip(),
+            section=sec_val,
+            academic_year=year_val,
+            course_name=course_val,
         )
         session.add(student)
+        session.flush()
+    else:
+        if req.student_name and student.name != req.student_name.strip():
+            student.name = req.student_name.strip()
+        if req.section:
+            student.section = sec_val
+        if req.academic_year:
+            student.academic_year = year_val
+        if req.course_name:
+            student.course_name = course_val
         session.flush()
 
     calculated_total = 0.0
@@ -1923,6 +1941,10 @@ def create_manual_submission(
         submission.total_score = calculated_total
         submission.score = calculated_total
         submission.status = "confirmed"
+        submission.section = sec_val
+        submission.academic_year = year_val
+        submission.course_name = course_val
+        submission.assessment_category = cat_val
         submission.graded_at = datetime.now(timezone.utc)
         submission.question_scores.clear()
     else:
@@ -1934,6 +1956,10 @@ def create_manual_submission(
             total_score=calculated_total,
             score=calculated_total,
             max_score=assessment.max_score,
+            section=sec_val,
+            academic_year=year_val,
+            course_name=course_val,
+            assessment_category=cat_val,
             status="confirmed",
             graded_at=datetime.now(timezone.utc),
         )
@@ -1998,8 +2024,254 @@ def create_manual_submission(
         "max_score": assessment.max_score,
         "percentage": pct,
         "status": submission.status,
+        "section": submission.section,
+        "academic_year": submission.academic_year,
+        "course_name": submission.course_name,
+        "assessment_category": submission.assessment_category,
         "summary_feedback": req.summary_feedback or f"Overall score: {submission.total_score}/{assessment.max_score} recorded by instructor.",
         "question_results": q_results,
+    }
+
+
+@router.patch("/assessments/{assessment_id}/settings")
+@router.post("/assessments/{assessment_id}/settings")
+def update_assessment_settings(
+    assessment_id: str,
+    req: AssessmentSettingsReq,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    """Updates course, section, academic year, category, and weight settings for an assessment."""
+    assessment = (
+        session.query(Assessment)
+        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
+        .first()
+    )
+    if not assessment:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
+
+    if req.title is not None and req.title.strip():
+        assessment.title = req.title.strip()
+    if req.course_name is not None and req.course_name.strip():
+        assessment.course_name = req.course_name.strip()
+    if req.section is not None and req.section.strip():
+        assessment.section = req.section.strip()
+    if req.academic_year is not None and req.academic_year.strip():
+        assessment.academic_year = req.academic_year.strip()
+    if req.assessment_category is not None and req.assessment_category.strip():
+        assessment.assessment_category = req.assessment_category.strip().lower()
+    if req.weight_pct is not None:
+        assessment.weight_pct = float(req.weight_pct)
+
+    session.commit()
+    session.refresh(assessment)
+
+    return {
+        "assessment_id": assessment.id,
+        "title": assessment.title,
+        "course_name": assessment.course_name,
+        "section": assessment.section,
+        "academic_year": assessment.academic_year,
+        "assessment_category": assessment.assessment_category,
+        "weight_pct": assessment.weight_pct,
+    }
+
+
+@router.get("/courses/master-gradebook")
+def get_master_course_gradebook(
+    course_name: Optional[str] = Query(None),
+    section: Optional[str] = Query(None),
+    academic_year: Optional[str] = Query(None),
+    assessment_id: Optional[str] = Query(None),
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    """
+    Returns the comprehensive Master Course Gradebook aggregating all student scores
+    across multiple assessments (Midterm, Quiz, Assignment, Final) in a course,
+    with section filtering, weighted course percentages, and cumulative Grade Tiers.
+    """
+    active_assessment = None
+    if assessment_id:
+        active_assessment = session.query(Assessment).filter(Assessment.id == assessment_id).first()
+
+    resolved_course = course_name
+    if not resolved_course or not resolved_course.strip():
+        if active_assessment and active_assessment.course_name:
+            resolved_course = active_assessment.course_name
+        else:
+            resolved_course = "General Course"
+    resolved_course = resolved_course.strip()
+
+    # Find all available courses and sections for this lecturer
+    all_assessments_lecturer = (
+        session.query(Assessment)
+        .filter(Assessment.lecturer_id == lecturer_id)
+        .all()
+    )
+    available_courses = sorted(list(set(
+        a.course_name for a in all_assessments_lecturer if a.course_name
+    )))
+    if resolved_course not in available_courses and resolved_course != "All":
+        available_courses.insert(0, resolved_course)
+
+    all_students_lecturer = (
+        session.query(Student)
+        .filter(Student.lecturer_id == lecturer_id)
+        .all()
+    )
+    available_sections = sorted(list(set(
+        s.section for s in all_students_lecturer if s.section
+    )))
+    if not available_sections:
+        available_sections = ["Section A", "Section B"]
+    if "Section A" not in available_sections:
+        available_sections.insert(0, "Section A")
+
+    # Match assessments for this course
+    matching_query = session.query(Assessment).filter(Assessment.lecturer_id == lecturer_id)
+    if resolved_course != "All":
+        matching_query = matching_query.filter(
+            (Assessment.course_name == resolved_course) | (Assessment.title.ilike(f"%{resolved_course}%"))
+        )
+    course_assessments = matching_query.order_by(Assessment.created_at.asc()).all()
+    if not course_assessments and active_assessment:
+        course_assessments = [active_assessment]
+
+    assessments_meta = []
+    assessment_ids = [a.id for a in course_assessments]
+    for a in course_assessments:
+        assessments_meta.append({
+            "id": a.id,
+            "title": a.title,
+            "category": a.assessment_category or "midterm",
+            "max_score": a.max_score or 100.0,
+            "weight_pct": a.weight_pct if a.weight_pct is not None else 25.0,
+        })
+
+    # Retrieve submissions
+    submissions_query = (
+        session.query(Submission)
+        .filter(Submission.assessment_id.in_(assessment_ids))
+    )
+    all_subs = submissions_query.all()
+
+    students_dict = {}
+    for sub in all_subs:
+        stu = sub.student
+        if not stu:
+            continue
+
+        stu_sec = sub.section or stu.section or "Section A"
+        stu_year = sub.academic_year or stu.academic_year or "2026"
+
+        if section and section != "All" and stu_sec != section:
+            continue
+        if academic_year and academic_year != "All" and stu_year != academic_year:
+            continue
+
+        if stu.id not in students_dict:
+            students_dict[stu.id] = {
+                "student_id": stu.id,
+                "student_number": stu.student_number,
+                "student_name": stu.name,
+                "section": stu_sec,
+                "academic_year": stu_year,
+                "course_name": sub.course_name or stu.course_name or resolved_course,
+                "scores": {},
+                "percentages": {},
+                "statuses": {},
+            }
+
+        score_val = sub.total_score if sub.total_score is not None else sub.ai_total
+        students_dict[stu.id]["scores"][sub.assessment_id] = score_val
+        students_dict[stu.id]["statuses"][sub.assessment_id] = sub.status
+        max_s = sub.max_score or (sub.assessment.max_score if sub.assessment else 100.0) or 100.0
+        students_dict[stu.id]["percentages"][sub.assessment_id] = round((score_val / max_s) * 100, 1) if max_s > 0 else 0.0
+
+    # Compute weighted scores & Final Grade Tier
+    students_list = []
+    for stu_id, stu_data in students_dict.items():
+        total_weight_taken = 0.0
+        weighted_sum = 0.0
+        raw_total_points = 0.0
+        total_possible_points = 0.0
+
+        for a in course_assessments:
+            max_s = a.max_score or 100.0
+            total_possible_points += max_s
+            weight = a.weight_pct if a.weight_pct is not None else 25.0
+
+            if a.id in stu_data["scores"]:
+                score = stu_data["scores"][a.id]
+                raw_total_points += score
+                total_weight_taken += weight
+                weighted_sum += (score / max_s) * weight
+
+        if total_weight_taken > 0:
+            course_pct = round((weighted_sum / total_weight_taken) * 100, 1)
+        else:
+            course_pct = 0.0
+
+        if course_pct >= 90.0:
+            tier = "Grade A"
+        elif course_pct >= 85.0:
+            tier = "Grade A-"
+        elif course_pct >= 80.0:
+            tier = "Grade B+"
+        elif course_pct >= 75.0:
+            tier = "Grade B"
+        elif course_pct >= 70.0:
+            tier = "Grade C+"
+        elif course_pct >= 60.0:
+            tier = "Grade C"
+        elif course_pct >= 50.0:
+            tier = "Grade D"
+        else:
+            tier = "Grade F"
+
+        stu_data["raw_total"] = round(raw_total_points, 1)
+        stu_data["max_total"] = round(total_possible_points, 1)
+        stu_data["course_percentage"] = course_pct
+        stu_data["grade_tier"] = tier
+        students_list.append(stu_data)
+
+    students_list.sort(key=lambda s: s["student_name"].lower())
+
+    class_averages = {}
+    for a in course_assessments:
+        scores_for_a = [s["scores"][a.id] for s in students_list if a.id in s["scores"]]
+        if scores_for_a:
+            avg_score = round(sum(scores_for_a) / len(scores_for_a), 1)
+            avg_pct = round((avg_score / (a.max_score or 100.0)) * 100, 1)
+        else:
+            avg_score = 0.0
+            avg_pct = 0.0
+        class_averages[a.id] = {
+            "average_score": avg_score,
+            "average_percentage": avg_pct,
+            "count": len(scores_for_a),
+        }
+
+    overall_avg_pct = (
+        round(sum(s["course_percentage"] for s in students_list) / len(students_list), 1)
+        if students_list else 0.0
+    )
+
+    return {
+        "course_name": resolved_course,
+        "section": section or "All",
+        "academic_year": academic_year or "2026",
+        "available_courses": available_courses,
+        "available_sections": available_sections,
+        "assessments": assessments_meta,
+        "students": students_list,
+        "class_statistics": {
+            "student_count": len(students_list),
+            "assessment_count": len(course_assessments),
+            "assessment_averages": class_averages,
+            "overall_course_average_pct": overall_avg_pct,
+        },
     }
 
 
@@ -2067,6 +2339,10 @@ def list_assessment_submissions(
             "file_type": file_ext,
             "file_url": f"/api/submissions/{s.id}/file" if s.pdf_path else None,
             "extracted_text": s.extracted_text,
+            "section": s.section or (s.student.section if s.student else "Section A"),
+            "academic_year": s.academic_year or (s.student.academic_year if s.student else "2026"),
+            "course_name": s.course_name or assessment.course_name or "General Course",
+            "assessment_category": s.assessment_category or assessment.assessment_category or "midterm",
             "graded_at": s.graded_at.isoformat() if s.graded_at else None,
             "summary_feedback": f"Overall grade: {s.total_score}/{assessment.max_score} ({pct}%).",
             "question_results": q_results,
@@ -2208,6 +2484,11 @@ def get_assessment_detail_response(a: Assessment) -> Dict[str, Any]:
         "id": a.id,
         "lecture_note_id": a.lecture_note_id,
         "title": a.title,
+        "course_name": a.course_name or (a.lecture_note.name if a.lecture_note else "General Course"),
+        "section": a.section or "Section A",
+        "academic_year": a.academic_year or "2026",
+        "assessment_category": a.assessment_category or "midterm",
+        "weight_pct": a.weight_pct if a.weight_pct is not None else 25.0,
         "version": a.version,
         "status": a.status,
         "max_score": a.max_score,
