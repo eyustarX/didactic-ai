@@ -1,37 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import ProfileMenu from '../components/ProfileMenu';
+import './LandingPage.css';
 import {
   Zap,
   ArrowRight,
-  Quote,
-  FileCode,
   ShieldCheck,
-  LogIn,
-  User,
-  GraduationCap,
   Lock,
   FileSpreadsheet,
   CheckCircle2,
   Sparkles,
+  GraduationCap,
+  BookOpen,
+  Layers,
+  Cpu,
+  BarChart3,
+  RotateCcw,
+  Sliders,
+  ChevronDown,
+  ChevronUp,
+  Users,
+  Award,
+  HelpCircle,
+  LogIn,
+  Check,
+  X,
+  Clock,
+  FileText,
+  Search,
 } from 'lucide-react';
-
-const GitHubIcon = ({ size = 16, ...props }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    {...props}
-  >
-    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-    <path d="M9 18c-4.51 2-5-2-7-2" />
-  </svg>
-);
 
 export default function LandingPage({
   onEnterApp,
@@ -45,13 +42,28 @@ export default function LandingPage({
   onToggleTheme,
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const bloomContainerRef = useRef(null);
-  const rubricBodyRef = useRef(null);
-  const feedbackContainerRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('curriculum');
+  const [activeSectionFilter, setActiveSectionFilter] = useState('All');
+  const [selectedTopic, setSelectedTopic] = useState('cs');
+  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [hasEvaluated, setHasEvaluated] = useState(false);
+  const [cohortSize, setCohortSize] = useState(75);
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
+
+  // Curriculum key points demo state
+  const [keyPoints, setKeyPoints] = useState([
+    { id: 1, text: 'Lock ownership vs binary semaphore signaling primitives', bloom: 'Remember (L1)', checked: true },
+    { id: 2, text: 'All four Coffman conditions occurring simultaneously for deadlocks', bloom: 'Analyze (L4)', checked: true },
+    { id: 3, text: 'Breaking circular wait via strict global resource hierarchy', bloom: 'Evaluate (L5)', checked: true },
+  ]);
+
+  // Regrade demo simulation state
+  const [demoScore, setDemoScore] = useState(9.5);
+  const [isRegrading, setIsRegrading] = useState(false);
 
   useEffect(() => {
     // Scroll progress line along top edge
-    const scrollLine = document.getElementById('scroll-progress-line');
+    const scrollLine = document.getElementById('pro-scroll-line');
     const updateScrollProgress = () => {
       const docElem = document.documentElement;
       const totalHeight = docElem.scrollHeight - docElem.clientHeight;
@@ -64,126 +76,7 @@ export default function LandingPage({
     window.addEventListener('scroll', updateScrollProgress, { passive: true });
     updateScrollProgress();
 
-    // Check prefers-reduced-motion
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReducedMotion) {
-      document.querySelectorAll('.bloom-bar-fill').forEach((el) => {
-        el.style.width = el.getAttribute('data-width') || '100%';
-      });
-      document.querySelectorAll('.teacher-mark').forEach((el) => el.classList.add('lit'));
-      document.querySelectorAll('.reveal-on-scroll, .rubric-row, .feedback-item').forEach((el) =>
-        el.classList.add('revealed')
-      );
-      return () => window.removeEventListener('scroll', updateScrollProgress);
-    }
-
-    // Highlighted phrases in answer light up one after another (teacher marking)
-    const timer1 = setTimeout(() => {
-      const mark1 = document.getElementById('mark-1');
-      if (mark1) mark1.classList.add('lit');
-    }, 1000);
-
-    const timer2 = setTimeout(() => {
-      const mark2 = document.getElementById('mark-2');
-      if (mark2) mark2.classList.add('lit');
-    }, 1500);
-
-    const timer3 = setTimeout(() => {
-      const mark3 = document.getElementById('mark-3');
-      if (mark3) mark3.classList.add('lit');
-    }, 2000);
-
-    // Scroll reveals for section headings and cards
-    const revealObserver = new IntersectionObserver(
-      (entries, obs) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('revealed');
-            obs.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.15 }
-    );
-
-    document.querySelectorAll('.reveal-on-scroll').forEach((el) => revealObserver.observe(el));
-
-    // Bloom bars growth when scrolled into view
-    let bloomObserver;
-    if (bloomContainerRef.current) {
-      bloomObserver = new IntersectionObserver(
-        (entries, obs) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              const fills = bloomContainerRef.current.querySelectorAll('.bloom-bar-fill');
-              fills.forEach((fill, idx) => {
-                setTimeout(() => {
-                  fill.style.width = fill.getAttribute('data-width') || '100%';
-                }, idx * 110);
-              });
-              obs.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.2 }
-      );
-      bloomObserver.observe(bloomContainerRef.current);
-    }
-
-    // Rubric table rows fade in on entry
-    let rubricObserver;
-    if (rubricBodyRef.current) {
-      rubricObserver = new IntersectionObserver(
-        (entries, obs) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              const rows = rubricBodyRef.current.querySelectorAll('.rubric-row');
-              rows.forEach((row, idx) => {
-                setTimeout(() => {
-                  row.classList.add('revealed');
-                }, idx * 120);
-              });
-              obs.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.2 }
-      );
-      rubricObserver.observe(rubricBodyRef.current);
-    }
-
-    // Feedback items fade in on entry
-    let feedbackObserver;
-    if (feedbackContainerRef.current) {
-      feedbackObserver = new IntersectionObserver(
-        (entries, obs) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              const items = feedbackContainerRef.current.querySelectorAll('.feedback-item');
-              items.forEach((item, idx) => {
-                setTimeout(() => {
-                  item.classList.add('revealed');
-                }, idx * 130);
-              });
-              obs.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.2 }
-      );
-      feedbackObserver.observe(feedbackContainerRef.current);
-    }
-
-    return () => {
-      window.removeEventListener('scroll', updateScrollProgress);
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      revealObserver.disconnect();
-      if (bloomObserver) bloomObserver.disconnect();
-      if (rubricObserver) rubricObserver.disconnect();
-      if (feedbackObserver) feedbackObserver.disconnect();
-    };
+    return () => window.removeEventListener('scroll', updateScrollProgress);
   }, []);
 
   const scrollToSection = (id) => {
@@ -192,7 +85,7 @@ export default function LandingPage({
   };
 
   const scrollToTop = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -205,29 +98,167 @@ export default function LandingPage({
     if (onEnterApp) onEnterApp();
   };
 
-  return (
-    <div className="landing-wrapper">
-      {/* Chalk scroll progress indicator along top edge */}
-      <div id="scroll-progress-line" role="progressbar" aria-label="Reading progress" />
+  const handleSimulateRegrade = () => {
+    setIsRegrading(true);
+    setTimeout(() => {
+      setDemoScore((prev) => (prev === 9.5 ? 10.0 : 9.5));
+      setIsRegrading(false);
+    }, 600);
+  };
 
-      {/* Landing Navbar */}
-      <nav className="landing-nav">
-        {/* Logo: Always scrolls to top / stays on landing page, never launches platform */}
-        <a href="#" className="landing-logo" onClick={scrollToTop} title="Didactic AI Home">
-          <div className="brand-icon">
-            <Zap size={15} />
+  const handleRunSandboxGrading = () => {
+    setIsEvaluating(true);
+    setTimeout(() => {
+      setIsEvaluating(false);
+      setHasEvaluated(true);
+    }, 500);
+  };
+
+  const toggleKeyPoint = (id) => {
+    setKeyPoints((prev) =>
+      prev.map((kp) => (kp.id === id ? { ...kp, checked: !kp.checked } : kp))
+    );
+  };
+
+  // Sample data for the interactive Sandbox
+  const sandboxTopics = {
+    cs: {
+      name: 'Computer Science',
+      question: 'Explain how circular wait is prevented in resource allocation and why thread lock ownership is vital for priority inheritance.',
+      rubric: [
+        { title: 'Lock ownership & thread scheduling', max: 5.0, score: 5.0 },
+        { title: 'Circular wait prevention hierarchy', max: 5.0, score: 4.5 },
+      ],
+      studentAnswer: 'Mutexes have strict thread ownership so real-time schedulers can raise lock-holder priority to eliminate priority inversion. Circular wait is broken by imposing a total ordering on all resource acquisition requests.',
+      citation: 'imposing a total ordering on all resource acquisition requests',
+      feedback: 'Excellent explanation of priority inheritance mechanics and resource ordering.',
+      totalScore: 9.5,
+    },
+    bio: {
+      name: 'Cell Biology',
+      question: 'Detail the role of the proton gradient across the inner mitochondrial membrane in driving ATP synthase during oxidative phosphorylation.',
+      rubric: [
+        { title: 'Chemiosmotic proton gradient establishment', max: 5.0, score: 5.0 },
+        { title: 'ATP Synthase rotational catalysis mechanism', max: 5.0, score: 4.0 },
+      ],
+      studentAnswer: 'Electrons passing through Complex I, III, and IV pump protons into the intermembrane space. The resulting electrochemical proton-motive force flows back through the F0 rotor of ATP synthase, synthesizing ATP from ADP and Pi.',
+      citation: 'electrochemical proton-motive force flows back through the F0 rotor of ATP synthase',
+      feedback: 'Accurate chemiosmotic flow description; could specify ADP binding site conformational shifts.',
+      totalScore: 9.0,
+    },
+    econ: {
+      name: 'Macroeconomics',
+      question: 'Analyze how supply-side shocks shift the short-run aggregate supply (SRAS) curve and evaluate central bank policy trade-offs.',
+      rubric: [
+        { title: 'SRAS curve shift dynamics', max: 5.0, score: 5.0 },
+        { title: 'Stagflation & policy trade-off evaluation', max: 5.0, score: 4.5 },
+      ],
+      studentAnswer: 'An adverse supply shock like an oil price surge shifts SRAS leftward, causing higher inflation with falling real output (stagflation). If the central bank raises rates to fight inflation, it risks deeper recessionary output contraction.',
+      citation: 'shifts SRAS leftward, causing higher inflation with falling real output (stagflation)',
+      feedback: 'Strong grasp of the inflation-unemployment dilemma during supply disruptions.',
+      totalScore: 9.5,
+    },
+  };
+
+  const currentSandbox = sandboxTopics[selectedTopic];
+
+  // Master Gradebook Sample Roster
+  const sampleRoster = [
+    { id: 'STU-101', name: 'Alice Johnson', section: 'Section A', midterm: '46.5 / 50 (93%)', final: '48.0 / 50 (96%)', weighted: 94.8, tier: 'Grade A' },
+    { id: 'STU-102', name: 'Marcus Chen', section: 'Section A', midterm: '44.5 / 50 (89%)', final: '42.0 / 50 (84%)', weighted: 86.0, tier: 'Grade A-' },
+    { id: 'STU-103', name: 'Sophia Rodriguez', section: 'Section B', midterm: '45.5 / 50 (91%)', final: '46.0 / 50 (92%)', weighted: 91.6, tier: 'Grade A' },
+    { id: 'STU-104', name: 'David Kim', section: 'Section B', midterm: '39.5 / 50 (79%)', final: '40.5 / 50 (81%)', weighted: 80.2, tier: 'Grade B+' },
+    { id: 'STU-105', name: 'Fatima Al-Mansoor', section: 'Section A', midterm: '48.0 / 50 (96%)', final: '49.0 / 50 (98%)', weighted: 97.2, tier: 'Grade A' },
+  ];
+
+  const filteredRoster = activeSectionFilter === 'All'
+    ? sampleRoster
+    : sampleRoster.filter((s) => s.section === activeSectionFilter);
+
+  const handleExportMasterExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('CS-301 Master Gradebook');
+
+    worksheet.columns = [
+      { header: 'Student ID', key: 'id', width: 16 },
+      { header: 'Student Name', key: 'name', width: 22 },
+      { header: 'Section', key: 'section', width: 14 },
+      { header: 'Midterm [40%]', key: 'midterm', width: 20 },
+      { header: 'Final Exam [60%]', key: 'final', width: 20 },
+      { header: 'Weighted %', key: 'weighted', width: 16 },
+      { header: 'Final Tier', key: 'tier', width: 14 },
+    ];
+
+    filteredRoster.forEach((row) => {
+      worksheet.addRow({
+        id: row.id,
+        name: row.name,
+        section: row.section,
+        midterm: row.midterm,
+        final: row.final,
+        weighted: `${row.weighted}%`,
+        tier: row.tier,
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CS301_Master_Gradebook_${activeSectionFilter.replace(' ', '_')}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const faqItems = [
+    {
+      q: 'How does evidence citation work, and how are hallucinations handled?',
+      a: 'Didactic AI does not guess or generate subjective marks without context. Every point awarded or deducted directly cites specific student answer excerpts and compares them against objective rubric criteria. In addition, teachers retain complete authority: you can inspect evidence citations, override any score with a single click, or trigger a full regrade if needed.',
+    },
+    {
+      q: 'Can I re-grade an individual question or an entire student submission?',
+      a: 'Yes! Both full-submission and single-question regrading are built into every exam sheet. If you want to check an answer again or verify against updated criteria, clicking "Regrade" re-runs the rubric matcher without losing existing student records.',
+    },
+    {
+      q: 'How do course sections and student deduplication work?',
+      a: 'You can organize assessments by Course, Section (e.g. Section A, Section B), and Academic Year. When grading multiple assessments (Quizzes, Midterms, Finals), the system automatically matches the Student ID. Subsequent exam submissions are added into the student’s existing row in the Master Gradebook without creating duplicate records.',
+    },
+    {
+      q: 'How does percentage weighting and the Final Grade Tier calculate?',
+      a: 'You assign percentage weights to each assessment (e.g., Quizzes = 20%, Midterm = 30%, Final = 50%). The Master Course Gradebook computes the cumulative weighted percentage across all completed exams and automatically awards final letter grade badges (Grade A, A-, B+, B, C+, C, D, F).',
+    },
+    {
+      q: 'What is the Server-Side Immutability Lock?',
+      a: 'To guarantee absolute academic fairness across student cohorts, once the first student submission is graded, questions and rubric criteria are locked server-side. This ensures that every student in the cohort is evaluated against the exact same baseline standard.',
+    },
+  ];
+
+  return (
+    <div className="pro-landing-wrapper">
+      {/* Top Reading Progress Bar */}
+      <div id="pro-scroll-line" role="progressbar" aria-label="Reading progress" />
+
+      {/* Ambient Mesh Glow */}
+      <div className="pro-landing-mesh" />
+
+      {/* Modern Sticky Navigation */}
+      <nav className="pro-nav">
+        <a href="#" className="pro-nav-logo" onClick={scrollToTop} title="Didactic AI Home">
+          <div className="brand-icon-pro">
+            <Zap size={16} />
           </div>
           <span>Didactic AI</span>
         </a>
 
-        <div className="landing-links">
+        <div className="pro-nav-links">
           <a
             href="#curriculum"
             onClick={(e) => {
               e.preventDefault();
               scrollToSection('curriculum');
             }}
-            className="landing-link"
+            className="pro-nav-link"
           >
             Curriculum
           </a>
@@ -237,50 +268,49 @@ export default function LandingPage({
               e.preventDefault();
               scrollToSection('rubrics');
             }}
-            className="landing-link"
+            className="pro-nav-link"
           >
             Rubrics
           </a>
           <a
-            href="#assessment"
+            href="#sandbox"
             onClick={(e) => {
               e.preventDefault();
-              scrollToSection('assessment');
+              scrollToSection('sandbox');
             }}
-            className="landing-link"
+            className="pro-nav-link"
           >
-            Assessment
+            Live Sandbox
           </a>
           <a
-            href="#grading"
+            href="#gradebook"
             onClick={(e) => {
               e.preventDefault();
-              scrollToSection('grading');
+              scrollToSection('gradebook');
             }}
-            className="landing-link"
+            className="pro-nav-link"
           >
-            Grading
+            Master Gradebook
           </a>
           <a
-            href="#export"
+            href="#faq"
             onClick={(e) => {
               e.preventDefault();
-              scrollToSection('export');
+              scrollToSection('faq');
             }}
-            className="landing-link"
+            className="pro-nav-link"
           >
-            Audit & Export
+            FAQ
           </a>
 
-          {/* User Sign In / Profile Button */}
+          {/* User Sign In / Profile Menu */}
           {currentUser ? (
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
                 onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-                className="btn btn-secondary btn-sm"
-                title="Instructor Profile Menu"
-                style={{ display: 'flex', alignItems: 'center', gap: 7 }}
+                className="pro-btn-secondary"
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
               >
                 <div
                   style={{
@@ -293,7 +323,7 @@ export default function LandingPage({
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 700,
-                    fontSize: '0.68rem',
+                    fontSize: '0.7rem',
                   }}
                 >
                   {currentUser.name ? currentUser.name.trim().slice(0, 1).toUpperCase() : 'U'}
@@ -315,484 +345,774 @@ export default function LandingPage({
               />
             </div>
           ) : (
-            <button onClick={onOpenAuth} className="btn btn-secondary btn-sm">
-              <LogIn size={13} />
-              <span>Sign in</span>
+            <button onClick={onOpenAuth} className="pro-btn-secondary" style={{ padding: '8px 18px', fontSize: '0.86rem' }}>
+              <LogIn size={14} />
+              <span>Sign In</span>
             </button>
           )}
 
-          <button onClick={handleLaunchPlatform} className="btn btn-primary btn-sm">
-            <span>Launch platform</span>
-            <ArrowRight size={13} />
+          <button onClick={handleLaunchPlatform} className="pro-btn-glow" style={{ padding: '8px 20px', fontSize: '0.88rem' }}>
+            <span>Launch Platform</span>
+            <ArrowRight size={14} />
           </button>
         </div>
       </nav>
 
-      {/* 1 & 2. Hero Section */}
-      <header className="hero-section">
-        {/* Headline: Word-by-word reveal + Wavy underline */}
-        <h1 className="hero-title" id="hero-headline">
-          <span className="word" style={{ animationDelay: '0.10s' }}>Didactic</span>{' '}
-          <span className="word" style={{ animationDelay: '0.16s' }}>Pedagogy:</span>{' '}
-          <span className="word" style={{ animationDelay: '0.22s' }}>Nurturing</span>{' '}
-          <span className="wavy-wrapper">
-            <span className="word" style={{ animationDelay: '0.28s' }}>Understanding,</span>{' '}
-            <span className="word" style={{ animationDelay: '0.34s' }}>Guided</span>
-            {/* Wavy underline drawing */}
-            <svg className="wavy-svg" viewBox="0 0 160 12" preserveAspectRatio="none">
-              <path d="M 0,7 Q 10,0 20,7 T 40,7 T 60,7 T 80,7 T 100,7 T 120,7 T 140,7 T 160,7" />
-            </svg>
-          </span>{' '}
-          <span className="word" style={{ animationDelay: '0.40s' }}>One</span>{' '}
-          <span className="word" style={{ animationDelay: '0.46s' }}>Student</span>{' '}
-          <span className="word" style={{ animationDelay: '0.52s' }}>At</span>{' '}
-          <span className="word" style={{ animationDelay: '0.58s' }}>A</span>{' '}
-          <span className="word" style={{ animationDelay: '0.64s' }}>Time.</span>
+      {/* HERO SECTION */}
+      <header className="pro-hero-section">
+        <div className="pro-hero-badge">
+          <Sparkles size={14} />
+          <span>Next-Gen Pedagogical AI &bull; Evidence-Grounded Grading Engine</span>
+        </div>
+
+        <h1 className="pro-hero-title">
+          Turn Course Material into Rigorous Exams.{' '}
+          <span className="pro-hero-gradient-text">Grade Faster with Verifiable Evidence.</span>
         </h1>
 
-        <p className="hero-lead">
-          Rooted in didactic instructional design, Didactic AI transforms curriculum notes into rigorous examinations,
-          generates objective multi-criteria rubrics, and evaluates student answer sheets with transparent, evidence-grounded feedback.
+        <p className="pro-hero-lead">
+          Decompile lecture slides and curriculum notes into Bloom-aligned exams, generate objective rubrics,
+          and grade student papers with line-by-line evidence citations and master section gradebooks.
         </p>
 
-        <div className="hero-actions">
-          <button onClick={handleLaunchPlatform} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '0.95rem' }}>
-            <span>Launch platform</span>
-            <ArrowRight size={15} />
+        <div className="pro-hero-actions">
+          <button onClick={handleLaunchPlatform} className="pro-btn-glow">
+            <span>Launch Platform Free</span>
+            <ArrowRight size={16} />
           </button>
           <button
-            onClick={() => scrollToSection('rubrics')}
-            className="btn btn-secondary"
-            style={{ padding: '10px 20px', fontSize: '0.95rem' }}
+            onClick={() => scrollToSection('sandbox')}
+            className="pro-btn-secondary"
           >
-            <span>Explore rubrics</span>
+            <Sliders size={16} style={{ color: 'var(--accent)' }} />
+            <span>Try Live Sandbox</span>
           </button>
+        </div>
+
+        {/* Feature Pills */}
+        <div className="pro-trust-strip">
+          <div className="pro-trust-item">
+            <Lock size={14} style={{ color: '#EAB308' }} />
+            <span>Server-Side Integrity Lock</span>
+          </div>
+          <div className="pro-trust-item">
+            <Award size={14} style={{ color: 'var(--accent)' }} />
+            <span>Weighted Master Gradebook</span>
+          </div>
+          <div className="pro-trust-item">
+            <FileSpreadsheet size={14} style={{ color: '#10B981' }} />
+            <span>Audit-Ready Excel (.xlsx) Export</span>
+          </div>
+          <div className="pro-trust-item">
+            <RotateCcw size={14} style={{ color: '#38BDF8' }} />
+            <span>1-Click Teacher Regrading</span>
+          </div>
         </div>
       </header>
 
-      {/* Hero Card (Fig. 1 Evidence Citations) */}
-      <div className="fig1-container">
-        <div className="cartesia-card fig1-card" id="hero-fig1" onClick={handleLaunchPlatform} style={{ cursor: 'pointer' }}>
-          <div className="fig1-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="fig1-badge">Fig. 1 · Evidence Citations</span>
-              <span style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-                CS-301 · Concurrency & Deadlocks
-              </span>
+      {/* 3D FLOATING INTERACTIVE APP SHOWCASE */}
+      <section className="pro-preview-3d-wrapper" id="curriculum">
+        <div className="pro-preview-card">
+          {/* Window Header & Tabs */}
+          <div className="pro-window-header">
+            <div className="pro-window-dots">
+              <span className="pro-window-dot pro-dot-red" />
+              <span className="pro-window-dot pro-dot-yellow" />
+              <span className="pro-window-dot pro-dot-green" />
             </div>
-            <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--accent)' }}>
-              Score: 10.0 / 10
-            </span>
-          </div>
 
-          <div style={{ background: 'var(--surface)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)', fontSize: '0.9rem', lineHeight: 1.6, color: 'var(--text)' }}>
-            <p style={{ marginBottom: 6, fontSize: '0.76rem', textTransform: 'uppercase', fontWeight: 600, color: 'var(--text-muted)' }}>
-              Student Response (STU-001):
-            </p>
-            <p id="teacher-marked-text">
-              A mutex provides mutual exclusion with{' '}
-              <span className="teacher-mark mark-blue" id="mark-1">
-                explicit thread ownership: only the thread that locks can release it
-              </span>
-              . In contrast, a binary semaphore is a signaling primitive without ownership.
-              A system deadlock occurs if and only if{' '}
-              <span className="teacher-mark mark-yellow" id="mark-2">
-                all four Coffman conditions occur simultaneously
-              </span>{' '}
-              (mutual exclusion, hold & wait, no preemption, and circular wait).
-              To prevent deadlocks, the operating system can break circular wait by{' '}
-              <span className="teacher-mark mark-cyan" id="mark-3">
-                establishing a global strict ordering on all resource types
-              </span>
-              .
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Section 01 · Curriculum & Normalized Rubrics */}
-      <section className="section-layout" id="curriculum" style={{ borderTop: '1px solid var(--border)' }}>
-        <span id="rubrics" style={{ display: 'block', position: 'relative', top: '-70px', visibility: 'hidden' }} />
-        <div className="section-header reveal-on-scroll">
-          <h2 className="section-title">Curriculum Decompilation & Normalized Rubrics</h2>
-          <p className="section-desc">
-            Lecture notes are mapped across cognitive taxonomy levels and translated into 100% mathematically balanced grading rubrics with targeted criteria.
-          </p>
-        </div>
-
-        {/* Cognitive Progression Grid */}
-        <div className="bloom-grid" id="bloom-container" ref={bloomContainerRef} style={{ marginBottom: 20 }}>
-          <div className="bloom-card reveal-on-scroll">
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 600 }}>
-              <span>1. Remember & Understand</span>
-              <span style={{ color: 'var(--accent)' }}>95%</span>
-            </div>
-            <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: 2 }}>
-              Lock ownership & semaphore primitive definitions
-            </p>
-            <div className="bloom-bar-track">
-              <div className="bloom-bar-fill" data-width="95%" />
+            <div className="pro-showcase-tabs">
+              <button
+                className={`pro-showcase-tab ${activeTab === 'curriculum' ? 'active' : ''}`}
+                onClick={() => setActiveTab('curriculum')}
+              >
+                <BookOpen size={13} />
+                <span>1. Curriculum Ingest</span>
+              </button>
+              <button
+                className={`pro-showcase-tab ${activeTab === 'exam' ? 'active' : ''}`}
+                onClick={() => setActiveTab('exam')}
+              >
+                <Layers size={13} />
+                <span>2. Exam & Rubric</span>
+              </button>
+              <button
+                className={`pro-showcase-tab ${activeTab === 'grading' ? 'active' : ''}`}
+                onClick={() => setActiveTab('grading')}
+              >
+                <Search size={13} />
+                <span>3. Evidence Grading</span>
+              </button>
+              <button
+                className={`pro-showcase-tab ${activeTab === 'gradebook' ? 'active' : ''}`}
+                onClick={() => setActiveTab('gradebook')}
+              >
+                <FileSpreadsheet size={13} />
+                <span>4. Master Gradebook</span>
+              </button>
             </div>
           </div>
 
-          <div className="bloom-card reveal-on-scroll">
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 600 }}>
-              <span>2. Application & Analysis</span>
-              <span style={{ color: 'var(--accent)' }}>80%</span>
-            </div>
-            <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: 2 }}>
-              Atomic wait/signal and Coffman condition dynamics
-            </p>
-            <div className="bloom-bar-track">
-              <div className="bloom-bar-fill" data-width="80%" />
-            </div>
-          </div>
+          {/* Interactive Window Body */}
+          <div className="pro-showcase-body">
+            {activeTab === 'curriculum' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div>
+                    <span style={{ fontSize: '0.74rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--accent)' }}>
+                      Source Document: lecture-04-concurrency.pptx
+                    </span>
+                    <h3 style={{ fontSize: '1.08rem', fontWeight: 700, marginTop: 2 }}>
+                      CS-301: Operating Systems &bull; Concurrency & Deadlocks
+                    </h3>
+                  </div>
+                  <span style={{ fontSize: '0.78rem', background: 'rgba(20, 184, 166, 0.1)', color: 'var(--accent)', padding: '4px 10px', borderRadius: 6, fontWeight: 600 }}>
+                    Bloom Depth: Analyzed
+                  </span>
+                </div>
 
-          <div className="bloom-card reveal-on-scroll">
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', fontWeight: 600 }}>
-              <span>3. Question Generation & Evaluation</span>
-              <span style={{ color: 'var(--accent)' }}>60%</span>
-            </div>
-            <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginTop: 2 }}>
-              Strict ordering hierarchy and starvation avoidance
-            </p>
-            <div className="bloom-bar-track">
-              <div className="bloom-bar-fill" data-width="60%" />
-            </div>
-          </div>
-        </div>
+                <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+                  Didactic AI extracts key conceptual topics and maps them across cognitive taxonomy levels. Select which key points you want to test in the upcoming exam:
+                </p>
 
-        {/* Rubric Table */}
-        <table className="rubric-table">
-          <thead>
-            <tr>
-              <th>Criterion</th>
-              <th>Weight</th>
-              <th>Target Mastery</th>
-            </tr>
-          </thead>
-          <tbody id="rubric-body" ref={rubricBodyRef}>
-            <tr className="rubric-row">
-              <td style={{ fontWeight: 600 }}>Synchronization Primitives</td>
-              <td style={{ color: 'var(--accent)', fontWeight: 600 }}>35%</td>
-              <td style={{ color: 'var(--text-muted)' }}>Precise distinction between lock ownership and signaling.</td>
-            </tr>
-            <tr className="rubric-row">
-              <td style={{ fontWeight: 600 }}>Coffman Deadlock Conditions</td>
-              <td style={{ color: 'var(--accent)', fontWeight: 600 }}>35%</td>
-              <td style={{ color: 'var(--text-muted)' }}>Enumeration and explanation of all four concurrent conditions.</td>
-            </tr>
-            <tr className="rubric-row">
-              <td style={{ fontWeight: 600 }}>Prevention Strategy</td>
-              <td style={{ color: 'var(--accent)', fontWeight: 600 }}>30%</td>
-              <td style={{ color: 'var(--text-muted)' }}>Actionable OS protocol eliminating circular wait through hierarchy.</td>
-            </tr>
-          </tbody>
-        </table>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {keyPoints.map((kp) => (
+                    <div
+                      key={kp.id}
+                      onClick={() => toggleKeyPoint(kp.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        background: kp.checked ? 'rgba(20, 184, 166, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                        border: kp.checked ? '1px solid rgba(94, 234, 212, 0.3)' : '1px solid var(--border)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: 4,
+                            background: kp.checked ? 'var(--accent)' : 'transparent',
+                            border: kp.checked ? 'none' : '1px solid var(--border)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#000000',
+                          }}
+                        >
+                          {kp.checked && <Check size={12} strokeWidth={3} />}
+                        </div>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{kp.text}</span>
+                      </div>
+                      <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg)', padding: '2px 8px', borderRadius: 4 }}>
+                        {kp.bloom}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* 3 Feedback Items */}
-        <div className="feedback-grid" id="feedback-container" ref={feedbackContainerRef}>
-          <div className="feedback-item">
-            <div style={{ fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 4 }}>
-              Criterion Strengths
-            </div>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-              Explicit distinction between mutex ownership and semaphore signaling without ownership.
-            </p>
-          </div>
+            {activeTab === 'exam' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ background: 'var(--accent)', color: 'var(--on-accent)', fontSize: '0.72rem', fontWeight: 700, padding: '3px 8px', borderRadius: 4 }}>
+                      Q1 &bull; 10.0 Marks
+                    </span>
+                    <span style={{ fontSize: '0.86rem', color: 'var(--text-muted)' }}>Bloom Level 4 (Analyze)</span>
+                  </div>
+                  <span style={{ fontSize: '0.78rem', color: '#10B981', fontWeight: 600 }}>100% Balanced Rubric</span>
+                </div>
 
-          <div className="feedback-item">
-            <div style={{ fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', color: '#b45309', marginBottom: 4 }}>
-              Evidence Citations
-            </div>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-              Directly cites: "establishing a global strict ordering on all resource types" to break circular wait.
-            </p>
-          </div>
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', padding: '14px 16px', borderRadius: 10, marginBottom: 14 }}>
+                  <p style={{ fontSize: '0.92rem', lineHeight: 1.55, fontWeight: 500 }}>
+                    Distinguish between mutex lock ownership and binary semaphore signaling. Explain how scheduler priority inheritance protocols break unbounded priority inversion chains in concurrent systems.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: '0.78rem', color: 'var(--accent)' }}>
+                    <Sparkles size={13} />
+                    <span><strong>Student Hint:</strong> Consider the mechanism of raising the lock-holder's dynamic priority.</span>
+                  </div>
+                </div>
 
-          <div className="feedback-item">
-            <div style={{ fontSize: '0.74rem', fontWeight: 600, textTransform: 'uppercase', color: '#0369a1', marginBottom: 4 }}>
-              Pedagogical Guidance
-            </div>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-              Recommended next topic: compare dynamic avoidance via Dijkstra's Banker's Algorithm.
-            </p>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>
+                  Normalized Evaluation Rubric
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '0.82rem' }}>
+                      <span>Lock Ownership Dynamics</span>
+                      <span style={{ color: 'var(--accent)' }}>35% (3.5 pts)</span>
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                      Explains that only the acquiring thread can release a mutex.
+                    </p>
+                  </div>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '0.82rem' }}>
+                      <span>Priority Inversion Mechanics</span>
+                      <span style={{ color: 'var(--accent)' }}>35% (3.5 pts)</span>
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                      Medium priority thread preempting low-priority mutex holder.
+                    </p>
+                  </div>
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '0.82rem' }}>
+                      <span>Inheritance Protocol</span>
+                      <span style={{ color: 'var(--accent)' }}>30% (3.0 pts)</span>
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                      Dynamic elevation of thread priority to break unbounded block.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'grading' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <GraduationCap size={16} style={{ color: 'var(--accent)' }} />
+                    <span style={{ fontWeight: 700, fontSize: '0.94rem' }}>Alice Johnson &bull; STU-101 (Section A)</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--accent)' }}>
+                      {demoScore.toFixed(1)} / 10.0 pts
+                    </span>
+                    <button
+                      onClick={handleSimulateRegrade}
+                      disabled={isRegrading}
+                      className="pro-btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '0.75rem', gap: 5 }}
+                      title="Trigger full regrade or adjust score"
+                    >
+                      <RotateCcw size={12} className={isRegrading ? 'animate-spin' : ''} />
+                      <span>{isRegrading ? 'Regrading...' : 'Simulate Regrade'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--border)', padding: '14px 16px', borderRadius: 10, fontSize: '0.88rem', lineHeight: 1.6, marginBottom: 14 }}>
+                  <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    Student Answer Text (Matched & Grounded):
+                  </span>
+                  A mutex provides mutual exclusion with{' '}
+                  <span style={{ background: 'rgba(20, 184, 166, 0.25)', color: '#5EEAD4', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
+                    strict thread ownership where only the locker thread can release it
+                  </span>
+                  . In contrast, binary semaphores are signaling primitives. Under priority inversion, a high-priority thread waits on a mutex held by a low-priority thread; the OS resolves this by{' '}
+                  <span style={{ background: 'rgba(99, 102, 241, 0.25)', color: '#A5B4FC', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
+                    temporarily elevating the low thread to the high thread’s priority level
+                  </span>
+                  .
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ background: 'rgba(20, 184, 166, 0.06)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(94, 234, 212, 0.2)' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase' }}>
+                      Evidence Citation
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text)', marginTop: 2 }}>
+                      "strict thread ownership where only the locker thread can release it" &rarr; Fully meets Criterion 1.
+                    </p>
+                  </div>
+                  <div style={{ background: 'rgba(99, 102, 241, 0.06)', padding: '10px 14px', borderRadius: 8, border: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                    <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#A5B4FC', textTransform: 'uppercase' }}>
+                      Instructor Oversight
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text)', marginTop: 2 }}>
+                      Scores are editable by teacher; zero lock-in. 1-click regrade guarantees verification without hallucination.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'gradebook' && (
+              <div id="gradebook">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>
+                      CS-301 Master Course Gradebook (2025/2026)
+                    </h3>
+                    <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                      Weighted Percentage: Midterm (40%) + Final Exam (60%)
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.05)', borderRadius: 6, padding: 2 }}>
+                      {['All', 'Section A', 'Section B'].map((sec) => (
+                        <button
+                          key={sec}
+                          onClick={() => setActiveSectionFilter(sec)}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            borderRadius: 4,
+                            border: 'none',
+                            cursor: 'pointer',
+                            background: activeSectionFilter === sec ? 'var(--accent)' : 'transparent',
+                            color: activeSectionFilter === sec ? 'var(--on-accent)' : 'var(--text-muted)',
+                          }}
+                        >
+                          {sec}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={handleExportMasterExcel}
+                      className="pro-btn-secondary"
+                      style={{ padding: '6px 12px', fontSize: '0.76rem', gap: 6 }}
+                    >
+                      <FileSpreadsheet size={13} style={{ color: '#10B981' }} />
+                      <span>Export Excel (.xlsx)</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '8px 10px' }}>Student ID</th>
+                        <th style={{ padding: '8px 10px' }}>Name</th>
+                        <th style={{ padding: '8px 10px' }}>Section</th>
+                        <th style={{ padding: '8px 10px' }}>Midterm [40%]</th>
+                        <th style={{ padding: '8px 10px' }}>Final [60%]</th>
+                        <th style={{ padding: '8px 10px' }}>Course %</th>
+                        <th style={{ padding: '8px 10px' }}>Tier</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRoster.map((s) => (
+                        <tr key={s.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                          <td style={{ padding: '8px 10px', fontFamily: 'var(--font-mono)' }}>{s.id}</td>
+                          <td style={{ padding: '8px 10px', fontWeight: 600 }}>{s.name}</td>
+                          <td style={{ padding: '8px 10px' }}>{s.section}</td>
+                          <td style={{ padding: '8px 10px' }}>{s.midterm}</td>
+                          <td style={{ padding: '8px 10px' }}>{s.final}</td>
+                          <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--accent)' }}>
+                            {s.weighted}%
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <span style={{ background: 'rgba(20, 184, 166, 0.15)', color: 'var(--accent)', padding: '2px 8px', borderRadius: 4, fontWeight: 700, fontSize: '0.74rem' }}>
+                              {s.tier}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Section 02 · Assessment & Whole-PDF Grading */}
-      <section className="section-layout" id="assessment" style={{ borderTop: '1px solid var(--border)' }}>
-        <span id="grading" style={{ display: 'block', position: 'relative', top: '-70px', visibility: 'hidden' }} />
-        <div className="section-header reveal-on-scroll">
-          <h2 className="section-title">Automated Assessment & Whole-PDF Grading</h2>
-          <p className="section-desc">
-            Generates university-standard questions from lecture concepts, then segments and scores student PDF submissions with line-by-line evidence matching.
+      {/* INTERACTIVE PLAYGROUND / LIVE SANDBOX */}
+      <section className="pro-sandbox-section" id="sandbox">
+        <div className="pro-section-title-wrap">
+          <span className="pro-section-tag">Interactive Sandbox</span>
+          <h2 className="pro-section-heading">Try Evidence-Grounded Grading Live</h2>
+          <p className="pro-section-subheading">
+            Experience how Didactic AI evaluates answers with transparent evidence matching. Pick a subject below and simulate grading in real time:
           </p>
         </div>
 
-        {/* Side-by-Side Question & Matched Grading Card */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 16 }}>
-          {/* Left: Generated Question Card */}
-          <div className="cartesia-card reveal-on-scroll">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="badge badge-accent">Midterm Exam</span>
-                <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>Q1 · Mutual Exclusion</span>
-              </div>
-              <span className="badge badge-accent">10.0 pts</span>
-            </div>
-
-            <p style={{ fontSize: '0.85rem', color: 'var(--text)', marginBottom: 12, lineHeight: 1.55 }}>
-              Critically distinguish between mutex thread ownership and binary semaphore signaling. Explain the mechanisms of priority inversion when using unmanaged mutex locks in real-time operating systems.
-            </p>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.76rem', color: 'var(--text-muted)', background: 'var(--bg)', padding: '6px 10px', borderRadius: 4 }}>
-              <Sparkles size={13} style={{ color: 'var(--accent)' }} />
-              <span><strong>Student Hint:</strong> Consider how scheduler priority inheritance protocols break unbounded blocking chains.</span>
-            </div>
-          </div>
-
-          {/* Right: Matched Student Citation & Grading */}
-          <div className="cartesia-card reveal-on-scroll">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <GraduationCap size={15} style={{ color: 'var(--accent)' }} />
-                <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>Alice Johnson · Evaluation</span>
-              </div>
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--accent)' }}>
-                9.5 / 10.0 pts
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', padding: '6px 10px', borderRadius: 4, border: '1px solid var(--border-subtle)', fontSize: '0.8rem' }}>
-                <span>Mutex vs. semaphore thread ownership distinction</span>
-                <span style={{ fontWeight: 600, color: 'var(--accent)' }}>4.5 / 5.0</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--surface)', padding: '6px 10px', borderRadius: 4, border: '1px solid var(--border-subtle)', fontSize: '0.8rem' }}>
-                <span>Priority inversion mechanics & protocol description</span>
-                <span style={{ fontWeight: 600, color: 'var(--accent)' }}>5.0 / 5.0</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-              <CheckCircle2 size={13} style={{ color: 'var(--accent)' }} />
-              <span>Extracted & verified from Page 1 of submission PDF</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Server Immutability Lock Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-          <Lock size={14} style={{ color: '#eab308', flexShrink: 0 }} />
-          <span><strong>Academic Integrity Guarantee:</strong> Once the first student answer is graded, rubrics and questions are locked server-side to guarantee uncompromised, cohort-wide consistency.</span>
-        </div>
-      </section>
-
-      {/* Section 03 · Gradebook & Excel Export */}
-      <section className="section-layout" id="export" style={{ borderTop: '1px solid var(--border)' }}>
-        <div className="section-header reveal-on-scroll">
-          <h2 className="section-title">Cohort Gradebook & Excel Export</h2>
-          <p className="section-desc">
-            Review cohort evaluations, verify final totals, and download complete, audit-ready spreadsheets.
-          </p>
-        </div>
-
-        <div className="cartesia-card reveal-on-scroll" style={{ padding: 20 }}>
-          {/* Header & Export Button */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <span className="badge badge-accent" style={{ marginBottom: 3 }}>CS-301 Confirmed Record</span>
-              <h3 style={{ fontSize: '1rem', fontWeight: 600 }}>Final Assessment Gradebook</h3>
+        <div className="pro-sandbox-card">
+          <div className="pro-sandbox-header">
+            <div className="pro-topic-selector">
+              <button
+                className={`pro-topic-btn ${selectedTopic === 'cs' ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedTopic('cs');
+                  setHasEvaluated(false);
+                }}
+              >
+                Computer Science
+              </button>
+              <button
+                className={`pro-topic-btn ${selectedTopic === 'bio' ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedTopic('bio');
+                  setHasEvaluated(false);
+                }}
+              >
+                Cell Biology
+              </button>
+              <button
+                className={`pro-topic-btn ${selectedTopic === 'econ' ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedTopic('econ');
+                  setHasEvaluated(false);
+                }}
+              >
+                Macroeconomics
+              </button>
             </div>
 
             <button
-              onClick={async () => {
-                const workbook = new ExcelJS.Workbook();
-                const worksheet = workbook.addWorksheet('CS-301 Gradebook');
-                worksheet.columns = [
-                  { header: 'Student ID', key: 'id', width: 16 },
-                  { header: 'Student Name', key: 'name', width: 24 },
-                  { header: 'Questions', key: 'questions', width: 14 },
-                  { header: 'AI Score', key: 'ai_score', width: 14 },
-                  { header: 'Final Score', key: 'final_score', width: 14 },
-                  { header: 'Max Score', key: 'max_score', width: 12 },
-                  { header: 'Percentage', key: 'percentage', width: 14 },
-                  { header: 'Tier', key: 'tier', width: 10 },
-                  { header: 'Status', key: 'status', width: 14 },
-                ];
-                const sampleRoster = [
-                  { id: 'STU-2026-081', name: 'Alice Johnson', questions: '5 / 5', ai_score: 46.5, final_score: 46.5, max_score: 50.0, percentage: '93.0%', tier: 'A', status: 'CONFIRMED' },
-                  { id: 'STU-2026-082', name: 'Marcus Chen', questions: '5 / 5', ai_score: 44.5, final_score: 44.5, max_score: 50.0, percentage: '89.0%', tier: 'A-', status: 'CONFIRMED' },
-                  { id: 'STU-2026-083', name: 'Sophia Rodriguez', questions: '5 / 5', ai_score: 45.5, final_score: 45.5, max_score: 50.0, percentage: '91.0%', tier: 'A', status: 'CONFIRMED' },
-                  { id: 'STU-2026-084', name: 'David Kim', questions: '5 / 5', ai_score: 39.5, final_score: 39.5, max_score: 50.0, percentage: '79.0%', tier: 'B', status: 'CONFIRMED' },
-                  { id: 'STU-2026-085', name: 'Fatima Al-Mansoor', questions: '5 / 5', ai_score: 48.0, final_score: 48.0, max_score: 50.0, percentage: '96.0%', tier: 'A+', status: 'CONFIRMED' },
-                  { id: 'STU-2026-086', name: "Liam O'Connor", questions: '5 / 5', ai_score: 41.0, final_score: 41.0, max_score: 50.0, percentage: '82.0%', tier: 'B+', status: 'CONFIRMED' },
-                  { id: 'STU-2026-087', name: 'Maya Patel', questions: '5 / 5', ai_score: 44.0, final_score: 44.0, max_score: 50.0, percentage: '88.0%', tier: 'B+', status: 'CONFIRMED' },
-                  { id: 'STU-2026-088', name: 'Lucas Vance', questions: '5 / 5', ai_score: 37.5, final_score: 37.5, max_score: 50.0, percentage: '75.0%', tier: 'C+', status: 'CONFIRMED' },
-                ];
-                sampleRoster.forEach(row => worksheet.addRow(row));
-                const buffer = await workbook.xlsx.writeBuffer();
-                const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'CS-301_Final_Assessment_Gradebook.xlsx';
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="btn btn-secondary btn-sm"
+              onClick={handleRunSandboxGrading}
+              disabled={isEvaluating}
+              className="pro-btn-glow"
+              style={{ padding: '8px 20px', fontSize: '0.86rem' }}
             >
-              <FileSpreadsheet size={13} />
-              <span>Export Audit Sheet (.xlsx)</span>
+              <Zap size={14} className={isEvaluating ? 'animate-spin' : ''} />
+              <span>{isEvaluating ? 'Scanning Rubric...' : 'Run Evidence Grading'}</span>
             </button>
           </div>
 
-          {/* Cohort Stats Pills */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 14 }}>
-            <div style={{ background: 'var(--bg)', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Class Size</div>
-              <div style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text)' }}>8 Students</div>
-            </div>
-            <div style={{ background: 'var(--bg)', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Cohort Average</div>
-              <div style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--accent)' }}>86.6% (43.3 / 50)</div>
-            </div>
-            <div style={{ background: 'var(--bg)', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Highest Mark</div>
-              <div style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text)' }}>96.0% (Fatima A.)</div>
-            </div>
-            <div style={{ background: 'var(--bg)', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Audit Status</div>
-              <div style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text)' }}>100% Confirmed</div>
-            </div>
-          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+            {/* Left: Question & Input */}
+            <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: 12, border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase' }}>
+                Course Examination Prompt
+              </span>
+              <p style={{ fontSize: '0.9rem', fontWeight: 600, marginTop: 4, marginBottom: 12, lineHeight: 1.5 }}>
+                {currentSandbox.question}
+              </p>
 
-          <div style={{ overflowX: 'auto' }}>
-            <table className="rubric-table" style={{ fontSize: '0.82rem' }}>
-              <thead>
-                <tr>
-                  <th>Student ID</th>
-                  <th>Student Name</th>
-                  <th>Questions</th>
-                  <th>Final Total</th>
-                  <th>Tier</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="gradebook-row">
-                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-081</td>
-                  <td style={{ fontWeight: 600 }}>Alice Johnson</td>
-                  <td>5 / 5</td>
-                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>46.5 / 50.0 (93.0%)</td>
-                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>Grade A</span></td>
-                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>CONFIRMED</span></td>
-                </tr>
-                <tr className="gradebook-row">
-                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-082</td>
-                  <td style={{ fontWeight: 600 }}>Marcus Chen</td>
-                  <td>5 / 5</td>
-                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>44.5 / 50.0 (89.0%)</td>
-                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>Grade A-</span></td>
-                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>CONFIRMED</span></td>
-                </tr>
-                <tr className="gradebook-row">
-                  <td style={{ fontFamily: 'var(--font-mono)' }}>STU-2026-083</td>
-                  <td style={{ fontWeight: 600 }}>Sophia Rodriguez</td>
-                  <td>5 / 5</td>
-                  <td style={{ fontWeight: 700, color: 'var(--accent)' }}>45.5 / 50.0 (91.0%)</td>
-                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>Grade A</span></td>
-                  <td><span className="badge badge-accent" style={{ fontSize: '0.68rem' }}>CONFIRMED</span></td>
-                </tr>
-                <tr style={{ background: 'var(--surface-muted)' }}>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '8px 12px', fontSize: '0.78rem', color: 'var(--text-muted)', borderBottom: 'none' }}>
-                    + 5 additional cohort submissions verified in exported spreadsheet
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                Student Response Excerpt
+              </span>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.55 }}>
+                "{currentSandbox.studentAnswer}"
+              </p>
+            </div>
 
-      {/* Closing Section */}
-      <section className="closing-section">
-        <div className="wordmark-bg" aria-hidden="true">Didactic AI</div>
-
-        <div className="closing-content reveal-on-scroll">
-          <h2 style={{ fontSize: '1.8rem', fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 10 }}>
-            Technology In Service Of Curiosity And Fairness
-          </h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.98rem', marginBottom: 22, lineHeight: 1.55 }}>
-            Transforming evaluations into meaningful conversations: AI built to help teachers teach and students thrive.
-          </p>
-          <button onClick={handleLaunchPlatform} className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '0.92rem' }}>
-            <span>Launch platform</span>
-            <ArrowRight size={14} />
-          </button>
-        </div>
-      </section>
-
-      {/* Compact Academic Footer */}
-      <footer style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)', padding: '36px 20px 24px 20px' }}>
-        <div style={{ maxWidth: 820, margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24, marginBottom: 28 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <div className="brand-icon" style={{ width: 22, height: 22 }}>
-                <Zap size={12} />
+            {/* Right: Real-time Evaluation & Citation */}
+            <div style={{ background: 'rgba(20, 184, 166, 0.04)', padding: '16px', borderRadius: 12, border: '1px solid rgba(94, 234, 212, 0.25)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase' }}>
+                  Grounded Evaluation Output
+                </span>
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: hasEvaluated ? 'var(--accent)' : 'var(--text-muted)' }}>
+                  {hasEvaluated ? `${currentSandbox.totalScore} / 10.0 pts` : 'Ready to Evaluate'}
+                </span>
               </div>
-              <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text)' }}>Didactic AI</span>
+
+              {hasEvaluated ? (
+                <div>
+                  <div style={{ marginBottom: 10 }}>
+                    {currentSandbox.rubric.map((r, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '4px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <span>{r.title}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{r.score} / {r.max}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '8px 12px', borderRadius: 6, fontSize: '0.8rem', marginBottom: 8 }}>
+                    <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Evidence Citation: </span>
+                    <span style={{ fontStyle: 'italic' }}>"{currentSandbox.citation}"</span>
+                  </div>
+
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    <strong>Pedagogical Note:</strong> {currentSandbox.feedback}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ padding: '30px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                  Click <strong>"Run Evidence Grading"</strong> to see line-by-line rubric scoring and evidence verification.
+                </div>
+              )}
             </div>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.55 }}>
-              Nurturing understanding, one student at a time. Curriculum decompilation, normalized rubrics, and whole-PDF assessment grading.
+          </div>
+        </div>
+      </section>
+
+      {/* MODERN BENTO GRID (PLATFORM SUPERPOWERS) */}
+      <section className="pro-bento-section" id="rubrics">
+        <div className="pro-section-title-wrap">
+          <span className="pro-section-tag">Platform Superpowers</span>
+          <h2 className="pro-section-heading">Designed for High Academic Integrity</h2>
+          <p className="pro-section-subheading">
+            Everything professors need to design exams, evaluate papers transparently, and manage multi-section gradebooks.
+          </p>
+        </div>
+
+        <div className="pro-bento-grid">
+          {/* Card 1: Bloom's Progression (Span 2) */}
+          <div className="pro-bento-card pro-bento-span-2">
+            <div className="pro-bento-icon-box">
+              <Cpu size={22} />
+            </div>
+            <h3 className="pro-bento-title">Curriculum Decompilation & Bloom's Cognitive Progression</h3>
+            <p className="pro-bento-desc">
+              Upload PPTX slides or syllabus PDFs. Didactic AI segments complex ideas across cognitive taxonomy levels so your exams test deep analytical understanding, not just rote recall.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>
+                  <span>1. Remember & Understand</span>
+                  <span style={{ color: 'var(--accent)' }}>95%</span>
+                </div>
+                <div style={{ height: 6, background: 'var(--surface-alt)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ width: '95%', height: '100%', background: 'linear-gradient(90deg, #14B8A6, #5EEAD4)' }} />
+                </div>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>
+                  <span>2. Application & Analysis</span>
+                  <span style={{ color: 'var(--accent)' }}>80%</span>
+                </div>
+                <div style={{ height: 6, background: 'var(--surface-alt)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ width: '80%', height: '100%', background: 'linear-gradient(90deg, #14B8A6, #5EEAD4)' }} />
+                </div>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 600, marginBottom: 4 }}>
+                  <span>3. Evaluation & Synthesis</span>
+                  <span style={{ color: 'var(--accent)' }}>65%</span>
+                </div>
+                <div style={{ height: 6, background: 'var(--surface-alt)', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{ width: '65%', height: '100%', background: 'linear-gradient(90deg, #14B8A6, #5EEAD4)' }} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Transparent Evidence Matching */}
+          <div className="pro-bento-card">
+            <div className="pro-bento-icon-box">
+              <Search size={22} />
+            </div>
+            <h3 className="pro-bento-title">Evidence-Grounded Citations</h3>
+            <p className="pro-bento-desc">
+              Every score is tied directly to extracted student phrases. Instructors retain 100% control with one-click regrading and score adjustments to eliminate grading discrepancies.
+            </p>
+            <div style={{ background: 'rgba(20, 184, 166, 0.08)', padding: '10px 14px', borderRadius: 8, fontSize: '0.78rem', color: 'var(--accent)', fontWeight: 600 }}>
+              &check; Verifiable citation matching with full manual teacher override.
+            </div>
+          </div>
+
+          {/* Card 3: Multi-Section Roster Management */}
+          <div className="pro-bento-card">
+            <div className="pro-bento-icon-box">
+              <Users size={22} />
+            </div>
+            <h3 className="pro-bento-title">Section Management & Deduplication</h3>
+            <p className="pro-bento-desc">
+              Seamlessly group students into Section A, B, and Academic Years. Student ID matching automatically updates records across all exams without duplicating rows.
             </p>
           </div>
 
-          <div>
-            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Platform
+          {/* Card 4: Weighted Category Engine */}
+          <div className="pro-bento-card">
+            <div className="pro-bento-icon-box">
+              <BarChart3 size={22} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.82rem' }}>
-              <a href="#curriculum" onClick={(e) => { e.preventDefault(); scrollToSection('curriculum'); }} style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Curriculum & Rubrics</a>
-              <a href="#assessment" onClick={(e) => { e.preventDefault(); scrollToSection('assessment'); }} style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Assessment & Grading</a>
-              <a href="#export" onClick={(e) => { e.preventDefault(); scrollToSection('export'); }} style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Gradebook & Export</a>
-            </div>
+            <h3 className="pro-bento-title">Weighted Category Engine</h3>
+            <p className="pro-bento-desc">
+              Configure weights (Midterm 30%, Final 50%, Quizzes 20%). The Master Gradebook computes cumulative weighted percentages and awards final Grade Tiers automatically.
+            </p>
           </div>
 
-          <div>
-            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Source & License
+          {/* Card 5: Server-Side Integrity Lock */}
+          <div className="pro-bento-card">
+            <div className="pro-bento-icon-box">
+              <Lock size={22} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.82rem' }}>
-              <a
-                href="https://github.com/eyustarX/didactic-ai"
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: 'var(--text)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 500 }}
-              >
-                <GitHubIcon size={14} />
-                <span>GitHub Repository</span>
-              </a>
-              <span style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <FileCode size={13} />
-                <span>MIT Open Source License</span>
-              </span>
-              <span style={{ color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <ShieldCheck size={13} style={{ color: 'var(--accent)' }} />
-                <span>Pedagogical Verification</span>
-              </span>
-            </div>
+            <h3 className="pro-bento-title">Server-Side Integrity Lock</h3>
+            <p className="pro-bento-desc">
+              Once grading starts on an exam, the rubric and questions lock server-side. No criteria drift, no retroactive alterations—guaranteeing fairness across the entire cohort.
+            </p>
           </div>
         </div>
+      </section>
 
-        <div style={{ maxWidth: 820, margin: '0 auto', borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-          <span>© 2026 Didactic AI. All rights reserved.</span>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <span>tars.pro Design System</span>
-            <span>·</span>
-            <span>PostgreSQL</span>
+      {/* THE OLD WAY VS THE DIDACTIC AI WAY */}
+      <section className="pro-compare-section">
+        <div className="pro-section-title-wrap">
+          <span className="pro-section-tag">Comparison</span>
+          <h2 className="pro-section-heading">The Old Way vs. Didactic AI</h2>
+          <p className="pro-section-subheading">
+            Why leading departments are replacing manual grading spreadsheets with evidence-backed evaluation workflows.
+          </p>
+        </div>
+
+        <div className="pro-compare-grid">
+          {/* Old Way */}
+          <div className="pro-compare-card-old">
+            <div className="pro-compare-header" style={{ color: '#EF4444' }}>
+              <X size={20} />
+              <span>The Old Way (Manual & Fragmented)</span>
+            </div>
+            <ul className="pro-compare-list">
+              <li className="pro-compare-item">
+                <X size={16} style={{ color: '#EF4444', flexShrink: 0, marginTop: 2 }} />
+                <span>20+ hours of repetitive weekend grading resulting in cognitive fatigue.</span>
+              </li>
+              <li className="pro-compare-item">
+                <X size={16} style={{ color: '#EF4444', flexShrink: 0, marginTop: 2 }} />
+                <span>Subjective scoring drift between paper #1 and paper #100.</span>
+              </li>
+              <li className="pro-compare-item">
+                <X size={16} style={{ color: '#EF4444', flexShrink: 0, marginTop: 2 }} />
+                <span>Manual Excel formula errors when aggregating multi-exam weighted tiers.</span>
+              </li>
+              <li className="pro-compare-item">
+                <X size={16} style={{ color: '#EF4444', flexShrink: 0, marginTop: 2 }} />
+                <span>No audit trail or evidence citations when students challenge grades.</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* New Way */}
+          <div className="pro-compare-card-new">
+            <div className="pro-compare-header" style={{ color: 'var(--accent)' }}>
+              <CheckCircle2 size={20} />
+              <span>The Didactic AI Way (Evidence-Grounded)</span>
+            </div>
+            <ul className="pro-compare-list">
+              <li className="pro-compare-item">
+                <Check size={16} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }} />
+                <span>Automated whole-paper evaluation with line-by-line evidence citations.</span>
+              </li>
+              <li className="pro-compare-item">
+                <Check size={16} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }} />
+                <span>Server-locked rubrics guaranteeing consistent evaluation standards.</span>
+              </li>
+              <li className="pro-compare-item">
+                <Check size={16} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }} />
+                <span>Unified multi-exam Master Gradebook with automatic student deduplication.</span>
+              </li>
+              <li className="pro-compare-item">
+                <Check size={16} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 2 }} />
+                <span>1-click audit-ready Excel (.xlsx) export formatted for university records.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* INTERACTIVE TIME SAVED CALCULATOR */}
+      <section className="pro-calculator-card">
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <span className="pro-section-tag">Productivity Estimator</span>
+          <h3 style={{ fontSize: '1.6rem', fontWeight: 700, marginTop: 4 }}>
+            How Much Time Will You Save Every Semester?
+          </h3>
+          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+            Move the slider to match your total active cohort size:
+          </p>
+        </div>
+
+        <div className="pro-slider-wrap">
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: 8 }}>
+            <span>Cohort Size:</span>
+            <span style={{ color: 'var(--accent)', fontSize: '1.2rem' }}>{cohortSize} Students</span>
+          </div>
+          <input
+            type="range"
+            min={20}
+            max={300}
+            step={5}
+            value={cohortSize}
+            onChange={(e) => setCohortSize(Number(e.target.value))}
+            className="pro-slider"
+          />
+        </div>
+
+        <div className="pro-calc-stats">
+          <div className="pro-calc-stat-box">
+            <div className="pro-calc-stat-num">{Math.round(cohortSize * 2.5)} hrs</div>
+            <div className="pro-calc-stat-lbl">Grading Hours Saved</div>
+          </div>
+          <div className="pro-calc-stat-box">
+            <div className="pro-calc-stat-num">{cohortSize * 4} papers</div>
+            <div className="pro-calc-stat-lbl">Evaluated per Semester</div>
+          </div>
+          <div className="pro-calc-stat-box">
+            <div className="pro-calc-stat-num">Instant</div>
+            <div className="pro-calc-stat-lbl">Master Gradebook Sync</div>
+          </div>
+        </div>
+      </section>
+
+      {/* FREQUENTLY ASKED QUESTIONS (ACCORDION) */}
+      <section className="pro-faq-section" id="faq">
+        <div className="pro-section-title-wrap">
+          <span className="pro-section-tag">Clarity & Trust</span>
+          <h2 className="pro-section-heading">Frequently Asked Questions</h2>
+          <p className="pro-section-subheading">
+            Transparent answers regarding pedagogical design, evidence matching, and student records.
+          </p>
+        </div>
+
+        <div>
+          {faqItems.map((item, index) => (
+            <div key={index} className="pro-faq-item">
+              <button
+                className="pro-faq-btn"
+                onClick={() => setOpenFaqIndex(openFaqIndex === index ? -1 : index)}
+              >
+                <span>{item.q}</span>
+                {openFaqIndex === index ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+              {openFaqIndex === index && (
+                <div className="pro-faq-content">
+                  {item.a}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CLOSING CALL TO ACTION */}
+      <section className="pro-closing-cta">
+        <h2 style={{ fontSize: '2.2rem', fontWeight: 800, letterSpacing: '-0.025em', marginBottom: 12 }}>
+          Experience Fair, Evidence-Backed Grading
+        </h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', maxWidth: 600, margin: '0 auto 28px auto', lineHeight: 1.6 }}>
+          Join educators delivering rigorous exams, objective feedback, and audit-ready gradebooks without weekend grading fatigue.
+        </p>
+        <button onClick={handleLaunchPlatform} className="pro-btn-glow" style={{ padding: '14px 34px', fontSize: '1.02rem' }}>
+          <span>Launch Didactic AI Platform</span>
+          <ArrowRight size={16} />
+        </button>
+      </section>
+
+      {/* ACADEMIC FOOTER */}
+      <footer className="pro-footer">
+        <div style={{ maxWidth: 1040, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="brand-icon-pro" style={{ width: 26, height: 26 }}>
+              <Zap size={14} />
+            </div>
+            <span style={{ fontWeight: 700, fontSize: '0.98rem' }}>Didactic AI</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: 8 }}>
+              &copy; {new Date().getFullYear()} Didactic AI. All rights reserved.
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: '0.85rem' }}>
+            <a href="#curriculum" onClick={(e) => { e.preventDefault(); scrollToSection('curriculum'); }} className="pro-nav-link">
+              Curriculum
+            </a>
+            <a href="#rubrics" onClick={(e) => { e.preventDefault(); scrollToSection('rubrics'); }} className="pro-nav-link">
+              Rubrics
+            </a>
+            <a href="#gradebook" onClick={(e) => { e.preventDefault(); scrollToSection('gradebook'); }} className="pro-nav-link">
+              Gradebook
+            </a>
+            <a href="#faq" onClick={(e) => { e.preventDefault(); scrollToSection('faq'); }} className="pro-nav-link">
+              FAQ
+            </a>
           </div>
         </div>
       </footer>
