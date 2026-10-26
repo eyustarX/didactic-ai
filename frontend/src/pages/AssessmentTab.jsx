@@ -65,6 +65,8 @@ export default function AssessmentTab({
   activeChatSessionId,
   setActiveChatSessionId,
   onChatSessionsChange,
+  sidebarCollapsed,
+  setSidebarCollapsed,
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -74,7 +76,7 @@ export default function AssessmentTab({
   const [generatingRubricId, setGeneratingRubricId] = useState(null);
   const [copilotPrompt, setCopilotPrompt] = useState('');
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  const [showGradingBanner, setShowGradingBanner] = useState(true);
+  const [showGradingBanner, setShowGradingBanner] = useState(false);
 
   // Assessment vs Assignment Studio Mode
   const [assessmentType, setAssessmentType] = useState('exam'); // 'exam' | 'assignment'
@@ -99,7 +101,7 @@ export default function AssessmentTab({
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
-  const [showAnalysis, setShowAnalysis] = useState(true);
+  const [showAnalysis, setShowAnalysis] = useState(false);
   const chatContainerRef = useRef(null);
   const chatInputRef = useRef(null);
   const heroInputRef = useRef(null);
@@ -1025,7 +1027,7 @@ export default function AssessmentTab({
             gap: 16,
             alignItems: 'start',
             transition: 'grid-template-columns 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-            minHeight: 'calc(100vh - 120px)',
+            minHeight: 'calc(100vh - 28px)',
           }}
         >
           {/* ------------------------------------------------------------------- */}
@@ -1037,8 +1039,8 @@ export default function AssessmentTab({
               className="cartesia-card"
               style={{
                 position: 'sticky',
-                top: 76,
-                height: 'calc(100vh - 96px)',
+                top: 14,
+                height: 'calc(100vh - 28px)',
                 padding: '12px 6px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1114,8 +1116,8 @@ export default function AssessmentTab({
               className="cartesia-card"
               style={{
                 position: 'sticky',
-                top: 76,
-                height: 'calc(100vh - 96px)',
+                top: 14,
+                height: 'calc(100vh - 28px)',
                 display: 'flex',
                 flexDirection: 'column',
                 padding: '14px 16px',
@@ -1139,6 +1141,17 @@ export default function AssessmentTab({
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  {sidebarCollapsed && (
+                    <button
+                      type="button"
+                      onClick={() => setSidebarCollapsed && setSidebarCollapsed(false)}
+                      className="btn btn-ghost btn-sm"
+                      style={{ height: 28, width: 28, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}
+                      title="Open navigation sidebar"
+                    >
+                      <PanelLeftOpen size={16} />
+                    </button>
+                  )}
                   <div
                     style={{
                       width: 30,
@@ -1576,13 +1589,9 @@ export default function AssessmentTab({
                     <h2 style={{ fontSize: '0.96rem', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
                       {assessmentTitle || assessment?.title || 'Draft Assessment Canvas'}
                     </h2>
-                    {isLocked ? (
+                    {isLocked && (
                       <span className="badge" style={{ background: 'var(--warning-bg)', color: 'var(--warning)', border: '1px solid var(--warning)', fontSize: '0.68rem', padding: '1px 6px' }}>
                         Locked
-                      </span>
-                    ) : (
-                      <span className="badge badge-accent" style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
-                        Active Canvas
                       </span>
                     )}
                   </div>

@@ -199,16 +199,18 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="main-wrapper">
-        <Header
-          activeTab={activeTab}
-          collapsed={collapsed}
-          setCollapsed={setCollapsed}
-          currentUser={currentUser}
-          onOpenAuth={() => setIsAuthOpen(true)}
-          onSignOut={handleSignOut}
-        />
+        {activeTab !== 'assessment' && (
+          <Header
+            activeTab={activeTab}
+            collapsed={collapsed}
+            setCollapsed={setCollapsed}
+            currentUser={currentUser}
+            onOpenAuth={() => setIsAuthOpen(true)}
+            onSignOut={handleSignOut}
+          />
+        )}
 
-        <main className="content-body">
+        <main className={`content-body ${activeTab === 'assessment' ? 'content-body-assessment' : ''}`}>
           {activeTab === 'overview' && (
             <OverviewTab
               analyticsData={analyticsData}
@@ -245,6 +247,8 @@ export default function App() {
               activeChatSessionId={activeChatSessionId}
               setActiveChatSessionId={setActiveChatSessionId}
               onChatSessionsChange={loadChatSessions}
+              sidebarCollapsed={collapsed}
+              setSidebarCollapsed={setCollapsed}
             />
           )}
 

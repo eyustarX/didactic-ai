@@ -91,14 +91,14 @@ body {
   width: 100%;
 }
 
-/* Sidebar Desktop Layout with Full Smooth Collapse (ChatGPT Style) */
+/* Sidebar Desktop Layout with Sleek ChatGPT-Style Collapsed Icon Rail */
 .sidebar-wrapper {
   position: sticky;
   top: 0;
   height: 100vh;
   z-index: 50;
   flex-shrink: 0;
-  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sidebar-wrapper:not(.collapsed) {
@@ -106,10 +106,7 @@ body {
 }
 
 .sidebar-wrapper.collapsed {
-  width: 0 !important;
-  min-width: 0 !important;
-  max-width: 0 !important;
-  overflow: hidden;
+  width: 56px;
 }
 
 .sidebar {
@@ -119,24 +116,46 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 16px 12px;
+  padding: 14px 10px;
   flex-shrink: 0;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), width 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1), padding 0.2s ease;
   box-sizing: border-box;
   overflow: hidden;
 }
 
 .sidebar.collapsed {
-  width: 0 !important;
-  min-width: 0 !important;
-  max-width: 0 !important;
-  padding: 0 !important;
-  border-right: none !important;
-  transform: translateX(-100%) !important;
-  overflow: hidden !important;
-  pointer-events: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
+  width: 56px;
+  padding: 14px 6px;
+  align-items: center;
+}
+
+/* Collapsed Brand Icon */
+.sidebar-collapsed-brand-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  width: 100%;
+}
+
+.sidebar-collapsed-brand-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  padding: 0;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.sidebar-collapsed-brand-btn:hover {
+  transform: scale(1.08);
 }
 
 .brand-section {
@@ -469,6 +488,11 @@ body {
   max-width: 1240px;
   width: 100%;
   margin: 0 auto;
+}
+
+.content-body-assessment {
+  padding: 12px 18px 24px 18px;
+  max-width: 100%;
 }
 
 /* Clean Cartesia Cards */
@@ -1775,4 +1799,98 @@ body {
   background: var(--surface-alt);
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* =========================================================================
+   Collapsed Icon Rail Elements (ChatGPT Style)
+   ========================================================================= */
+
+.sidebar.collapsed .sidebar-new-chat-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0;
+  width: 100%;
+}
+
+.sidebar.collapsed .sidebar-new-chat-btn {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.sidebar.collapsed .new-chat-text {
+  display: none;
+}
+
+.sidebar.collapsed .nav-menu {
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar.collapsed .nav-item {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.sidebar.collapsed .nav-item span {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-divider {
+  width: 22px;
+  margin: 10px auto;
+}
+
+.sidebar.collapsed .sidebar-recent-section {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-profile-section {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.sidebar.collapsed .sidebar-profile-card {
+  padding: 0;
+  border: none;
+  background: transparent;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.sidebar.collapsed .sidebar-profile-info,
+.sidebar.collapsed .sidebar-profile-action-btn,
+.sidebar.collapsed .sidebar-status-dot {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-profile-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 0.76rem;
+  background: #10b981; /* ChatGPT bright emerald green circle */
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.sidebar.collapsed .sidebar-profile-avatar:hover {
+  transform: scale(1.08);
+  filter: brightness(1.1);
 }
