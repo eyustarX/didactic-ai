@@ -1,20 +1,25 @@
-import React, { useState } from 'react';
-import ExcelJS from 'exceljs';
+import React, { useState, useEffect } from 'react';
 import ProfileMenu from '../components/ProfileMenu';
+import DidacticLogo from '../components/DidacticLogo';
 import './LandingPage.css';
 import {
   Zap,
   ArrowRight,
+  Lock,
   FileSpreadsheet,
+  CheckCircle2,
+  Sparkles,
+  GraduationCap,
   BookOpen,
   Layers,
-  Search,
+  BarChart3,
+  RotateCcw,
   Users,
-  Lock,
+  Award,
   ChevronDown,
   ChevronUp,
-  Sparkles,
-  Award,
+  LogIn,
+  Check,
 } from 'lucide-react';
 
 export default function LandingPage({
@@ -29,7 +34,25 @@ export default function LandingPage({
   onToggleTheme,
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const [openFaqIndex, setOpenFaqIndex] = useState(null);
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
+
+  useEffect(() => {
+    // Scroll progress line
+    const scrollLine = document.getElementById('pro-scroll-line');
+    const updateScrollProgress = () => {
+      const docElem = document.documentElement;
+      const totalHeight = docElem.scrollHeight - docElem.clientHeight;
+      if (totalHeight > 0 && scrollLine) {
+        const scrollRatio = window.scrollY / totalHeight;
+        scrollLine.style.width = Math.min(100, Math.max(0, scrollRatio * 100)) + '%';
+      }
+    };
+
+    window.addEventListener('scroll', updateScrollProgress, { passive: true });
+    updateScrollProgress();
+
+    return () => window.removeEventListener('scroll', updateScrollProgress);
+  }, []);
 
   const scrollToSection = (id) => {
     const el = document.getElementById(id);
@@ -41,93 +64,51 @@ export default function LandingPage({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSignUpClick = (e) => {
+  const handleEnterPlatform = (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    if (currentUser) {
-      if (onEnterApp) onEnterApp();
+    if (!currentUser) {
+      if (onOpenAuth) onOpenAuth();
       return;
     }
-    if (onOpenAuth) onOpenAuth('register');
-  };
-
-  const handleLogInClick = (e) => {
-    if (e && e.preventDefault) e.preventDefault();
-    if (currentUser) {
-      if (onEnterApp) onEnterApp();
-      return;
-    }
-    if (onOpenAuth) onOpenAuth('signin');
-  };
-
-  const handleExportSampleExcel = async () => {
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('CS-301 Master Gradebook');
-
-    worksheet.columns = [
-      { header: 'Student ID', key: 'id', width: 16 },
-      { header: 'Student Name', key: 'name', width: 24 },
-      { header: 'Section', key: 'section', width: 14 },
-      { header: 'Midterm [40%]', key: 'midterm', width: 18 },
-      { header: 'Final Exam [60%]', key: 'final', width: 18 },
-      { header: 'Course % (Weighted)', key: 'weighted', width: 22 },
-      { header: 'Final Grade Tier', key: 'tier', width: 16 },
-    ];
-
-    const sampleRoster = [
-      { id: 'STU-2026-001', name: 'Alice Johnson', section: 'Section A', midterm: '46.5 / 50 (93%)', final: '48.0 / 50 (96%)', weighted: '94.8%', tier: 'Grade A' },
-      { id: 'STU-2026-002', name: 'Marcus Chen', section: 'Section A', midterm: '44.5 / 50 (89%)', final: '42.0 / 50 (84%)', weighted: '86.0%', tier: 'Grade A-' },
-      { id: 'STU-2026-003', name: 'Sophia Rodriguez', section: 'Section B', midterm: '45.5 / 50 (91%)', final: '46.0 / 50 (92%)', weighted: '91.6%', tier: 'Grade A' },
-      { id: 'STU-2026-004', name: 'David Kim', section: 'Section B', midterm: '39.5 / 50 (79%)', final: '40.5 / 50 (81%)', weighted: '80.2%', tier: 'Grade B+' },
-      { id: 'STU-2026-005', name: 'Fatima Al-Mansoor', section: 'Section A', midterm: '48.0 / 50 (96%)', final: '49.0 / 50 (98%)', weighted: '97.2%', tier: 'Grade A' },
-    ];
-
-    sampleRoster.forEach((row) => worksheet.addRow(row));
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'Didactic_AI_Master_Gradebook_Sample.xlsx';
-    a.click();
-    URL.revokeObjectURL(url);
+    if (onEnterApp) onEnterApp();
   };
 
   const faqItems = [
     {
-      q: 'How does evidence citation work, and how are hallucinations handled?',
-      a: 'Didactic AI matches student answer text directly against objective rubric criteria with line-by-line evidence citations. Every awarded mark references the exact phrase in the student submission. Instructors retain full oversight: you can override any score with one click or trigger a complete regrade.',
+      q: 'How does evidence-grounded grading work?',
+      a: 'Didactic AI compares student answers against objective rubric criteria and extracts exact evidence citations directly from the student’s text. Teachers can inspect evidence citations, adjust scores, or trigger a full regrade with one click.',
     },
     {
-      q: 'Can I re-grade an individual question or an entire student submission?',
-      a: 'Yes. Both full-submission and single-question regrading are built into every assessment sheet. Clicking "Regrade" re-evaluates the student answer against the criteria key without losing any student records.',
+      q: 'How does section management and student deduplication work?',
+      a: 'Assessments are grouped by Course, Section (e.g. Section A, Section B), and Academic Year. When grading multiple assessments, the system matches on Student ID and updates the student’s record in the Master Gradebook without creating duplicates.',
     },
     {
-      q: 'How do course sections and student deduplication work?',
-      a: 'Assessments can be organized by Course, Section (e.g. Section A, Section B), and Academic Year. When grading multiple assessments (Quizzes, Midterms, Finals), the system automatically matches the Student ID so subsequent scores append into the student’s existing row in the Master Gradebook without creating duplicate records.',
+      q: 'How do percentage weights and final Grade Tiers calculate?',
+      a: 'Instructors assign percentage weights to each exam (e.g., Quizzes = 20%, Midterm = 30%, Final = 50%). The Master Gradebook computes the cumulative weighted percentage and automatically awards final letter grade tiers (Grade A, B+, etc.).',
     },
     {
       q: 'What is the Server-Side Integrity Lock?',
-      a: 'Once the first student submission is graded, questions and rubric criteria are locked on the server to guarantee that every student in the cohort is evaluated against the exact same standard.',
+      a: 'Once the first student submission on an exam is graded, the rubric criteria and questions lock automatically server-side to guarantee that every student in the cohort is evaluated under identical, uncompromised standards.',
     },
   ];
 
   return (
     <div className="pro-landing-wrapper">
-      {/* Subtle Brand Background Glow */}
-      <div className="pro-brand-glow" />
+      {/* Top Reading Progress Bar */}
+      <div id="pro-scroll-line" role="progressbar" aria-label="Reading progress" />
 
-      {/* Modern Brand Navigation */}
+      {/* Ambient Mesh Glow */}
+      <div className="pro-landing-mesh" />
+
+      {/* Top Navigation Bar */}
       <nav className="pro-nav">
-        {/* Brand Logo with Original Zap Tile */}
         <a href="#" className="pro-nav-logo" onClick={scrollToTop} title="Didactic AI Home">
-          <div className="pro-brand-icon-tile">
-            <Zap size={18} strokeWidth={2.4} />
-          </div>
+          <DidacticLogo size={28} variant="icon" theme={themeMode === 'light' ? 'light' : 'dark'} />
           <span>Didactic AI</span>
         </a>
 
-        {/* Center Links */}
-        <div className="pro-nav-links">
+        {/* Center Navigation Links */}
+        <div className="pro-nav-center-links">
           <a
             href="#curriculum"
             onClick={(e) => {
@@ -149,16 +130,6 @@ export default function LandingPage({
             Rubrics
           </a>
           <a
-            href="#grading"
-            onClick={(e) => {
-              e.preventDefault();
-              scrollToSection('grading');
-            }}
-            className="pro-nav-link"
-          >
-            Grading
-          </a>
-          <a
             href="#gradebook"
             onClick={(e) => {
               e.preventDefault();
@@ -178,49 +149,35 @@ export default function LandingPage({
           >
             FAQ
           </a>
+        </div>
 
-          {/* Right Auth Controls */}
+        {/* Right Corner: Sign In / Log In and Enter Platform Buttons */}
+        <div className="pro-nav-right-actions">
           {currentUser ? (
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ position: 'relative' }}>
               <button
                 type="button"
                 onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '7px 14px',
-                  borderRadius: 8,
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--text)',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '0.88rem',
-                }}
+                className="pro-nav-btn-signin"
+                style={{ display: 'flex', alignItems: 'center', gap: 7 }}
               >
                 <div
                   style={{
-                    width: 22,
-                    height: 22,
+                    width: 20,
+                    height: 20,
                     borderRadius: '50%',
-                    background: '#14B8A6',
-                    color: '#ffffff',
+                    background: 'var(--accent)',
+                    color: 'var(--on-accent)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontWeight: 800,
-                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    fontSize: '0.7rem',
                   }}
                 >
                   {currentUser.name ? currentUser.name.trim().slice(0, 1).toUpperCase() : 'U'}
                 </div>
                 <span>{currentUser.name}</span>
-              </button>
-
-              <button onClick={onEnterApp} className="pro-btn-signup">
-                <span>Enter Platform</span>
-                <ArrowRight size={14} />
               </button>
 
               <ProfileMenu
@@ -237,255 +194,195 @@ export default function LandingPage({
               />
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={handleSignUpClick} className="pro-btn-signup">
-                Sign Up
-              </button>
-              <button onClick={handleLogInClick} className="pro-btn-login">
-                Log In
-              </button>
-            </div>
+            <button
+              onClick={onOpenAuth}
+              className="pro-nav-btn-signin"
+              title="Sign In or Log In"
+            >
+              Sign In / Log In
+            </button>
           )}
+
+          <button onClick={handleEnterPlatform} className="pro-btn-enter-primary">
+            <span>Enter Platform</span>
+            <ArrowRight size={14} />
+          </button>
         </div>
       </nav>
 
-      {/* HERO SECTION: UNIQUE DIDACTIC PEDAGOGICAL SYNTHESIS */}
-      <header className="pro-hero-unique">
-        {/* Left Column: Crisp Headline, Subtext, and Single Action */}
-        <div className="pro-hero-copy">
-          <div className="pro-hero-eyebrow">
-            <Sparkles size={13} />
-            <span>Pedagogical AI &bull; Master Gradebook</span>
+      {/* SPLIT HERO SECTION: Left Copy + Right Visual Idea Showcase */}
+      <header className="pro-split-hero-container">
+        {/* Left Side: Headline, Pitch & Enter Platform CTA */}
+        <div className="pro-hero-left">
+          <div className="pro-hero-badge">
+            <Sparkles size={14} />
+            <span>Next-Gen Pedagogical AI &bull; Evidence-Grounded Grading Engine</span>
           </div>
 
-          <h1 className="pro-hero-headline">
-            From Lecture Notes to Graded Exams.{' '}
-            <span className="pro-hero-highlight">Fair, Evidence-Backed Grading.</span>
+          <h1 className="pro-hero-main-title">
+            Turn Course Material into Rigorous Exams.
+            <span className="pro-hero-gradient-text">
+              Grade Faster with Verifiable Evidence.
+            </span>
           </h1>
 
-          <p className="pro-hero-subtext">
-            Didactic AI helps university educators decompile course materials into balanced examinations, generate objective multi-criteria rubrics, and evaluate student papers with line-by-line evidence citations.
+          <p className="pro-hero-description">
+            Decompile lecture slides and curriculum notes into Bloom-aligned exams, generate objective rubrics,
+            and grade student papers with line-by-line evidence citations and master section gradebooks.
           </p>
 
-          <div className="pro-hero-actions-row">
-            {currentUser ? (
-              <button onClick={onEnterApp} className="pro-cta-primary">
-                <span>Enter Workspace</span>
-                <ArrowRight size={16} />
-              </button>
-            ) : (
-              <>
-                <button onClick={handleSignUpClick} className="pro-cta-primary">
-                  <span>Sign Up for Free</span>
-                  <ArrowRight size={16} />
-                </button>
-                <button onClick={handleLogInClick} className="pro-cta-secondary">
-                  <span>Log In</span>
-                </button>
-              </>
-            )}
+          <div className="pro-hero-cta-wrap">
+            <button onClick={handleEnterPlatform} className="pro-hero-btn-large">
+              <span>Enter Platform</span>
+              <ArrowRight size={18} />
+            </button>
+          </div>
+
+          {/* 4 Clean Feature Bullets */}
+          <div className="pro-hero-features-list">
+            <div className="pro-hero-feat-item">
+              <Lock size={15} style={{ color: '#EAB308', flexShrink: 0 }} />
+              <span>Server-Side Integrity Lock</span>
+            </div>
+            <div className="pro-hero-feat-item">
+              <Award size={15} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+              <span>Weighted Master Gradebook</span>
+            </div>
+            <div className="pro-hero-feat-item">
+              <FileSpreadsheet size={15} style={{ color: '#10B981', flexShrink: 0 }} />
+              <span>Audit-Ready Excel (.xlsx) Export</span>
+            </div>
+            <div className="pro-hero-feat-item">
+              <RotateCcw size={15} style={{ color: '#38BDF8', flexShrink: 0 }} />
+              <span>1-Click Teacher Regrading</span>
+            </div>
           </div>
         </div>
 
-        {/* Right Column: Unique Didactic Synthesis Diagram */}
-        <div className="pro-hero-visual">
-          <svg viewBox="0 0 520 380" className="pro-synthesis-svg" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Luminous Connecting Circuit Paths */}
-            <path d="M 185 85 C 270 85 280 190 350 190" stroke="#14B8A6" strokeWidth="2.5" strokeOpacity="0.75" />
-            <path d="M 195 190 L 350 190" stroke="#14B8A6" strokeWidth="2.5" strokeOpacity="0.85" />
-            <path d="M 185 295 C 270 295 280 190 350 190" stroke="#14B8A6" strokeWidth="2.5" strokeOpacity="0.75" />
-            <path d="M 410 190 L 500 190" stroke="#5EEAD4" strokeWidth="3" />
+        {/* Right Side: Visual Graphic Aligning with Didactic AI */}
+        <div className="pro-hero-right-visual">
+          <div className="pro-visual-card-wrapper">
+            {/* Visual Header */}
+            <div className="pro-visual-topbar">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="pro-visual-pill">CS-301 &bull; Section A</span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Midterm Exam</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', color: '#EAB308' }}>
+                <Lock size={12} />
+                <span>Rubric Locked</span>
+              </div>
+            </div>
 
-            {/* Glowing Connection Nodes */}
-            <circle cx="280" cy="120" r="4.5" fill="#5EEAD4" stroke="#14B8A6" strokeWidth="2" />
-            <circle cx="280" cy="260" r="4.5" fill="#5EEAD4" stroke="#14B8A6" strokeWidth="2" />
-            <circle cx="500" cy="190" r="5" fill="#5EEAD4" stroke="#14B8A6" strokeWidth="2.5" />
+            {/* Step 1: Lecture Concept */}
+            <div className="pro-visual-step">
+              <div className="pro-visual-step-header">
+                <span>Ingested Source &bull; Slide 14</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>Bloom Level 4 (Analyze)</span>
+              </div>
+              <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
+                <strong>Topic:</strong> Mutex ownership vs binary semaphore signaling; dynamic priority inheritance.
+              </p>
+            </div>
 
-            {/* NODE 1 (TOP): LECTURE NOTES & PPTX */}
-            <g transform="translate(25, 45)">
-              <text x="70" y="-8" textAnchor="middle" fill="#64748B" fontSize="11" fontWeight="700" letterSpacing="0.08em">
-                LECTURE NOTES (PPTX)
-              </text>
-              {/* Back card */}
-              <rect x="25" y="0" width="115" height="70" rx="8" fill="#111C30" stroke="#1E2D4A" strokeWidth="1.2" opacity="0.6" />
-              {/* Front card */}
-              <rect x="15" y="8" width="120" height="74" rx="8" fill="#0B1220" stroke="#1E2D4A" strokeWidth="1.5" />
-              {/* Slide Presentation Graphic */}
-              <rect x="25" y="18" width="40" height="26" rx="4" fill="#16243D" stroke="#14B8A6" strokeWidth="1" />
-              <circle cx="45" cy="31" r="5" fill="#5EEAD4" opacity="0.8" />
-              {/* Concept tags */}
-              <rect x="72" y="18" width="50" height="6" rx="3" fill="#5EEAD4" opacity="0.9" />
-              <rect x="72" y="28" width="40" height="5" rx="2.5" fill="#94A3B8" opacity="0.6" />
-              <rect x="72" y="37" width="44" height="5" rx="2.5" fill="#94A3B8" opacity="0.4" />
-              {/* Bloom level indicator */}
-              <rect x="25" y="52" width="70" height="14" rx="4" fill="rgba(20, 184, 166, 0.15)" stroke="rgba(94, 234, 212, 0.3)" strokeWidth="1" />
-              <text x="60" y="62" textAnchor="middle" fill="#5EEAD4" fontSize="8" fontWeight="700">BLOOM LEVEL 4</text>
-              {/* Connector Pin */}
-              <circle cx="135" cy="45" r="4.5" fill="#0B1220" stroke="#14B8A6" strokeWidth="2.5" />
-            </g>
+            {/* Step 2: Student Response with Highlighted Evidence Citation */}
+            <div className="pro-visual-step" style={{ borderLeft: '3px solid var(--accent)' }}>
+              <div className="pro-visual-step-header">
+                <span style={{ color: 'var(--text)' }}>Student Answer &bull; STU-101 (Alice J.)</span>
+                <span style={{ color: 'var(--accent)' }}>Score: 9.5 / 10</span>
+              </div>
+              <p className="pro-visual-answer-text">
+                "A mutex enforces{' '}
+                <span className="pro-evidence-highlight">
+                  strict thread ownership: only the locker thread can release it
+                </span>
+                . In real-time kernels, priority inversion is resolved by{' '}
+                <span className="pro-evidence-highlight">
+                  elevating the lock-holder's dynamic priority
+                </span>{' '}
+                to eliminate unbounded blocking."
+              </p>
+            </div>
 
-            {/* NODE 2 (MIDDLE): OBJECTIVE RUBRICS */}
-            <g transform="translate(15, 150)">
-              <text x="85" y="-8" textAnchor="middle" fill="#64748B" fontSize="11" fontWeight="700" letterSpacing="0.08em">
-                OBJECTIVE RUBRICS
-              </text>
-              <rect x="15" y="0" width="135" height="76" rx="8" fill="#0B1220" stroke="#1E2D4A" strokeWidth="1.5" />
-              {/* Question header */}
-              <rect x="25" y="12" width="60" height="6" rx="3" fill="#14B8A6" />
-              <rect x="95" y="11" width="42" height="12" rx="3" fill="rgba(20, 184, 166, 0.15)" />
-              <text x="116" y="20" textAnchor="middle" fill="#5EEAD4" fontSize="7.5" fontWeight="700">10.0 PTS</text>
-              {/* Criteria Weight Bars */}
-              <rect x="25" y="26" width="112" height="4" rx="2" fill="#1E2D4A" />
-              <rect x="25" y="36" width="70" height="5" rx="2.5" fill="#94A3B8" opacity="0.7" />
-              <text x="122" y="41" textAnchor="end" fill="#5EEAD4" fontSize="8" fontWeight="700">35%</text>
-              <rect x="25" y="46" width="60" height="5" rx="2.5" fill="#94A3B8" opacity="0.7" />
-              <text x="122" y="51" textAnchor="end" fill="#5EEAD4" fontSize="8" fontWeight="700">35%</text>
-              <rect x="25" y="56" width="50" height="5" rx="2.5" fill="#94A3B8" opacity="0.7" />
-              <text x="122" y="61" textAnchor="end" fill="#5EEAD4" fontSize="8" fontWeight="700">30%</text>
-              {/* Connector Pin */}
-              <circle cx="150" cy="38" r="4.5" fill="#0B1220" stroke="#14B8A6" strokeWidth="2.5" />
-            </g>
+            {/* Step 3: Evidence Evaluation & Gradebook Sync */}
+            <div className="pro-visual-eval-stats">
+              <div className="pro-visual-stat-item">
+                <div className="pro-visual-stat-lbl">Evidence Citation</div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--accent)', marginTop: 2, fontWeight: 600 }}>
+                  &check; Line-by-Line Match
+                </div>
+              </div>
+              <div className="pro-visual-stat-item">
+                <div className="pro-visual-stat-lbl">Master Grade Tier</div>
+                <div className="pro-visual-stat-val">Grade A (95%)</div>
+              </div>
+            </div>
 
-            {/* NODE 3 (BOTTOM): STUDENT PAPERS */}
-            <g transform="translate(25, 255)">
-              <text x="70" y="-8" textAnchor="middle" fill="#64748B" fontSize="11" fontWeight="700" letterSpacing="0.08em">
-                STUDENT PAPERS
-              </text>
-              <rect x="15" y="0" width="120" height="74" rx="8" fill="#0B1220" stroke="#1E2D4A" strokeWidth="1.5" />
-              {/* Student Answer Text lines */}
-              <rect x="25" y="14" width="40" height="5" rx="2.5" fill="#94A3B8" opacity="0.5" />
-              {/* Highlighted Evidence Citation */}
-              <rect x="25" y="24" width="98" height="14" rx="3" fill="rgba(20, 184, 166, 0.2)" stroke="#14B8A6" strokeWidth="1" />
-              <text x="74" y="34" textAnchor="middle" fill="#5EEAD4" fontSize="7.5" fontWeight="700">"STRICT MUTEX OWNERSHIP"</text>
-              <rect x="25" y="43" width="70" height="5" rx="2.5" fill="#94A3B8" opacity="0.5" />
-              <rect x="25" y="52" width="55" height="5" rx="2.5" fill="#94A3B8" opacity="0.5" />
-              {/* Score badge */}
-              <rect x="90" y="47" width="35" height="15" rx="4" fill="#14B8A6" />
-              <text x="107" y="58" textAnchor="middle" fill="#0B1220" fontSize="8.5" fontWeight="800">9.5 / 10</text>
-              {/* Connector Pin */}
-              <circle cx="135" cy="37" r="4.5" fill="#0B1220" stroke="#14B8A6" strokeWidth="2.5" />
-            </g>
-
-            {/* CENTRAL DIDACTIC AI SYNTHESIS CORE */}
-            <g transform="translate(345, 150)">
-              {/* Luminous aura rings */}
-              <circle cx="40" cy="40" r="42" fill="none" stroke="#14B8A6" strokeWidth="1.5" strokeOpacity="0.4" strokeDasharray="4 4" />
-              <circle cx="40" cy="40" r="34" fill="#0B1220" stroke="#14B8A6" strokeWidth="2.5" />
-              {/* Inner Zap Mark */}
-              <path d="M 43 25 L 32 41 L 39 41 L 37 55 L 48 38 L 41 38 Z" fill="#5EEAD4" />
-            </g>
-
-            {/* RIGHT OUTPUT CARD: MASTER GRADEBOOK & AUDIT */}
-            <g transform="translate(430, 140)">
-              <rect x="0" y="0" width="80" height="95" rx="8" fill="#0B1220" stroke="#14B8A6" strokeWidth="1.8" />
-              <rect x="8" y="10" width="64" height="6" rx="3" fill="#14B8A6" />
-              {/* Section Row A */}
-              <rect x="8" y="24" width="22" height="5" rx="2.5" fill="#94A3B8" />
-              <rect x="44" y="22" width="28" height="10" rx="3" fill="rgba(20, 184, 166, 0.2)" />
-              <text x="58" y="29" textAnchor="middle" fill="#5EEAD4" fontSize="7" fontWeight="700">SEC A</text>
-              {/* Scores */}
-              <rect x="8" y="37" width="48" height="4" rx="2" fill="#1E2D4A" />
-              <rect x="8" y="47" width="55" height="4" rx="2" fill="#1E2D4A" />
-              {/* Grade A Badge */}
-              <rect x="8" y="60" width="64" height="18" rx="4" fill="#14B8A6" />
-              <text x="40" y="72" textAnchor="middle" fill="#0B1220" fontSize="9" fontWeight="800">GRADE A</text>
-              {/* Sub-label */}
-              <text x="40" y="86" textAnchor="middle" fill="#94A3B8" fontSize="6.5" fontWeight="600">94.8% &bull; XLSX</text>
-            </g>
-          </svg>
+            {/* Floating Badge */}
+            <div className="pro-floating-card-badge">
+              <CheckCircle2 size={15} />
+              <span>Confirmed in Master Excel (.xlsx)</span>
+            </div>
+          </div>
         </div>
       </header>
 
-      {/* 3-PILLAR FEATURE SECTION */}
-      <section className="pro-pillars-section" id="curriculum">
-        <div className="pro-pillars-header">
-          <span className="pro-pillars-tag">Platform Pillars</span>
-          <h2 className="pro-pillars-title">The Complete Pedagogical Engine</h2>
-          <p className="pro-pillars-desc">
-            From lecture ingestion to weighted registrar gradebooks—everything built for university academic standards.
-          </p>
-        </div>
+      {/* CONCISE 3-FEATURE SECTION BELOW HERO (SIMPLE & CLEAR) */}
+      <section className="pro-simple-features-section" id="curriculum">
+        <span id="rubrics" style={{ display: 'block', position: 'relative', top: '-70px', visibility: 'hidden' }} />
+        <span id="gradebook" style={{ display: 'block', position: 'relative', top: '-70px', visibility: 'hidden' }} />
 
-        <div className="pro-pillars-grid">
-          {/* Pillar 1 */}
-          <div className="pro-pillar-card">
-            <div className="pro-pillar-icon">
-              <BookOpen size={20} strokeWidth={2.2} />
+        <div className="pro-simple-grid">
+          {/* Card 1 */}
+          <div className="pro-simple-card">
+            <div className="pro-simple-icon-box">
+              <BookOpen size={20} />
             </div>
-            <h3>Curriculum Decompilation</h3>
-            <p>
-              Upload PPTX lecture slides or syllabus notes. Didactic AI maps concepts across Bloom's taxonomy cognitive levels so your assessments test analytical understanding, not simple memorization.
+            <h3 className="pro-simple-card-title">1. Curriculum Decompilation</h3>
+            <p className="pro-simple-card-desc">
+              Upload PPTX presentations or syllabus PDFs. Didactic AI maps key points across Bloom’s cognitive levels and builds balanced multi-criteria rubrics.
             </p>
           </div>
 
-          {/* Pillar 2 */}
-          <div className="pro-pillar-card" id="rubrics">
-            <div className="pro-pillar-icon">
-              <Search size={20} strokeWidth={2.2} />
+          {/* Card 2 */}
+          <div className="pro-simple-card">
+            <div className="pro-simple-icon-box">
+              <Sparkles size={20} />
             </div>
-            <h3>Evidence-Grounded Grading</h3>
-            <p id="grading">
-              Student submissions are matched against objective rubrics. Every awarded point cites specific student phrases with one-click teacher overrides and full regrade controls.
+            <h3 className="pro-simple-card-title">2. Evidence-Grounded Grading</h3>
+            <p className="pro-simple-card-desc">
+              Grades student papers line by line with transparent citations. Teachers stay in complete control with 1-click manual score overrides and regrading.
             </p>
           </div>
 
-          {/* Pillar 3 */}
-          <div className="pro-pillar-card" id="gradebook">
-            <div className="pro-pillar-icon">
-              <Users size={20} strokeWidth={2.2} />
+          {/* Card 3 */}
+          <div className="pro-simple-card">
+            <div className="pro-simple-icon-box">
+              <FileSpreadsheet size={20} />
             </div>
-            <h3>Master Course Gradebooks</h3>
-            <p>
-              Group cohorts into Section A and B without duplicate records. Configure multi-exam percentage weights (Quizzes, Midterm, Final) and export directly to Excel (.xlsx).
+            <h3 className="pro-simple-card-title">3. Master Section Gradebook</h3>
+            <p className="pro-simple-card-desc">
+              Organize students by Section (Sec A, B). Matches on Student ID to prevent duplicate rows, computes weighted course percentages, and exports to Excel (.xlsx).
             </p>
           </div>
         </div>
       </section>
 
-      {/* SAMPLE AUDIT SHEET EXCEL EXPORT */}
-      <section className="pro-audit-section">
-        <div className="pro-audit-card">
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Award size={18} style={{ color: '#14B8A6' }} />
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text)' }}>
-                Audit-Ready Multi-Exam Gradebooks
-              </h3>
-            </div>
-            <p style={{ fontSize: '0.92rem', color: 'var(--text-muted)', maxWidth: 640 }}>
-              Download a sample multi-exam spreadsheet showing how Section A and B student scores, weighted percentages, and Grade Tiers aggregate.
-            </p>
-          </div>
-
-          <button
-            onClick={handleExportSampleExcel}
-            className="pro-btn-signup"
-            style={{ padding: '11px 22px' }}
-          >
-            <FileSpreadsheet size={16} />
-            <span>Download Sample Excel (.xlsx)</span>
-          </button>
-        </div>
-      </section>
-
-      {/* FREQUENTLY ASKED QUESTIONS */}
-      <section className="pro-faq-section" id="faq">
-        <h2 style={{ fontSize: '2rem', fontWeight: 800, textAlign: 'center', marginBottom: 36, letterSpacing: '-0.02em', color: 'var(--text)' }}>
-          Frequently Asked Questions
-        </h2>
-
+      {/* CONCISE FAQ ACCORDION */}
+      <section className="pro-faq-section-simple" id="faq">
+        <h2 className="pro-faq-simple-title">Frequently Asked Questions</h2>
         <div>
           {faqItems.map((item, index) => (
-            <div key={index} className="pro-faq-item">
+            <div key={index} className="pro-faq-simple-item">
               <button
-                className="pro-faq-btn"
-                onClick={() => setOpenFaqIndex(openFaqIndex === index ? null : index)}
+                className="pro-faq-simple-btn"
+                onClick={() => setOpenFaqIndex(openFaqIndex === index ? -1 : index)}
               >
                 <span>{item.q}</span>
                 {openFaqIndex === index ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
               </button>
               {openFaqIndex === index && (
-                <div className="pro-faq-content">
+                <div className="pro-faq-simple-ans">
                   {item.a}
                 </div>
               )}
@@ -494,19 +391,15 @@ export default function LandingPage({
         </div>
       </section>
 
-      {/* MINIMAL FOOTER */}
-      <footer className="pro-footer">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div className="pro-brand-icon-tile" style={{ width: 26, height: 26, borderRadius: 7 }}>
-            <Zap size={14} />
-          </div>
-          <span style={{ fontWeight: 700, fontSize: '0.98rem', color: 'var(--text)' }}>Didactic AI</span>
-          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginLeft: 8 }}>
-            &copy; {new Date().getFullYear()} Didactic AI. All rights reserved.
-          </span>
+      {/* CLEAN SIMPLE FOOTER */}
+      <footer className="pro-simple-footer">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <DidacticLogo size={24} variant="icon" theme={themeMode === 'light' ? 'light' : 'dark'} />
+          <span style={{ fontWeight: 700, fontSize: '0.92rem' }}>Didactic AI</span>
+          <span>&copy; {new Date().getFullYear()} All rights reserved.</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24, fontSize: '0.88rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
           <a href="#curriculum" onClick={(e) => { e.preventDefault(); scrollToSection('curriculum'); }} className="pro-nav-link">
             Curriculum
           </a>
@@ -519,6 +412,13 @@ export default function LandingPage({
           <a href="#faq" onClick={(e) => { e.preventDefault(); scrollToSection('faq'); }} className="pro-nav-link">
             FAQ
           </a>
+          <button
+            onClick={handleEnterPlatform}
+            className="pro-btn-enter-primary"
+            style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+          >
+            Enter Platform
+          </button>
         </div>
       </footer>
     </div>

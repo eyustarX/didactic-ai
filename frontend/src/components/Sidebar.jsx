@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import ProfileMenu from './ProfileMenu';
+import DidacticLogo from './DidacticLogo';
 import {
   FileCheck,
   GraduationCap,
-  Zap,
   PanelLeftClose,
   PanelLeftOpen,
   X,
@@ -82,9 +82,7 @@ export default function Sidebar({
                 className="sidebar-collapsed-brand-btn"
                 title="Expand sidebar"
               >
-                <div className="brand-icon">
-                  <Zap size={16} />
-                </div>
+                <DidacticLogo size={24} variant="icon" theme={themeMode === 'light' ? 'light' : 'dark'} />
               </button>
             </div>
           ) : (
@@ -95,9 +93,7 @@ export default function Sidebar({
                 title="Go to landing page"
                 style={{ cursor: 'pointer' }}
               >
-                <div className="brand-icon">
-                  <Zap size={15} />
-                </div>
+                <DidacticLogo size={24} variant="icon" theme={themeMode === 'light' ? 'light' : 'dark'} />
                 <h1 className="brand-title">Didactic AI</h1>
               </div>
 
