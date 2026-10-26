@@ -32,6 +32,7 @@ export default function LandingPage({
 }) {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
+  const [cohortSize, setCohortSize] = useState(75);
 
   useEffect(() => {
     // Scroll progress line along top edge
@@ -135,6 +136,16 @@ export default function LandingPage({
             className="pro-nav-link"
           >
             Master Gradebook
+          </a>
+          <a
+            href="#productivity"
+            onClick={(e) => {
+              e.preventDefault();
+              scrollToSection('productivity');
+            }}
+            className="pro-nav-link"
+          >
+            Time Saved
           </a>
           <a
             href="#faq"
@@ -417,6 +428,50 @@ export default function LandingPage({
         </div>
       </section>
 
+      {/* INTERACTIVE TIME SAVED CALCULATOR */}
+      <section className="pro-calculator-card" id="productivity">
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+          <span className="pro-section-tag">Productivity Estimator</span>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: 4 }}>
+            How Much Time Does It Save Per Student?
+          </h2>
+          <p style={{ fontSize: '0.92rem', color: 'var(--text-muted)' }}>
+            Adjust the slider to match your active class or cohort size:
+          </p>
+        </div>
+
+        <div className="pro-slider-wrap">
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, marginBottom: 8 }}>
+            <span>Cohort Size:</span>
+            <span style={{ color: 'var(--accent)', fontSize: '1.25rem' }}>{cohortSize} Students</span>
+          </div>
+          <input
+            type="range"
+            min={20}
+            max={300}
+            step={5}
+            value={cohortSize}
+            onChange={(e) => setCohortSize(Number(e.target.value))}
+            className="pro-slider"
+          />
+        </div>
+
+        <div className="pro-calc-stats">
+          <div className="pro-calc-stat-box">
+            <div className="pro-calc-stat-num">~2.5 hrs</div>
+            <div className="pro-calc-stat-lbl">Saved Per Student Each Term</div>
+          </div>
+          <div className="pro-calc-stat-box">
+            <div className="pro-calc-stat-num">{Math.round(cohortSize * 2.5)} hrs</div>
+            <div className="pro-calc-stat-lbl">Total Grading Hours Saved</div>
+          </div>
+          <div className="pro-calc-stat-box">
+            <div className="pro-calc-stat-num">{cohortSize * 4} papers</div>
+            <div className="pro-calc-stat-lbl">Exams & Quizzes Automated</div>
+          </div>
+        </div>
+      </section>
+
       {/* CONCISE FAQ ACCORDION */}
       <section className="pro-faq-section-simple" id="faq">
         <h2 className="pro-faq-simple-title">Frequently Asked Questions</h2>
@@ -457,6 +512,9 @@ export default function LandingPage({
           </a>
           <a href="#gradebook" onClick={(e) => { e.preventDefault(); scrollToSection('gradebook'); }} className="pro-nav-link">
             Gradebook
+          </a>
+          <a href="#productivity" onClick={(e) => { e.preventDefault(); scrollToSection('productivity'); }} className="pro-nav-link">
+            Time Saved
           </a>
           <a href="#faq" onClick={(e) => { e.preventDefault(); scrollToSection('faq'); }} className="pro-nav-link">
             FAQ

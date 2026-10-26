@@ -52,6 +52,7 @@ import {
   createChatSession,
   saveChatMessage,
 } from '../services/api';
+import DidacticLogo from '../components/DidacticLogo';
 
 export default function AssessmentTab({
   activeNoteId,
@@ -734,19 +735,13 @@ export default function AssessmentTab({
           {/* Hero Greeting & Icon */}
           <div
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: 16,
-              background: 'var(--accent)',
-              color: 'var(--on-accent)',
+              marginBottom: 18,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: 18,
-              boxShadow: 'var(--shadow-card)',
             }}
           >
-            <Bot size={28} />
+            <DidacticLogo size={58} variant="icon" theme={theme === 'light' ? 'light' : 'dark'} />
           </div>
 
           <h1
@@ -1111,15 +1106,12 @@ export default function AssessmentTab({
                 style={{
                   width: 32,
                   height: 32,
-                  borderRadius: 8,
-                  background: 'var(--accent)',
-                  color: 'var(--on-accent)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Bot size={16} />
+                <DidacticLogo size={26} variant="icon" theme={theme === 'light' ? 'light' : 'dark'} />
               </div>
 
               {chatMessages.length > 1 && (
@@ -1197,16 +1189,13 @@ export default function AssessmentTab({
                     style={{
                       width: 30,
                       height: 30,
-                      borderRadius: 8,
-                      background: 'var(--accent)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: 'var(--on-accent)',
                       flexShrink: 0,
                     }}
                   >
-                    <Bot size={16} />
+                    <DidacticLogo size={28} variant="icon" theme={theme === 'light' ? 'light' : 'dark'} />
                   </div>
                   <div>
                     <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text)', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1349,9 +1338,6 @@ export default function AssessmentTab({
                           style={{
                             width: 24,
                             height: 24,
-                            borderRadius: 6,
-                            background: 'var(--surface-alt)',
-                            color: 'var(--accent)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1359,7 +1345,7 @@ export default function AssessmentTab({
                             marginTop: 2,
                           }}
                         >
-                          <Bot size={13} />
+                          <DidacticLogo size={22} variant="icon" theme={theme === 'light' ? 'light' : 'dark'} />
                         </div>
                       )}
 
@@ -1436,15 +1422,13 @@ export default function AssessmentTab({
                       style={{
                         width: 24,
                         height: 24,
-                        borderRadius: 6,
-                        background: 'var(--surface-alt)',
-                        color: 'var(--accent)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                       }}
                     >
-                      <Bot size={13} />
+                      <DidacticLogo size={20} variant="icon" theme={theme === 'light' ? 'light' : 'dark'} />
                     </div>
                     <div
                       style={{
