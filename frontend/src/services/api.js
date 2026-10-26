@@ -434,6 +434,10 @@ export async function gradeStudentSubmission({
   student_id,
   student_number,
   student_name,
+  section,
+  academic_year,
+  course_name,
+  assessment_category,
   file,
   pasted_text,
   lecturerId,
@@ -442,6 +446,10 @@ export async function gradeStudentSubmission({
   if (student_id) formData.append('student_id', student_id);
   if (student_number) formData.append('student_number', student_number);
   if (student_name) formData.append('student_name', student_name);
+  if (section) formData.append('section', section);
+  if (academic_year) formData.append('academic_year', academic_year);
+  if (course_name) formData.append('course_name', course_name);
+  if (assessment_category) formData.append('assessment_category', assessment_category);
   if (file) formData.append('file', file);
   if (pasted_text) formData.append('pasted_text', pasted_text);
 
@@ -515,6 +523,10 @@ export async function createManualSubmission({
   assessment_id,
   student_name,
   student_number,
+  section,
+  academic_year,
+  course_name,
+  assessment_category,
   total_score,
   summary_feedback,
   question_scores,
@@ -529,6 +541,10 @@ export async function createManualSubmission({
     body: JSON.stringify({
       student_name,
       student_number,
+      section,
+      academic_year,
+      course_name,
+      assessment_category,
       total_score,
       summary_feedback,
       question_scores,
@@ -538,6 +554,42 @@ export async function createManualSubmission({
     const err = await res.json().catch(() => ({ detail: 'Failed to record manual grade' }));
     throw new Error(err.detail || 'Failed to record manual grade');
   }
+  return await res.json();
+}
+
+export async function fetchMasterCourseGradebook({
+  course_name,
+  section,
+  academic_year,
+  assessment_id,
+  lecturerId,
+}) {
+  const id = resolveLecturerId(lecturerId);
+  const params = new URLSearchParams();
+  if (course_name) params.append('course_name', course_name);
+  if (section) params.append('section', section);
+  if (academic_year) params.append('academic_year', academic_year);
+  if (assessment_id) params.append('assessment_id', assessment_id);
+  if (id) params.append('lecturer_id', id);
+
+  const res = await fetch(`${API_BASE}/courses/master-gradebook?${params.toString()}`, {
+    headers: getAuthHeaders(id),
+  });
+  if (!res.ok) throw new Error('Failed to load Master Course Gradebook');
+  return await res.json();
+}
+
+export async function updateAssessmentSettings(assessmentId, settings, lecturerId) {
+  const id = resolveLecturerId(lecturerId);
+  const res = await fetch(`${API_BASE}/assessments/${assessmentId}/settings`, {
+    method: 'PATCH',
+    headers: {
+      ...getAuthHeaders(id),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) throw new Error('Failed to update assessment settings');
   return await res.json();
 }
 
