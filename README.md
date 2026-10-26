@@ -6,8 +6,10 @@
 
 [![CI Pipeline](https://github.com/eyustarX/didactic-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/eyustarX/didactic-ai/actions/workflows/ci.yml)
 [![Pytest Suite](https://img.shields.io/badge/pytest-118%20passed-success)](tests/)
+[![Frontend Vercel](https://img.shields.io/badge/frontend-Vercel-black?logo=vercel&logoColor=white)](https://vercel.com/)
+[![Backend Hugging Face](https://img.shields.io/badge/backend-Hugging%20Face%20Spaces-yellow?logo=huggingface&logoColor=black)](https://huggingface.co/spaces)
+[![Database Neon](https://img.shields.io/badge/database-Neon%20Postgres-00e599?logo=postgresql&logoColor=white)](https://neon.tech/)
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![Node Version](https://img.shields.io/badge/node-%3E%3D18-green)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-purple)](LICENSE)
 
 </div>
@@ -41,26 +43,26 @@
 ## Architecture
 
 ```
-[ React 18 + Vite Frontend ]
-           │
-           │ HTTPS (REST API)
-           ▼
-[ FastAPI Backend (Python 3.11) ]
+[ React 18 + Vite Frontend (Vercel) ]
+                  │
+                  │ HTTPS (REST API)
+                  ▼
+[ FastAPI Backend (Hugging Face Spaces - Docker) ]
   ├── Document Parser & Semantic Chunker
   ├── RAG Lecture Retriever (Sentence-Transformers)
   ├── Decomposed Grading Agent
   └── Pydantic Validation & Retries
-           │
-     ┌─────┴─────────────────────┐
-     ▼                           ▼
-[ PostgreSQL (Neon) ]   [ Google Gemini API ]
-(Gradebooks, Rubrics,    (Curriculum Analysis,
- Assessments, Chats)     Rubrics & Grading)
+                  │
+        ┌─────────┴─────────────────────┐
+        ▼                               ▼
+[ PostgreSQL (Neon) ]       [ Google Gemini API ]
+(Gradebooks, Rubrics,        (Curriculum Analysis,
+ Assessments, Chats)          Rubrics & Grading)
 ```
 
-- **Frontend:** React 18 single-page application built with Vite and modern CSS.
-- **Backend API:** FastAPI running on Uvicorn with asynchronous endpoints.
-- **Database:** PostgreSQL (Neon serverless cloud database) via SQLAlchemy ORM.
+- **Frontend:** React 18 single-page application hosted on **Vercel** with fast edge delivery.
+- **Backend API:** FastAPI running on Uvicorn, containerized with Docker and hosted on **Hugging Face Spaces**.
+- **Database:** Serverless PostgreSQL on **Neon** via SQLAlchemy ORM.
 - **AI & NLP:** Google Gemini API grounded with local semantic text retrieval (RAG).
 - **Observability:** Prometheus metrics stream exposed at `/metrics`.
 
@@ -71,10 +73,11 @@
 | Layer | Technologies |
 | :--- | :--- |
 | **Frontend** | React 18, Vite, Lucide Icons, Modern CSS |
+| **Frontend Hosting** | **Vercel** |
 | **Backend** | Python 3.11, FastAPI, Pydantic v2, SQLAlchemy, Uvicorn |
+| **Backend Hosting** | **Hugging Face Spaces** (Docker Container) |
 | **AI & NLP** | Google Gemini API, PyPDF, Sentence-Transformers |
-| **Database** | PostgreSQL (Neon Serverless Postgres) |
-| **Deployment & Containers** | Docker, Hugging Face Spaces / Render |
+| **Database** | **PostgreSQL (Neon Serverless Postgres)** |
 | **Observability** | Prometheus (`prometheus-fastapi-instrumentator`) |
 | **CI/CD & Testing** | GitHub Actions, Pytest |
 
@@ -84,16 +87,17 @@
 
 ```
 didactic-ai/
-├── frontend/                   # React + Vite web application
+├── frontend/                   # React + Vite web application (Deployed on Vercel)
 │   ├── src/
 │   │   ├── components/         # Reusable UI components (Sidebar, Modals, Logo)
 │   │   ├── pages/              # Main tabs (Assessment, Grading, Curriculum, Overview)
 │   │   ├── services/           # API integration layer (api.js)
 │   │   └── App.jsx             # Root application view
 │   ├── package.json
+│   ├── vercel.json             # Vercel SPA routing configuration
 │   └── vite.config.js
 │
-├── src/                        # Backend source code
+├── src/                        # Backend source code (Deployed on Hugging Face Spaces)
 │   ├── ai/                     # AI engine, prompts, RAG, and benchmark suite
 │   │   ├── engine.py           # Provider implementations (Gemini, Mock)
 │   │   ├── eval_benchmark.py   # Automated consistency & security benchmark
@@ -109,10 +113,7 @@ didactic-ai/
 │   ├── services/               # Grading, analytics, and engine adapters
 │   └── main.py                 # FastAPI application root
 │
-├── infra/                      # Infrastructure & container configurations
-│   └── docker/
-│       └── backend.Dockerfile  # Production container definition
-│
+├── Dockerfile                  # Production Docker container for Hugging Face Spaces
 ├── docs/                       # Architecture diagrams and benchmark reports
 │   ├── architecture.svg
 │   └── benchmark_results.md
@@ -132,7 +133,7 @@ didactic-ai/
 - **Node.js:** Version 18 or higher (with `npm`)
 - **Git**
 
-### Backend Setup
+### Backend Setup (Local)
 
 1. **Clone the repository:**
    ```bash
@@ -164,7 +165,7 @@ didactic-ai/
    - Interactive Swagger Docs: `http://localhost:8000/docs`
    - Prometheus Metrics: `http://localhost:8000/metrics`
 
-### Frontend Setup
+### Frontend Setup (Local)
 
 1. **Navigate to the frontend directory:**
    ```bash
@@ -189,16 +190,47 @@ didactic-ai/
 Create a `.env` file in the project root directory with your credentials:
 
 ```env
-# Database Configuration (PostgreSQL / Neon, or leave empty for local SQLite)
+# Database Configuration (Neon PostgreSQL)
 DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
 
 # Google Gemini API Key (Free from Google AI Studio)
 GEMINI_API_KEY=your_gemini_api_key_here
 
 # Application Settings
-STAGE=dev
+STAGE=prod
 LOG_LEVEL=INFO
 ```
+
+For the frontend, configure `frontend/.env`:
+```env
+# Points to the deployed Hugging Face Spaces backend URL (or local http://localhost:8000/api)
+VITE_API_BASE_URL=https://your-space-name.hf.space/api
+```
+
+---
+
+## Deployment Guide
+
+### 1. Backend on Hugging Face Spaces
+
+1. Create a new Space on [Hugging Face](https://huggingface.co/new-space).
+2. Set **Space SDK** to **Docker** (Blank).
+3. Connect your GitHub repository or push this repository directly to the Space.
+4. The root [`Dockerfile`](Dockerfile) will automatically build the environment and expose port `7860`.
+5. Under **Settings > Variables and secrets**, add:
+   - `DATABASE_URL`: Your Neon PostgreSQL connection string.
+   - `GEMINI_API_KEY`: Your Google Gemini API key.
+
+### 2. Frontend on Vercel
+
+1. Import your repository into [Vercel](https://vercel.com/new).
+2. Set **Root Directory** to `frontend`.
+3. Framework Preset: **Vite**.
+4. Build Command: `npm run build`.
+5. Output Directory: `dist`.
+6. Under **Environment Variables**, add:
+   - `VITE_API_BASE_URL`: `https://your-space-name.hf.space/api`
+7. Click **Deploy**. Vercel will build and serve the application globally with automatic edge SSL.
 
 ---
 
@@ -221,32 +253,6 @@ python src/ai/eval_benchmark.py
 ```
 
 Results are saved to [`docs/benchmark_results.md`](docs/benchmark_results.md).
-
----
-
-## Deployment (Docker & Cloud Hosting)
-
-### Docker Deployment
-
-The application includes a production-ready container definition in [`infra/docker/backend.Dockerfile`](infra/docker/backend.Dockerfile):
-
-```bash
-# Build the Docker image
-docker build -f infra/docker/backend.Dockerfile -t didactic-ai-backend .
-
-# Run the container
-docker run -p 8000:8000 \
-  -e DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require" \
-  -e GEMINI_API_KEY="your_api_key" \
-  didactic-ai-backend
-```
-
-### Hosting on Hugging Face Spaces / Render
-
-1. Create a new **Docker Space** on Hugging Face Spaces or a **Web Service** on Render.
-2. Link your GitHub repository.
-3. Configure the environment variables (`DATABASE_URL`, `GEMINI_API_KEY`) in the platform settings.
-4. The service will build from the Dockerfile and launch on port 8000.
 
 ---
 
