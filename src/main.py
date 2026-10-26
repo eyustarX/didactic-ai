@@ -46,9 +46,55 @@ logging.basicConfig(level=logging.INFO)
 
 
 
+def ensure_schema_compatibility(db_engine):
+    """
+    Safely adds missing columns to existing SQLite / PostgreSQL database tables
+    without breaking existing data.
+    """
+    from sqlalchemy import inspect, text
+    try:
+        inspector = inspect(db_engine)
+        tables = inspector.get_table_names()
+
+        columns_to_check = {
+            "assessments": [
+                ("course_name", "VARCHAR(150) DEFAULT 'General Course'"),
+                ("section", "VARCHAR(50) DEFAULT 'Section A'"),
+                ("academic_year", "VARCHAR(50) DEFAULT '2026'"),
+                ("assessment_category", "VARCHAR(50) DEFAULT 'midterm'"),
+                ("weight_pct", "FLOAT DEFAULT 25.0"),
+            ],
+            "students": [
+                ("section", "VARCHAR(50) DEFAULT 'Section A'"),
+                ("academic_year", "VARCHAR(50) DEFAULT '2026'"),
+                ("course_name", "VARCHAR(150) DEFAULT 'General Course'"),
+            ],
+            "submissions": [
+                ("section", "VARCHAR(50) DEFAULT 'Section A'"),
+                ("academic_year", "VARCHAR(50) DEFAULT '2026'"),
+                ("course_name", "VARCHAR(150) DEFAULT 'General Course'"),
+                ("assessment_category", "VARCHAR(50) DEFAULT 'midterm'"),
+            ],
+        }
+
+        with db_engine.begin() as conn:
+            for table, cols in columns_to_check.items():
+                if table in tables:
+                    existing_cols = {c["name"] for c in inspector.get_columns(table)}
+                    for col_name, col_type in cols:
+                        if col_name not in existing_cols:
+                            try:
+                                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}"))
+                            except Exception:
+                                pass
+    except Exception:
+        pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)  # creates the table in Neon if it is missing
+    ensure_schema_compatibility(engine)
     yield
 
 

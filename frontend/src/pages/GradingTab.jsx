@@ -1052,7 +1052,7 @@ export default function GradingTab({
             <label className="dropzone" style={{ position: 'relative', marginBottom: 16 }}>
               <input
                 type="file"
-                accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,.txt"
+                accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp"
                 onChange={handleFileChange}
                 style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
                 disabled={isGrading}
@@ -1074,12 +1074,12 @@ export default function GradingTab({
               </div>
               <div>
                 <p style={{ fontWeight: 500, fontSize: '0.88rem', marginBottom: 2 }}>
-                  {studentFile ? studentFile.name : 'Select or drop student exam paper (PDF, Word DOCX, Image, or Text)'}
+                  {studentFile ? studentFile.name : 'Select or drop student exam paper (PDF, Word DOCX, or Image)'}
                 </p>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
                   {studentFile
                     ? `${(studentFile.size / 1024).toFixed(1)} KB — Ready to grade with AI`
-                    : 'Supports typed PDF/Word DOCX, smartphone exam photos (PNG/JPG), and text files'}
+                    : 'Supports typed PDF/Word DOCX and smartphone exam photos (PNG/JPG)'}
                 </p>
               </div>
             </label>

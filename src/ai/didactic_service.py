@@ -18,6 +18,7 @@ from src.ai.schemas import (
     DocumentChunk,
     IngestedDocument,
 )
+from src.ai.engine import synthesize_assessment_title
 from src.ai.agents import (
     CurriculumAgent,
     RubricAgent,
@@ -157,8 +158,14 @@ def generate_assessment(
                 "max_marks": q.max_points,
                 "tested_key_point_titles": [kp_title],
             })
+        computed_title = synthesize_assessment_title(
+            gen_assess.title,
+            lecture_title=lecture_title,
+            custom_instructions=custom_instructions,
+            questions=gen_assess.questions,
+        )
         return {
-            "title": gen_assess.title or f"Assessment: {lecture_title}",
+            "title": computed_title,
             "questions": questions,
         }
     except Exception as exc:
@@ -181,8 +188,13 @@ def generate_assessment(
                 "tested_key_point_titles": [title],
             })
 
+        fallback_title = synthesize_assessment_title(
+            None,
+            lecture_title=lecture_title,
+            custom_instructions=custom_instructions,
+        )
         return {
-            "title": f"Assessment: {lecture_title}",
+            "title": fallback_title,
             "questions": questions,
         }
 

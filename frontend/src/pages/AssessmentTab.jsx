@@ -263,14 +263,12 @@ export default function AssessmentTab({
     }
   }, [chatMessages, isChatLoading]);
 
-  // Synchronize title if assessment or lectureTitle changes
+  // Synchronize title if assessment changes
   useEffect(() => {
     if (assessment?.title) {
       setAssessmentTitle(assessment.title);
-    } else if (lectureTitle) {
-      setAssessmentTitle(`Assessment: ${lectureTitle}`);
     }
-  }, [assessment, lectureTitle]);
+  }, [assessment]);
 
   const handleDownloadPdf = async (e, assId, solutions = false, customData = null) => {
     if (e) e.stopPropagation();
@@ -288,7 +286,7 @@ export default function AssessmentTab({
 
   const handleNewAssessment = () => {
     setAssessment(null);
-    setAssessmentTitle(lectureTitle ? `Assessment: ${lectureTitle}` : 'New Assessment');
+    setAssessmentTitle('');
     setActiveQuestionIndex(0);
     setError(null);
     setManualSplitView(false);
@@ -331,18 +329,23 @@ export default function AssessmentTab({
         }
       }
 
+      const isGenericTitle =
+        !assessmentTitle ||
+        /^(assessment:?|new assessment|draft.*|course assessment|course exam|course assignment|exam document|assignment brief|diagnostic test paper)$/i.test(assessmentTitle.trim()) ||
+        assessmentTitle.trim().toLowerCase() === `assessment: ${lectureTitle || ''}`.trim().toLowerCase();
+
       let data;
       if (noteIdToUse) {
         data = await generateAssessmentFromParts({
           lecture_note_id: noteIdToUse,
           question_count: count,
-          title: assessmentTitle || `Assessment: ${lectureTitle || (assessmentType === 'assignment' ? 'Assignment' : 'Exam')}`,
+          title: isGenericTitle ? undefined : assessmentTitle.trim(),
           prompt: promptToUse?.trim() || undefined,
           lecturerId: currentUser?.id,
         });
       } else {
         data = await generateAssessment({
-          lecture_title: lectureTitle || assessmentTitle || (assessmentType === 'assignment' ? 'Course Assignment' : 'Course Exam'),
+          lecture_title: lectureTitle || (isGenericTitle ? undefined : assessmentTitle) || (assessmentType === 'assignment' ? 'Course Assignment' : 'Course Exam'),
           lecture_content: (lectureContent && lectureContent.trim().length >= 10)
             ? lectureContent
             : (promptToUse && promptToUse.trim().length >= 10 ? promptToUse : 'Core course curriculum concepts and learning objectives.'),

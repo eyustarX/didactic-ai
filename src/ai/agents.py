@@ -46,6 +46,7 @@ from src.ai.schemas import (
     RubricCriterion,
     StudentSubmission,
 )
+from src.ai.engine import synthesize_assessment_title
 
 
 # ---------------------------------------------------------------------------
@@ -509,7 +510,12 @@ class AssessmentAgent(BaseAgent):
                             )
                         )
                     return GeneratedAssessment(
-                        title=assessment.title or f"Assessment: {curriculum.lecture_title}",
+                        title=synthesize_assessment_title(
+                            assessment.title,
+                            curriculum.lecture_title,
+                            custom_instructions=curriculum.objectives[0].topic if (hasattr(curriculum, "objectives") and curriculum.objectives) else None,
+                            questions=norm_questions,
+                        ),
                         course_name=assessment.course_name or "Computer Science & Systems Programming",
                         source_document=source_document,
                         questions=norm_questions,
@@ -600,9 +606,16 @@ class AssessmentAgent(BaseAgent):
             )
 
         calculated_total = round(sum(q.max_points for q in questions), 2)
+        target_topic = curriculum.objectives[0].topic if (hasattr(curriculum, "objectives") and curriculum.objectives) else None
+        computed_title = synthesize_assessment_title(
+            None,
+            curriculum.lecture_title,
+            custom_instructions=target_topic,
+            questions=questions,
+        )
 
         return GeneratedAssessment(
-            title=f"Assessment: {curriculum.lecture_title}",
+            title=computed_title,
             course_name="Computer Science & Systems Programming",
             source_document=source_document,
             questions=questions,

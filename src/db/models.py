@@ -86,6 +86,11 @@ class Assessment(Base):
     version = Column(Integer, default=1)
     status = Column(String(30), default="draft")  # draft | questions_approved | rubrics_approved | locked
     max_score = Column(Float, default=0.0)
+    course_name = Column(String(150), nullable=True, default="General Course", index=True)
+    section = Column(String(50), nullable=True, default="Section A", index=True)
+    academic_year = Column(String(50), nullable=True, default="2026", index=True)
+    assessment_category = Column(String(50), nullable=True, default="midterm", index=True)  # midterm | quiz | final | assignment
+    weight_pct = Column(Float, nullable=True, default=25.0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
@@ -155,6 +160,9 @@ class Student(Base):
     lecturer_id = Column(String(100), nullable=False, default="default_lecturer", index=True)
     student_number = Column(String(100), nullable=False)
     name = Column(String(255), nullable=False)
+    section = Column(String(50), nullable=True, default="Section A", index=True)
+    academic_year = Column(String(50), nullable=True, default="2026", index=True)
+    course_name = Column(String(150), nullable=True, default="General Course", index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
@@ -188,6 +196,10 @@ class Submission(Base):
     max_score = Column(Float, nullable=True)
     error_tag = Column(String(100), nullable=True, default="uncategorized", index=True)
     report = Column(JSON, nullable=True)
+    section = Column(String(50), nullable=True, default="Section A", index=True)
+    academic_year = Column(String(50), nullable=True, default="2026", index=True)
+    course_name = Column(String(150), nullable=True, default="General Course", index=True)
+    assessment_category = Column(String(50), nullable=True, default="midterm", index=True)
 
     __table_args__ = (
         UniqueConstraint("student_id", "assessment_id", name="uq_student_assessment"),

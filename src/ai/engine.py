@@ -76,6 +76,9 @@ def synthesize_assessment_title(
     questions: Optional[List[Any]] = None,
 ) -> str:
     """Produces a clean, professional, and distinctive title for generated assessments."""
+    clean_topic = re.sub(r"\.(pdf|docx|pptx|txt)$", "", lecture_title or "Course Material", flags=re.IGNORECASE).strip()
+    clean_topic = re.sub(r"^(lecture|chapter|unit|ch|lec|module)[\s\-_0-9:]*", "", clean_topic, flags=re.IGNORECASE).strip() or clean_topic
+
     if existing_title and existing_title.strip():
         clean = existing_title.strip()
         is_generic = bool(re.match(
@@ -84,7 +87,9 @@ def synthesize_assessment_title(
             re.IGNORECASE
         ))
         if not is_generic and not re.match(r"^assessment:\s*$", clean, re.IGNORECASE):
-            return clean
+            # If it's literally just the generic "Assessment: <lecture_title>", allow refinement
+            if clean.lower() != f"assessment: {lecture_title}".lower() and clean.lower() != f"assessment: {clean_topic}".lower():
+                return clean
 
     clean_instr = (custom_instructions or "").lower()
     if any(w in clean_instr for w in ["assignment", "homework", "problem set", "coursework", "project"]):
@@ -96,9 +101,6 @@ def synthesize_assessment_title(
     else:
         format_label = "Assessment"
 
-    clean_topic = re.sub(r"\.(pdf|docx|pptx|txt)$", "", lecture_title or "Course Material", flags=re.IGNORECASE).strip()
-    clean_topic = re.sub(r"^(lecture|chapter|unit|ch|lec|module)[\s\-_0-9:]*", "", clean_topic, flags=re.IGNORECASE).strip() or clean_topic
-
     subtopic = None
     if custom_instructions:
         match = re.search(r"(?:on|about|focusing on|covering|topic:?)\s+([a-zA-Z0-9\s\-]{3,40})(?:,|\.|$|\band\b)", custom_instructions, re.IGNORECASE)
@@ -107,9 +109,18 @@ def synthesize_assessment_title(
             if cand.lower() not in ["mcqs", "questions", "short answers", "algorithms", "lecture", "notes", "all concepts"]:
                 subtopic = cand.title()
 
+    if not subtopic and questions and len(questions) > 0:
+        first_q = questions[0]
+        lo = getattr(first_q, "learning_objective", None) or (first_q.get("learning_objective") if isinstance(first_q, dict) else None)
+        if lo:
+            lo_clean = re.sub(r"^(understand and analyze principles of|explain the core mechanisms of|analyze|evaluate|understand)\s*", "", str(lo), flags=re.IGNORECASE).strip()
+            if lo_clean and len(lo_clean) < 35 and lo_clean.lower() != clean_topic.lower():
+                subtopic = lo_clean.title()
+
     if subtopic and subtopic.lower() not in clean_topic.lower():
         return f"{format_label}: {subtopic} ({clean_topic})"
     return f"{format_label}: {clean_topic}"
+
 
 
 
@@ -264,8 +275,11 @@ class MockLLMProvider(BaseLLMProvider):
             questions.append(q3)
 
         total_pts = sum(q.max_points for q in questions)
+        computed_title = synthesize_assessment_title(
+            None, lecture_title, custom_instructions=custom_instructions, questions=questions
+        )
         return GeneratedAssessment(
-            title=f"Assessment: {lecture_title}",
+            title=computed_title,
             course_name="Computer Science & Engineering",
             source_document="lecture_notes.pdf",
             questions=questions,
@@ -597,8 +611,12 @@ class GeminiLiveProvider(BaseLLMProvider):
         total_pts = sum(q.get("max_points", 5.0) for q in data.get("questions", []))
         if "total_points" not in data or not data["total_points"]:
             data["total_points"] = max(1.0, float(total_pts))
-        if "title" not in data or not data["title"]:
-            data["title"] = f"Assessment: {lecture_title}"
+        data["title"] = synthesize_assessment_title(
+            data.get("title"),
+            lecture_title,
+            custom_instructions=custom_instructions,
+            questions=data.get("questions"),
+        )
         if "course_name" not in data or not data["course_name"]:
             data["course_name"] = "Computer Science & Systems Programming"
         if "source_document" not in data or not data["source_document"]:
@@ -866,6 +884,12 @@ class BedrockLiveProvider(BaseLLMProvider):
         raw = self._call_bedrock(prompt)
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         json_str = match.group(0) if match else raw
+        obj = json.loads(json_str) if isinstance(json_str, str) else json_str
+        if isinstance(obj, dict):
+            obj["title"] = synthesize_assessment_title(
+                obj.get("title"), lecture_title, custom_instructions=custom_instructions
+            )
+            return GeneratedAssessment.model_validate(obj)
         return GeneratedAssessment.model_validate_json(json_str)
 
     def grade_exam_question(

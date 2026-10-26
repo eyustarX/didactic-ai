@@ -37,6 +37,7 @@ from src.ai import (
     extract_document_text,
     extract_text_from_pdf,
 )
+from src.ai.engine import synthesize_assessment_title
 from src.db.models import (
     Assessment,
     LectureNote,
@@ -161,9 +162,22 @@ class ManualQuestionScoreItem(BaseModel):
 class ManualSubmissionReq(BaseModel):
     student_name: str
     student_number: Optional[str] = None
+    section: Optional[str] = None
+    academic_year: Optional[str] = None
+    course_name: Optional[str] = None
+    assessment_category: Optional[str] = None
     total_score: Optional[float] = None
     summary_feedback: Optional[str] = None
     question_scores: Optional[List[ManualQuestionScoreItem]] = None
+
+
+class AssessmentSettingsReq(BaseModel):
+    title: Optional[str] = None
+    course_name: Optional[str] = None
+    section: Optional[str] = None
+    academic_year: Optional[str] = None
+    assessment_category: Optional[str] = None
+    weight_pct: Optional[float] = None
 
 
 class RegradeQuestionReq(BaseModel):
@@ -628,7 +642,37 @@ def generate_assessment_endpoint(
     ai_data = ai_generate_assessment(
         note.name, ticked_parts, question_count=req.question_count, custom_instructions=instructions
     )
-    title = req.title or ai_data.get("title") or f"Assessment: {note.name}"
+    
+    # Intelligently evaluate title: discard generic placeholders
+    raw_req_title = (req.title or "").strip()
+    is_generic = (
+        not raw_req_title
+        or bool(re.match(r"^(assessment|new assessment|draft.*|course assessment|course exam|course assignment|exam document|assignment brief|diagnostic test paper|assessment:\s*(exam|assignment)?)$", raw_req_title, re.IGNORECASE))
+        or raw_req_title.lower() == f"assessment: {note.name}".lower()
+        or raw_req_title.lower() == f"assessment: {re.sub(r'\.(pdf|docx|pptx|txt)$', '', note.name, flags=re.I).strip()}".lower()
+    )
+
+    if not is_generic:
+        title = raw_req_title
+    else:
+        title = ai_data.get("title") or synthesize_assessment_title(None, note.name, custom_instructions=instructions)
+
+    # Differentiate multiple assessments generated for the same lecturer / course material
+    base_title = title.strip()
+    existing_same_count = (
+        session.query(Assessment)
+        .filter(
+            Assessment.lecturer_id == lecturer_id,
+            Assessment.title.ilike(f"{base_title}%"),
+        )
+        .count()
+    )
+    if existing_same_count > 0:
+        set_letter = chr(ord('A') + min(existing_same_count, 25))
+        if not re.search(r"\(Set\s+[A-Z]\)$", base_title, re.IGNORECASE):
+            title = f"{base_title} (Set {set_letter})"
+        else:
+            title = f"{base_title} #{existing_same_count + 1}"
 
     assessment = Assessment(
         lecture_note_id=note.id,
@@ -1393,6 +1437,10 @@ async def grade_student_submission(
     student_id: Optional[str] = Form(None),
     student_number: Optional[str] = Form(None),
     student_name: Optional[str] = Form(None),
+    section: Optional[str] = Form(None),
+    academic_year: Optional[str] = Form(None),
+    course_name: Optional[str] = Form(None),
+    assessment_category: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     pasted_text: Optional[str] = Form(None),
     lecturer_id: str = Depends(get_current_lecturer),
@@ -1409,10 +1457,15 @@ async def grade_student_submission(
     student = None
     if student_id:
         student = session.query(Student).filter(Student.id == student_id).first()
+    sec_val = (section or assessment.section or "Section A").strip()
+    year_val = (academic_year or assessment.academic_year or "2026").strip()
+    course_val = (course_name or assessment.course_name or "General Course").strip()
+    cat_val = (assessment_category or assessment.assessment_category or "midterm").strip()
+
     if not student and student_number:
         student = (
             session.query(Student)
-            .filter(Student.student_number == student_number.strip())
+            .filter(Student.student_number == student_number.strip(), Student.lecturer_id == lecturer_id)
             .first()
         )
         if not student:
@@ -1420,8 +1473,21 @@ async def grade_student_submission(
                 lecturer_id=assessment.lecturer_id or lecturer_id,
                 student_number=student_number.strip(),
                 name=(student_name or student_number).strip(),
+                section=sec_val,
+                academic_year=year_val,
+                course_name=course_val,
             )
             session.add(student)
+            session.flush()
+        else:
+            if student_name and student.name != student_name.strip():
+                student.name = student_name.strip()
+            if section:
+                student.section = sec_val
+            if academic_year:
+                student.academic_year = year_val
+            if course_name:
+                student.course_name = course_val
             session.flush()
 
     if not student:
@@ -1491,6 +1557,10 @@ async def grade_student_submission(
         submission.ai_total = grading_output["ai_total"]
         submission.total_score = grading_output["ai_total"]
         submission.status = "graded"
+        submission.section = sec_val
+        submission.academic_year = year_val
+        submission.course_name = course_val
+        submission.assessment_category = cat_val
         submission.graded_at = datetime.now(timezone.utc)
         submission.question_scores.clear()
     else:
@@ -1505,6 +1575,10 @@ async def grade_student_submission(
             total_score=grading_output["ai_total"],
             score=grading_output["ai_total"],
             max_score=assessment.max_score,
+            section=sec_val,
+            academic_year=year_val,
+            course_name=course_val,
+            assessment_category=cat_val,
             status="graded",
             graded_at=datetime.now(timezone.utc),
         )
@@ -1544,6 +1618,10 @@ async def grade_student_submission(
         "summary_feedback": grading_output.get("summary_feedback", ""),
         "extracted_pdf_text": submission.extracted_text,
         "extracted_text": submission.extracted_text,
+        "section": submission.section,
+        "academic_year": submission.academic_year,
+        "course_name": submission.course_name,
+        "assessment_category": submission.assessment_category,
         "question_results": grading_output.get("question_results", []),
     }
 
