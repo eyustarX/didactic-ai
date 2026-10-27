@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <!-- Dark Mode App Icon Squircle Background -->
+    <linearGradient id="didacticBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0e1720" />
+      <stop offset="100%" stop-color="#070c12" />
+    </linearGradient>
+    <linearGradient id="didacticTealLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38d9b9" />
+      <stop offset="100%" stop-color="#14b8a6" />
+    </linearGradient>
+    <linearGradient id="didacticTealRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4eebc9" />
+      <stop offset="100%" stop-color="#20c997" />
+    </linearGradient>
+  </defs>
+
+  <!-- Squircle Base -->
+  <rect x="3" y="3" width="94" height="94" rx="24" fill="url(#didacticBg)" stroke="#2dd4bf" stroke-width="2.5" stroke-opacity="0.4" />
+
+  <!-- Emblem Group centered inside (original proportion) -->
+  <g transform="translate(14, 18) scale(0.72)">
+    <!-- Left Book Outer Spine / Border -->
+    <path
+      d="M 5,16 L 15,16 L 15,70 L 48,82 L 48,93 L 5,79 Z"
+      fill="#f8fafc"
+    />
+    <!-- Right Book Outer Spine / Border -->
+    <path
+      d="M 95,16 L 85,16 L 85,70 L 52,82 L 52,93 L 95,79 Z"
+      fill="#f8fafc"
+    />
+
+    <!-- Left Teal Inner Page -->
+    <polygon
+      points="20,10 48,22 48,77 20,64"
+      fill="url(#didacticTealLeft)"
+    />
+
+    <!-- Right Teal Inner Page -->
+    <polygon
+      points="80,10 52,22 52,77 80,64"
+      fill="url(#didacticTealRight)"
+    />
+
+    <!-- Prominent Checkmark overlapping center & swooping out top-right -->
+    <path
+      d="M 23,26 L 47,66 L 53,66 L 98,1 C 94,1 78,16 78,16 L 50,53 L 34,26 Z"
+      fill="#ffffff"
+    />
+  </g>
+</svg>

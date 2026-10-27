@@ -1,0 +1,23 @@
+[
+  {
+    "student_id": "STU-001",
+    "student_name": "Alice Chen",
+    "submission_id": "SUB-001-ALICE",
+    "expected_grade_tier": "High (90-100%)",
+    "submission_text": "A mutex provides mutual exclusion with explicit thread ownership: only the thread that locks the mutex can release it. A binary semaphore is fundamentally a signaling primitive without ownership; any cooperating thread or handler can execute wait() and signal() to synchronize events.\n\nA system deadlock arises if and only if all four Coffman conditions occur simultaneously:\n1. Mutual Exclusion: Resources are held in non-shareable mode.\n2. Hold and Wait: A process holds at least one resource while waiting for other allocated resources.\n3. No Preemption: Resources cannot be forcibly expropriated; they must be voluntarily released.\n4. Circular Wait: A closed chain of processes exists where each process waits for a resource held by the next process.\n\nTo prevent deadlocks, the OS can break the Circular Wait condition by establishing a global strict ordering on all resource types and requiring processes to request resources in strictly ascending numerical order."
+  },
+  {
+    "student_id": "STU-002",
+    "student_name": "Bob Miller",
+    "submission_id": "SUB-002-BOB",
+    "expected_grade_tier": "Average (65-75%)",
+    "submission_text": "Mutex and binary semaphore are both used to lock critical sections. The main difference is semaphore uses wait and signal while mutex is a lock. Deadlocks happen when processes get stuck waiting on each other. The conditions for deadlocks are mutual exclusion and circular waiting where processes wait in a circle. You can prevent deadlocks by not letting processes wait too long or restarting them."
+  },
+  {
+    "student_id": "STU-003",
+    "student_name": "Charlie Davis",
+    "submission_id": "SUB-003-CHARLIE",
+    "expected_grade_tier": "Poor / Failing (<50%)",
+    "submission_text": "A mutex is a hardware wire that connects the CPU to RAM. Semaphores are used to speed up sorting algorithms by caching memory. Deadlock means the computer crashed because of an infinite loop in python code. To prevent deadlock we should restart the computer."
+  }
+]
