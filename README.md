@@ -1,13 +1,3 @@
----
-title: Didactic AI API
-emoji: 🎓
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 <div align="center">
 
 # Didactic AI
@@ -86,7 +76,7 @@ pinned: false
 | **Frontend Application** | React 18, Vite, Lucide Icons, Modern CSS |
 | **Frontend Hosting** | **Vercel** |
 | **Backend API** | Python 3.11, FastAPI, Pydantic v2, SQLAlchemy, Uvicorn |
-| **Backend Hosting** | **Hugging Face Spaces** (Docker-based) |
+| **Backend Hosting** | **Render** (Docker-based) |
 | **AI & NLP** | Google Gemini API, PyPDF, Sentence-Transformers |
 | **Database** | PostgreSQL (**Neon** Serverless Postgres) |
 | **Observability** | Prometheus (`prometheus-fastapi-instrumentator`) |
