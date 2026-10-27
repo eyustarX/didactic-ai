@@ -1,9 +1,25 @@
-# TODO: Configure Prometheus scrape targets, application metrics, and alert rules.
+# Prometheus Configuration for Didactic AI
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+rule_files:
+  - "alert.rules.yml"
 
 scrape_configs:
-  # TODO: Configure FastAPI backend metrics scrape endpoint
+  # Scrape FastAPI application metrics (Prometheus Instrumentator on /metrics)
   - job_name: "didactic-ai-backend"
+    metrics_path: "/metrics"
+    scrape_interval: 10s
     static_configs:
       - targets: ["backend:8000"]
+        labels:
+          app: "didactic-ai"
+          environment: "production"
+
+  # Scrape Prometheus internal metrics
+  - job_name: "prometheus"
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["localhost:9090"]

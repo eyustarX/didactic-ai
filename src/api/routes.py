@@ -32,6 +32,7 @@ def _server_error(message: str) -> HTTPException:
 
 # Health
 @router.get("/health", response_model=HealthResponse, tags=["General"])
+@router.get("/api/health", response_model=HealthResponse, include_in_schema=False)
 def health():
     try:
         provider = ai_engine().provider.__class__.__name__

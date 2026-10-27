@@ -1,4 +1,3 @@
-# TODO: Maintain build context exclusions for Docker images
 __pycache__/
 *.py[cod]
 *$py.class
@@ -7,7 +6,6 @@ __pycache__/
 venv/
 env/
 ENV/
-.env
 .git/
 .github/
 node_modules/
@@ -16,3 +14,6 @@ dist/
 data/raw/
 credentials
 aws_credentials.json
+frontend/
+.agents/
+tests/

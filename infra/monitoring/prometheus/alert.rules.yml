@@ -1,0 +1,29 @@
+groups:
+  - name: didactic-ai-alerts
+    rules:
+      - alert: BackendServiceDown
+        expr: up{job="didactic-ai-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Didactic AI Backend instance is down"
+          description: "FastAPI backend container has been unreachable for more than 1 minute."
+
+      - alert: HighHttpErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx error rate detected"
+          description: "More than 5% of API requests resulted in 5xx server errors over the last 5 minutes."
+
+      - alert: SlowResponseLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 3.0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow 95th percentile response latency"
+          description: "95% of requests are taking longer than 3.0 seconds to complete."
