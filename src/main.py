@@ -91,10 +91,26 @@ def ensure_schema_compatibility(db_engine):
         pass
 
 
+def migrate_legacy_data(db_engine):
+    """
+    Safely migrates legacy 'default_lecturer' records and historical sessions
+    to the primary lecturer account 'usr_byz6ij'.
+    """
+    from sqlalchemy import text
+    try:
+        with db_engine.begin() as conn:
+            conn.execute(text("UPDATE chat_sessions SET lecturer_id = 'usr_byz6ij' WHERE lecturer_id IN ('default_lecturer', 'usr_wtpiub') OR lecturer_id IS NULL"))
+            conn.execute(text("UPDATE lecture_notes SET lecturer_id = 'usr_byz6ij' WHERE lecturer_id = 'default_lecturer' OR lecturer_id IS NULL"))
+            conn.execute(text("UPDATE assessments SET lecturer_id = 'usr_byz6ij' WHERE lecturer_id = 'default_lecturer' OR lecturer_id IS NULL"))
+    except Exception:
+        pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(engine)  # creates the table in Neon if it is missing
     ensure_schema_compatibility(engine)
+    migrate_legacy_data(engine)
     yield
 
 

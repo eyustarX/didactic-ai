@@ -307,17 +307,21 @@ def list_previous_uploads(
     lecturer_id: str = Depends(get_current_lecturer),
     session: Session = Depends(get_session),
 ):
-    notes = (
-        session.query(LectureNote)
-        .filter(LectureNote.lecturer_id == lecturer_id)
-        .order_by(LectureNote.created_at.desc())
-        .all()
-    )
-    # If a newly registered lecturer has no notes yet, fallback to sample/default notes
-    if not notes and lecturer_id != "default_lecturer":
+    if lecturer_id in ("usr_byz6ij", "default_lecturer"):
         notes = (
             session.query(LectureNote)
-            .filter((LectureNote.lecturer_id == "default_lecturer") | (LectureNote.lecturer_id == None))
+            .filter(
+                (LectureNote.lecturer_id == "usr_byz6ij")
+                | (LectureNote.lecturer_id == "default_lecturer")
+                | (LectureNote.lecturer_id == None)
+            )
+            .order_by(LectureNote.created_at.desc())
+            .all()
+        )
+    else:
+        notes = (
+            session.query(LectureNote)
+            .filter(LectureNote.lecturer_id == lecturer_id)
             .order_by(LectureNote.created_at.desc())
             .all()
         )
@@ -326,7 +330,7 @@ def list_previous_uploads(
     for n in notes:
         lecturer_assessments = [
             a for a in n.assessments
-            if a.lecturer_id == lecturer_id or a.lecturer_id == "default_lecturer"
+            if a.lecturer_id == lecturer_id or (lecturer_id == "usr_byz6ij" and a.lecturer_id == "default_lecturer")
         ]
         results.append({
             "id": n.id,
@@ -800,22 +804,22 @@ def list_chat_sessions(
     lecturer_id: str = Depends(get_current_lecturer),
     session: Session = Depends(get_session),
 ):
-    sessions = (
-        session.query(ChatSession)
-        .filter(ChatSession.lecturer_id == lecturer_id)
-        .order_by(ChatSession.updated_at.desc())
-        .all()
-    )
-    # Graceful fallback: if no sessions found for this specific ID (e.g. default_lecturer or new session list),
-    # fallback to existing active/sample sessions so history is never lost
-    if not sessions:
+    if lecturer_id in ("usr_byz6ij", "default_lecturer"):
         sessions = (
             session.query(ChatSession)
             .filter(
                 (ChatSession.lecturer_id == "usr_byz6ij")
                 | (ChatSession.lecturer_id == "default_lecturer")
+                | (ChatSession.lecturer_id == "usr_wtpiub")
                 | (ChatSession.lecturer_id == None)
             )
+            .order_by(ChatSession.updated_at.desc())
+            .all()
+        )
+    else:
+        sessions = (
+            session.query(ChatSession)
+            .filter(ChatSession.lecturer_id == lecturer_id)
             .order_by(ChatSession.updated_at.desc())
             .all()
         )
@@ -975,7 +979,14 @@ def list_assessments(
     lecturer_id: str = Depends(get_current_lecturer),
     session: Session = Depends(get_session),
 ):
-    query = session.query(Assessment).filter(Assessment.lecturer_id == lecturer_id)
+    if lecturer_id in ("usr_byz6ij", "default_lecturer"):
+        query = session.query(Assessment).filter(
+            (Assessment.lecturer_id == "usr_byz6ij")
+            | (Assessment.lecturer_id == "default_lecturer")
+            | (Assessment.lecturer_id == None)
+        )
+    else:
+        query = session.query(Assessment).filter(Assessment.lecturer_id == lecturer_id)
     if lecture_note_id:
         query = query.filter(Assessment.lecture_note_id == lecture_note_id)
     assessments = query.order_by(Assessment.created_at.desc()).all()

@@ -2,11 +2,26 @@ import React, { useState } from 'react';
 import { X, User, Lock, Mail, CheckCircle } from 'lucide-react';
 import DidacticLogo from './DidacticLogo';
 
-export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser }) {
-  const [isRegister, setIsRegister] = useState(false);
-  const [name, setName] = useState(currentUser?.name || '');
-  const [email, setEmail] = useState(currentUser?.email || '');
+export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser, initialMode = 'signin' }) {
+  const [isRegister, setIsRegister] = useState(initialMode === 'signup');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialMode === 'signup') {
+        setIsRegister(true);
+        setName('');
+        setEmail('');
+      } else {
+        setIsRegister(false);
+        setName(currentUser?.name || '');
+        setEmail(currentUser?.email || '');
+      }
+      setPassword('');
+    }
+  }, [isOpen, initialMode, currentUser]);
 
   if (!isOpen) return null;
 
@@ -19,10 +34,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser 
     let userId;
     if (cleanName.toLowerCase().includes('eyob') || cleanEmail.includes('eyob')) {
       userId = 'usr_byz6ij';
-    } else if (currentUser?.id) {
-      userId = currentUser.id;
     } else {
-      const key = cleanEmail || cleanName.toLowerCase() || 'default_lecturer';
+      const key = cleanEmail || cleanName.toLowerCase() || 'instructor';
       let hash = 0;
       for (let i = 0; i < key.length; i++) {
         hash = (hash << 5) - hash + key.charCodeAt(i);

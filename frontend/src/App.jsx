@@ -153,11 +153,20 @@ export default function App() {
   const [chatSessions, setChatSessions] = useState([]);
   const [activeChatSessionId, setActiveChatSessionId] = useState(null);
 
-  const loadChatSessions = async () => {
+  const loadChatSessions = async (userId) => {
+    const targetId = userId !== undefined ? userId : currentUser?.id;
+    if (!targetId) {
+      setChatSessions([]);
+      setActiveChatSessionId(null);
+      return;
+    }
     try {
-      const sessions = await fetchChatSessions(currentUser?.id);
+      const sessions = await fetchChatSessions(targetId);
       if (Array.isArray(sessions)) {
         setChatSessions(sessions);
+        if (sessions.length > 0 && !activeChatSessionId) {
+          setActiveChatSessionId(sessions[0].id);
+        }
       }
     } catch (err) {
       console.warn('Failed to load chat sessions:', err);
@@ -247,6 +256,8 @@ export default function App() {
     setAssessment(null);
     setRubric(null);
     setActiveNoteId(null);
+    setChatSessions([]);
+    setActiveChatSessionId(null);
     setView('landing');
   };
 
@@ -287,6 +298,11 @@ export default function App() {
           currentUser={currentUser}
           onAuthSuccess={(user) => {
             setCurrentUser(user);
+            setAssessment(null);
+            setRubric(null);
+            setActiveNoteId(null);
+            setActiveChatSessionId(null);
+            loadChatSessions(user.id);
             setView('app');
           }}
         />
