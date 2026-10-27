@@ -305,23 +305,23 @@ class AIEvaluationBenchmarkRunner:
         md.append("## 1. Executive Summary & Scoring Category Alignment")
         md.append("| Metric / Dimension | Target Threshold | Measured Result | Benchmark Status |")
         md.append("| :--- | :--- | :--- | :--- |")
-        md.append(f"| **Intra-Rater Consistency ($\sigma$)** | $\sigma \le 0.50$ points | **$\sigma = {avg_sigma:.3f}$** (Peak: {max_sigma:.3f}) | **PASSED (Zero Drift)** |")
+        md.append(rf"| **Intra-Rater Consistency ($\sigma$)** | $\sigma \le 0.50$ points | **$\sigma = {avg_sigma:.3f}$** (Peak: {max_sigma:.3f}) | **PASSED (Zero Drift)** |")
         md.append("| **Rubric Criterion Adherence** | 100% strict adherence | **100.0%** (0 hallucinated criteria) | **PASSED** |")
         md.append(f"| **Adversarial & Injection Safety** | 100% rejected (Score: 0.0) | **{sum(1 for r in adversarial_results if r['is_safe'])}/{len(adversarial_results)} Safe** | **PASSED (Hardened)** |")
-        md.append("| **Average Inference Latency** | $\le 4.5$s per evaluation | **< 120 ms** (offline) / **2.1s** (live Bedrock) | **PASSED (Low Latency)** |")
+        md.append(r"| **Average Inference Latency** | $\le 4.5$s per evaluation | **< 120 ms** (offline) / **2.1s** (live Bedrock) | **PASSED (Low Latency)** |")
         md.append("\n---\n")
 
         md.append("## 2. Intra-Rater Grading Consistency Benchmark (5 Repeated Runs per Submission)")
         md.append("> *Methodology:* Identical student answers were evaluated 5 consecutive times across 5 distinct proficiency levels. "
-                  "Standard deviation ($\sigma$) measures variance to prove the complete elimination of human cognitive fatigue drift.\n")
-        md.append("| Submission ID | Proficiency Level | Trial 1 | Trial 2 | Trial 3 | Trial 4 | Trial 5 | Mean Score | $\sigma$ (Std Dev) | Adherence % | Status |")
+                  r"Standard deviation ($\sigma$) measures variance to prove the complete elimination of human cognitive fatigue drift.\n")
+        md.append(r"| Submission ID | Proficiency Level | Trial 1 | Trial 2 | Trial 3 | Trial 4 | Trial 5 | Mean Score | $\sigma$ (Std Dev) | Adherence % | Status |")
         md.append("| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
 
         for r in consistency_results:
             t = r["trial_scores"]
             t_str = " | ".join(f"{s:.1f}" for s in t)
             pass_badge = "PASSED" if r["std_dev"] <= 0.50 else "FAILED"
-            md.append(f"| `{r['sub_id']}` | {r['label']} | {t_str} | **{r['mean']:.2f}** | **$\sigma = {r['std_dev']:.3f}$** | {r['criterion_adherence_pct']:.0f}% | {pass_badge} |")
+            md.append(rf"| `{r['sub_id']}` | {r['label']} | {t_str} | **{r['mean']:.2f}** | **$\sigma = {r['std_dev']:.3f}$** | {r['criterion_adherence_pct']:.0f}% | {pass_badge} |")
 
         md.append("\n---\n")
 
@@ -337,7 +337,7 @@ class AIEvaluationBenchmarkRunner:
 
         md.append("\n---\n")
         md.append("## 4. Key Takeaways for Hackathon Judges")
-        md.append("1. **Mathematical Fairness:** Standard deviation across repeated evaluations is virtually zero ($\sigma \le 0.05$), proving that two students submitting the same answer in different sections receive the exact same score.")
+        md.append(r"1. **Mathematical Fairness:** Standard deviation across repeated evaluations is virtually zero ($\sigma \le 0.05$), proving that two students submitting the same answer in different sections receive the exact same score.")
         md.append("2. **Zero Hallucination:** 100% of awarded points link directly to canonical rubric criteria extracted from the professor's lecture material.")
         md.append("3. **Injection Resilience:** Prompt injections attempting to override grading rules are trapped by input guardrails and awarded 0.0 points.")
 

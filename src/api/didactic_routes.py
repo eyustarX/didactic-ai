@@ -663,11 +663,12 @@ def generate_assessment_endpoint(
     
     # Intelligently evaluate title: discard generic placeholders
     raw_req_title = (req.title or "").strip()
+    clean_note_name = re.sub(r'\.(pdf|docx|pptx|txt)$', '', note.name, flags=re.I).strip()
     is_generic = (
         not raw_req_title
         or bool(re.match(r"^(assessment|new assessment|draft.*|course assessment|course exam|course assignment|exam document|assignment brief|diagnostic test paper|assessment:\s*(exam|assignment)?)$", raw_req_title, re.IGNORECASE))
         or raw_req_title.lower() == f"assessment: {note.name}".lower()
-        or raw_req_title.lower() == f"assessment: {re.sub(r'\.(pdf|docx|pptx|txt)$', '', note.name, flags=re.I).strip()}".lower()
+        or raw_req_title.lower() == f"assessment: {clean_note_name}".lower()
     )
 
     if not is_generic:
