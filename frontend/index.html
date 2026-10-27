@@ -1,10 +1,29 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Didactic AI — Academic evaluation system for curriculum analysis, rubric generation, and decomposed grading." />
     <title>Didactic AI — Academic Evaluation Platform</title>
+
+    <!-- Synchronous theme initializer: Prevents Flash of Incorrect Theme (FOIT) on page load/refresh -->
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem('didactic_theme_mode') || localStorage.getItem('didactic_theme');
+          var resolved = 'dark';
+          if (mode === 'light' || mode === 'dark') {
+            resolved = mode;
+          } else if (mode === 'system') {
+            resolved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          document.documentElement.setAttribute('data-theme', resolved);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+
     <!-- Inter & JetBrains Mono fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
