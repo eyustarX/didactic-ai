@@ -3,7 +3,7 @@
  * Connects to the FastAPI backend with seamless fallback handling.
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 
 function resolveLecturerId(lecturerId) {
   if (lecturerId && typeof lecturerId === 'string') return lecturerId;
