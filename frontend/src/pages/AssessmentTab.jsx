@@ -363,6 +363,7 @@ export default function AssessmentTab({
           question_count: count,
           title: isGenericTitle ? undefined : assessmentTitle.trim(),
           prompt: promptToUse?.trim() || undefined,
+          course_name: assessment?.course_name && assessment.course_name !== 'General Course' ? assessment.course_name : 'Computer Science 101',
           lecturerId: currentUser?.id,
         });
       } else {

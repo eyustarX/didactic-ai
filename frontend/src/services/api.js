@@ -173,14 +173,35 @@ export async function updateKeyPoints(noteId, keyPoints, lecturerId) {
  * 3. Assessment & Questions
  * ------------------------------------------------------------- */
 
-export async function generateAssessmentFromParts({ lecture_note_id, question_count = 3, title, prompt, lecturerId }) {
+export async function generateAssessmentFromParts({
+  lecture_note_id,
+  question_count = 3,
+  title,
+  prompt,
+  course_name,
+  section,
+  academic_year,
+  assessment_category,
+  weight_pct,
+  lecturerId,
+}) {
   const res = await fetch(`${API_BASE}/assessments/generate`, {
     method: 'POST',
     headers: {
       ...getAuthHeaders(lecturerId),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ lecture_note_id, question_count, title, prompt }),
+    body: JSON.stringify({
+      lecture_note_id,
+      question_count,
+      title,
+      prompt,
+      course_name,
+      section,
+      academic_year,
+      assessment_category,
+      weight_pct,
+    }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Failed to generate assessment' }));

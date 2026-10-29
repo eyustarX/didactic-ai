@@ -198,6 +198,11 @@ class AssessmentGenerateReq(BaseModel):
     prompt: Optional[str] = None
     custom_instructions: Optional[str] = None
     ticked_part_ids: Optional[List[str]] = None
+    course_name: Optional[str] = None
+    section: Optional[str] = None
+    academic_year: Optional[str] = None
+    assessment_category: Optional[str] = None
+    weight_pct: Optional[float] = None
 
 
 class QuestionEditItem(BaseModel):
@@ -755,10 +760,57 @@ def generate_assessment_endpoint(
         else:
             title = f"{base_title} #{existing_same_count + 1}"
 
+    # Inherit or resolve course name and cohort settings
+    resolved_course = (req.course_name or "").strip()
+    if not resolved_course or resolved_course.lower() == "general course":
+        latest_assessment = (
+            session.query(Assessment)
+            .filter(
+                Assessment.lecturer_id == lecturer_id,
+                Assessment.course_name.isnot(None),
+                Assessment.course_name != "General Course",
+            )
+            .order_by(Assessment.created_at.desc())
+            .first()
+        )
+        if latest_assessment and latest_assessment.course_name:
+            resolved_course = latest_assessment.course_name
+        else:
+            resolved_course = "Computer Science 101"
+
+    # Infer assessment category & weight if not provided
+    category = (req.assessment_category or "").strip()
+    if not category:
+        title_lower = title.lower()
+        if "quiz" in title_lower:
+            category = "quiz"
+        elif "assignment" in title_lower or "project" in title_lower:
+            category = "assignment"
+        elif "final" in title_lower:
+            category = "final"
+        else:
+            category = "midterm"
+
+    weight = req.weight_pct
+    if weight is None:
+        if category == "quiz":
+            weight = 15.0
+        elif category == "assignment":
+            weight = 20.0
+        elif category == "final":
+            weight = 40.0
+        else:
+            weight = 25.0
+
     assessment = Assessment(
         lecture_note_id=note.id,
         lecturer_id=lecturer_id,
         title=title,
+        course_name=resolved_course,
+        section=req.section or "Section A",
+        academic_year=req.academic_year or "2026",
+        assessment_category=category,
+        weight_pct=weight,
         version=1,
         status="draft",
         max_score=0.0,
@@ -1510,6 +1562,116 @@ def create_student(
 # 6. Student Answer PDF Upload & AI Grading (Sections 9-11)
 # ---------------------------------------------------------------------------
 
+def find_or_create_student(
+    session: Session,
+    lecturer_id: str,
+    student_number: Optional[str] = None,
+    student_name: Optional[str] = None,
+    section: Optional[str] = "Section A",
+    academic_year: Optional[str] = "2026",
+    course_name: Optional[str] = "General Course",
+    student_id: Optional[str] = None,
+) -> Student:
+    """
+    Intelligently finds an existing student for this lecturer across:
+    1) Primary student ID
+    2) Case-insensitive student number
+    3) Exact student name
+    4) Inverted fields (e.g. name entered in number field)
+    5) Fuzzy substring match on Ethiopian or full names (e.g. 'Almaz' matches 'Almaz Ayana')
+    If found, safely links to the existing student row; if not, creates a new student row.
+    """
+    import uuid
+    from sqlalchemy import func
+
+    student = None
+    # 1. Match by primary key id if provided
+    if student_id:
+        student = session.query(Student).filter(
+            Student.id == student_id,
+            Student.lecturer_id == lecturer_id,
+        ).first()
+
+    clean_num = (student_number or "").strip()
+    clean_name = (student_name or "").strip()
+
+    # 2. Match by student_number (case-insensitive)
+    if not student and clean_num:
+        student = session.query(Student).filter(
+            func.lower(Student.student_number) == clean_num.lower(),
+            Student.lecturer_id == lecturer_id,
+        ).first()
+
+    # 3. Match by student_name (exact case-insensitive)
+    if not student and clean_name:
+        student = session.query(Student).filter(
+            func.lower(Student.name) == clean_name.lower(),
+            Student.lecturer_id == lecturer_id,
+        ).first()
+
+    # 4. Inverted check: what if the user put the student's name in the student_number field
+    if not student and clean_num and len(clean_num) >= 3:
+        student = session.query(Student).filter(
+            func.lower(Student.name) == clean_num.lower(),
+            Student.lecturer_id == lecturer_id,
+        ).first()
+    if not student and clean_name and len(clean_name) >= 3:
+        student = session.query(Student).filter(
+            func.lower(Student.student_number) == clean_name.lower(),
+            Student.lecturer_id == lecturer_id,
+        ).first()
+
+    # 5. Fuzzy match on first/last name (e.g. user typed "Almaz" matching "Almaz Ayana")
+    search_terms = []
+    if clean_name and len(clean_name) >= 3:
+        search_terms.append(clean_name)
+        for part in clean_name.split():
+            if len(part) >= 3:
+                search_terms.append(part)
+    if clean_num and len(clean_num) >= 3 and not re.match(r"^(STU-|ETS-|\d+)", clean_num, re.IGNORECASE):
+        search_terms.append(clean_num)
+
+    if not student:
+        for term in search_terms:
+            candidates = session.query(Student).filter(
+                Student.name.ilike(f"%{term}%"),
+                Student.lecturer_id == lecturer_id,
+            ).all()
+            if len(candidates) == 1:
+                student = candidates[0]
+                break
+
+    # 6. If student is found, enrich missing attributes
+    if student:
+        if clean_name and (not student.name or student.name.startswith("STU-") or len(student.name) < len(clean_name)):
+            student.name = clean_name
+        if clean_num and (not student.student_number or student.student_number.startswith("STU-")) and not clean_num.startswith("STU-"):
+            student.student_number = clean_num
+        if section and (not student.section or student.section == "Section A"):
+            student.section = section
+        if academic_year and not student.academic_year:
+            student.academic_year = academic_year
+        if course_name and course_name != "General Course" and (not student.course_name or student.course_name == "General Course"):
+            student.course_name = course_name
+        session.flush()
+        return student
+
+    # 7. If student is not found, create new Student record
+    fallback_num = clean_num if clean_num else f"STU-{uuid.uuid4().hex[:6].upper()}"
+    fallback_name = clean_name if clean_name else fallback_num
+    student = Student(
+        lecturer_id=lecturer_id,
+        student_number=fallback_num,
+        name=fallback_name,
+        section=section or "Section A",
+        academic_year=academic_year or "2026",
+        course_name=course_name or "General Course",
+    )
+    session.add(student)
+    session.flush()
+    return student
+
+
 @router.post("/assessments/{assessment_id}/grade-submission")
 async def grade_student_submission(
     assessment_id: str,
@@ -1533,44 +1695,21 @@ async def grade_student_submission(
     if not assessment:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
 
-    student = None
-    if student_id:
-        student = session.query(Student).filter(Student.id == student_id).first()
     sec_val = (section or assessment.section or "Section A").strip()
     year_val = (academic_year or assessment.academic_year or "2026").strip()
     course_val = (course_name or assessment.course_name or "General Course").strip()
     cat_val = (assessment_category or assessment.assessment_category or "midterm").strip()
 
-    if not student and student_number:
-        student = (
-            session.query(Student)
-            .filter(Student.student_number == student_number.strip(), Student.lecturer_id == lecturer_id)
-            .first()
-        )
-        if not student:
-            student = Student(
-                lecturer_id=assessment.lecturer_id or lecturer_id,
-                student_number=student_number.strip(),
-                name=(student_name or student_number).strip(),
-                section=sec_val,
-                academic_year=year_val,
-                course_name=course_val,
-            )
-            session.add(student)
-            session.flush()
-        else:
-            if student_name and student.name != student_name.strip():
-                student.name = student_name.strip()
-            if section:
-                student.section = sec_val
-            if academic_year:
-                student.academic_year = year_val
-            if course_name:
-                student.course_name = course_val
-            session.flush()
-
-    if not student:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Student details required.")
+    student = find_or_create_student(
+        session=session,
+        lecturer_id=assessment.lecturer_id or lecturer_id,
+        student_number=student_number,
+        student_name=student_name,
+        section=sec_val,
+        academic_year=year_val,
+        course_name=course_val,
+        student_id=student_id,
+    )
 
     existing_sub = (
         session.query(Submission)
@@ -1980,33 +2119,15 @@ def create_manual_submission(
     course_val = (req.course_name or assessment.course_name or "General Course").strip()
     cat_val = (req.assessment_category or assessment.assessment_category or "midterm").strip()
 
-    student_num = (req.student_number or f"STU-{uuid.uuid4().hex[:6].upper()}").strip()
-    student = (
-        session.query(Student)
-        .filter(Student.student_number == student_num, Student.lecturer_id == lecturer_id)
-        .first()
+    student = find_or_create_student(
+        session=session,
+        lecturer_id=assessment.lecturer_id or lecturer_id,
+        student_number=req.student_number,
+        student_name=req.student_name,
+        section=sec_val,
+        academic_year=year_val,
+        course_name=course_val,
     )
-    if not student:
-        student = Student(
-            lecturer_id=assessment.lecturer_id or lecturer_id,
-            student_number=student_num,
-            name=req.student_name.strip(),
-            section=sec_val,
-            academic_year=year_val,
-            course_name=course_val,
-        )
-        session.add(student)
-        session.flush()
-    else:
-        if req.student_name and student.name != req.student_name.strip():
-            student.name = req.student_name.strip()
-        if req.section:
-            student.section = sec_val
-        if req.academic_year:
-            student.academic_year = year_val
-        if req.course_name:
-            student.course_name = course_val
-        session.flush()
 
     calculated_total = 0.0
     if req.question_scores:
@@ -2185,11 +2306,24 @@ def get_master_course_gradebook(
         active_assessment = session.query(Assessment).filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id).first()
 
     resolved_course = course_name
-    if not resolved_course or not resolved_course.strip():
-        if active_assessment and active_assessment.course_name:
+    if not resolved_course or not resolved_course.strip() or resolved_course.strip() == "General Course":
+        if active_assessment and active_assessment.course_name and active_assessment.course_name != "General Course":
             resolved_course = active_assessment.course_name
         else:
-            resolved_course = "General Course"
+            latest_c = (
+                session.query(Assessment.course_name)
+                .filter(
+                    Assessment.lecturer_id == lecturer_id,
+                    Assessment.course_name.isnot(None),
+                    Assessment.course_name != "General Course",
+                )
+                .order_by(Assessment.created_at.desc())
+                .first()
+            )
+            if latest_c and latest_c[0]:
+                resolved_course = latest_c[0]
+            else:
+                resolved_course = "Computer Science 101"
     resolved_course = resolved_course.strip()
 
     # Find all available courses and sections for this lecturer
@@ -2198,9 +2332,12 @@ def get_master_course_gradebook(
         .filter(Assessment.lecturer_id == lecturer_id)
         .all()
     )
-    available_courses = sorted(list(set(
-        a.course_name for a in all_assessments_lecturer if a.course_name
-    )))
+    raw_courses = [
+        a.course_name for a in all_assessments_lecturer if a.course_name and a.course_name != "General Course"
+    ]
+    available_courses = sorted(list(set(raw_courses)))
+    if not available_courses:
+        available_courses = ["Computer Science 101"]
     if resolved_course not in available_courses and resolved_course != "All":
         available_courses.insert(0, resolved_course)
 
@@ -2222,6 +2359,10 @@ def get_master_course_gradebook(
     if resolved_course != "All":
         matching_query = matching_query.filter(
             (func.lower(Assessment.course_name) == resolved_course.lower()) | (Assessment.title.ilike(f"%{resolved_course}%"))
+        )
+    if section and section != "All":
+        matching_query = matching_query.filter(
+            (Assessment.section == section) | (Assessment.section == "All") | (Assessment.section.is_(None))
         )
     course_assessments = matching_query.order_by(Assessment.created_at.asc()).all()
     if not course_assessments and active_assessment:
@@ -2246,6 +2387,34 @@ def get_master_course_gradebook(
     all_subs = submissions_query.all()
 
     students_dict = {}
+
+    # Pre-populate all students enrolled for this lecturer and matching course/section
+    # This guarantees that when a new exam is created, existing students are already shown in rows ready to be graded
+    base_students_query = session.query(Student).filter(Student.lecturer_id == lecturer_id)
+    if section and section != "All":
+        base_students_query = base_students_query.filter(Student.section == section)
+    if academic_year and academic_year != "All":
+        base_students_query = base_students_query.filter(Student.academic_year == academic_year)
+    if resolved_course != "All":
+        base_students_query = base_students_query.filter(
+            (func.lower(Student.course_name) == resolved_course.lower())
+            | (Student.course_name.is_(None))
+            | (Student.course_name == "General Course")
+        )
+
+    for stu in base_students_query.all():
+        students_dict[stu.id] = {
+            "student_id": stu.id,
+            "student_number": stu.student_number,
+            "student_name": stu.name,
+            "section": stu.section or "Section A",
+            "academic_year": stu.academic_year or "2026",
+            "course_name": stu.course_name or resolved_course,
+            "scores": {},
+            "percentages": {},
+            "statuses": {},
+        }
+
     for sub in all_subs:
         stu = sub.student
         if not stu:

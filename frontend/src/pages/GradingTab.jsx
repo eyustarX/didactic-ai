@@ -116,7 +116,11 @@ export default function GradingTab({
   // Synchronize active assessment settings
   useEffect(() => {
     if (assessment) {
-      if (assessment.course_name) setCourseName(assessment.course_name);
+      if (assessment.course_name && assessment.course_name !== 'General Course') {
+        setCourseName(assessment.course_name);
+      } else if (!courseName || courseName === 'General Course') {
+        setCourseName(assessment.course_name || 'Computer Science 101');
+      }
       if (assessment.section) setSection(assessment.section);
       if (assessment.academic_year) setAcademicYear(assessment.academic_year);
       if (assessment.assessment_category) setAssessmentCategory(assessment.assessment_category);
@@ -143,8 +147,8 @@ export default function GradingTab({
   };
 
   useEffect(() => {
-    loadMasterGradebook();
-  }, [assessment?.id, activeSectionFilter]);
+    loadMasterGradebook(activeSectionFilter, courseName, academicYear);
+  }, [assessment?.id, activeSectionFilter, courseName]);
 
   const handleSaveAssessmentSettings = async () => {
     if (!assessment?.id) return;
@@ -911,12 +915,18 @@ export default function GradingTab({
               </label>
               <input
                 type="text"
+                list="course-options-list"
                 value={courseName}
                 onChange={(e) => setCourseName(e.target.value)}
                 placeholder="e.g. CS101: Computer Science"
                 className="input-text"
-                style={{ height: 28, fontSize: '0.8rem', width: 190, padding: '0 8px' }}
+                style={{ height: 28, fontSize: '0.8rem', width: 210, padding: '0 8px' }}
               />
+              <datalist id="course-options-list">
+                {(masterGradebookData?.available_courses || ['Computer Science 101']).map((crs) => (
+                  <option key={crs} value={crs} />
+                ))}
+              </datalist>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -1954,22 +1964,42 @@ export default function GradingTab({
           </div>
         </div>
 
-        {/* Section Filter Tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, overflowX: 'auto', paddingBottom: 2 }}>
-          <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: 4 }}>
-            Filter Section:
-          </span>
-          {['All', ...(masterGradebookData?.available_sections || ['Section A', 'Section B'])].map((secItem) => (
-            <button
-              key={secItem}
-              type="button"
-              onClick={() => setActiveSectionFilter(secItem)}
-              className={`btn btn-sm ${activeSectionFilter === secItem ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ height: 26, fontSize: '0.74rem', padding: '0 10px', borderRadius: 14 }}
-            >
-              {secItem === 'All' ? 'All Sections' : secItem}
-            </button>
-          ))}
+        {/* Course & Section Filter Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, overflowX: 'auto', paddingBottom: 2, flexWrap: 'wrap' }}>
+          {(masterGradebookData?.available_courses?.length > 1 || (masterGradebookData?.available_courses?.length === 1 && masterGradebookData.available_courses[0] !== 'General Course')) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase' }}>
+                Course:
+              </span>
+              <select
+                value={courseName}
+                onChange={(e) => setCourseName(e.target.value)}
+                className="input-select"
+                style={{ height: 26, fontSize: '0.74rem', padding: '0 8px', borderRadius: 14, fontWeight: 600, color: 'var(--accent)', background: 'var(--surface)', border: '1px solid var(--border)' }}
+              >
+                {masterGradebookData.available_courses.map((crs) => (
+                  <option key={crs} value={crs}>{crs}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: 4 }}>
+              Filter Section:
+            </span>
+            {['All', ...(masterGradebookData?.available_sections || ['Section A', 'Section B'])].map((secItem) => (
+              <button
+                key={secItem}
+                type="button"
+                onClick={() => setActiveSectionFilter(secItem)}
+                className={`btn btn-sm ${activeSectionFilter === secItem ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ height: 26, fontSize: '0.74rem', padding: '0 10px', borderRadius: 14 }}
+              >
+                {secItem === 'All' ? 'All Sections' : secItem}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Cohort Metric Stats */}
