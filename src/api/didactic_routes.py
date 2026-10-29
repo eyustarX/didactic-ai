@@ -2217,15 +2217,11 @@ def get_master_course_gradebook(
     if "Section A" not in available_sections:
         available_sections.insert(0, "Section A")
 
-    # Match assessments for this course
+    # Match all assessments for this course (columns in master gradebook)
     matching_query = session.query(Assessment).filter(Assessment.lecturer_id == lecturer_id)
     if resolved_course != "All":
         matching_query = matching_query.filter(
-            (Assessment.course_name == resolved_course) | (Assessment.title.ilike(f"%{resolved_course}%"))
-        )
-    if section and section.strip() and section.strip() != "All":
-        matching_query = matching_query.filter(
-            (Assessment.section == section.strip()) | (Assessment.section == None) | (Assessment.section == "")
+            (func.lower(Assessment.course_name) == resolved_course.lower()) | (Assessment.title.ilike(f"%{resolved_course}%"))
         )
     course_assessments = matching_query.order_by(Assessment.created_at.asc()).all()
     if not course_assessments and active_assessment:
