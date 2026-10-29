@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: didactic-ai-backend
+    name: didactic-ai
     runtime: docker
     plan: free
     region: oregon

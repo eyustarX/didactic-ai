@@ -50,8 +50,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser,
       onAuthSuccess(user);
       onClose();
     } catch (err) {
-      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
-        // Fallback for offline mode: generate unique user per email
+      if (
+        err.message &&
+        (err.message.includes('Failed to fetch') ||
+          err.message.includes('NetworkError') ||
+          err.message.toLowerCase().includes('not found') ||
+          err.message.includes('404'))
+      ) {
+        // Fallback when backend auth routes are still deploying on Render: generate unique isolated user per email
         let hash = 0;
         for (let i = 0; i < cleanEmail.length; i++) {
           hash = (hash << 5) - hash + cleanEmail.charCodeAt(i);
