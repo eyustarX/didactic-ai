@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Database, RefreshCw, Users, TrendingUp, Tag } from 'lucide-react';
 import { fetchAnalytics } from '../services/api';
 
-export default function AnalyticsTab({ analyticsData, setAnalyticsData }) {
+export default function AnalyticsTab({ analyticsData, setAnalyticsData, currentUser }) {
   const [courseFilter, setCourseFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -11,7 +11,7 @@ export default function AnalyticsTab({ analyticsData, setAnalyticsData }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchAnalytics(filter || null);
+      const data = await fetchAnalytics(filter || null, currentUser?.id);
       setAnalyticsData(data);
     } catch (err) {
       setError(err.message || 'Failed to load analytics');
@@ -22,7 +22,7 @@ export default function AnalyticsTab({ analyticsData, setAnalyticsData }) {
 
   useEffect(() => {
     loadData(courseFilter);
-  }, [courseFilter]);
+  }, [courseFilter, currentUser?.id]);
 
   const total = analyticsData?.total_submissions ?? 0;
   const avg = analyticsData?.average_score != null ? Number(analyticsData.average_score).toFixed(2) : 'N/A';

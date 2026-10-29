@@ -115,9 +115,17 @@ def grade_assignment(request: GradeAssignmentRequest, session: Session = Depends
 
 
 # Analytics for the cohort chart
+from src.api.didactic_routes import get_current_lecturer
+
+
 @router.get("/analytics", tags=["Analytics"])
-def analytics(course_id: str | None = None, session: Session = Depends(get_session)):
-    return analytics_service.get_analytics(session, course_id)
+@router.get("/api/analytics", tags=["Analytics"], include_in_schema=False)
+def analytics(
+    course_id: str | None = None,
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    return analytics_service.get_analytics(session, course_id, lecturer_id)
 
 
 # Mount Didactic AI routes

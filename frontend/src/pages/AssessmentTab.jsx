@@ -128,20 +128,33 @@ export default function AssessmentTab({
       const notes = await fetchLectureNotes(currentUser?.id);
       if (Array.isArray(notes)) {
         setLectureNotesList(notes);
-        if (!activeNoteId && notes.length > 0 && setActiveNoteId) {
-          const first = notes[0];
-          setActiveNoteId(first.id);
-          if (setLectureTitle && first.name) setLectureTitle(first.name);
-          try {
-            const detail = await fetchLectureNoteDetail(first.id, currentUser?.id);
-            if (detail?.extracted_text && setLectureContent) {
-              setLectureContent(detail.extracted_text);
-            }
-          } catch (e) {}
+        if (notes.length > 0) {
+          if (!activeNoteId && setActiveNoteId) {
+            const first = notes[0];
+            setActiveNoteId(first.id);
+            if (setLectureTitle && first.name) setLectureTitle(first.name);
+            try {
+              const detail = await fetchLectureNoteDetail(first.id, currentUser?.id);
+              if (detail?.extracted_text && setLectureContent) {
+                setLectureContent(detail.extracted_text);
+              }
+            } catch (e) {}
+          }
+        } else {
+          setLectureNotesList([]);
+          if (setActiveNoteId) setActiveNoteId(null);
+          if (setLectureTitle) setLectureTitle('');
+          if (setLectureContent) setLectureContent('');
         }
+      } else {
+        setLectureNotesList([]);
+        if (setActiveNoteId) setActiveNoteId(null);
+        if (setLectureTitle) setLectureTitle('');
+        if (setLectureContent) setLectureContent('');
       }
     } catch (e) {
       console.warn('Failed to load lecture notes list in AssessmentTab:', e);
+      setLectureNotesList([]);
     } finally {
       setIsLoadingNotes(false);
     }
@@ -869,7 +882,7 @@ export default function AssessmentTab({
                 <select
                   value={activeNoteId || ''}
                   onChange={(e) => handleSelectSourceNote(e.target.value)}
-                  className="input-text"
+                  className="input-select"
                   style={{
                     height: 28,
                     fontSize: '0.78rem',
@@ -880,13 +893,30 @@ export default function AssessmentTab({
                     color: 'var(--text)',
                     borderRadius: 6,
                     border: '1px solid var(--border)',
+                    colorScheme: theme === 'dark' ? 'dark' : 'light',
+                    cursor: 'pointer',
                   }}
                 >
                   {lectureNotesList.length === 0 ? (
-                    <option value="">No materials uploaded yet</option>
+                    <option
+                      value=""
+                      style={{
+                        backgroundColor: theme === 'dark' ? '#111C30' : '#FFFFFF',
+                        color: theme === 'dark' ? '#F8FAFC' : '#0B1220',
+                      }}
+                    >
+                      No materials uploaded yet
+                    </option>
                   ) : (
                     lectureNotesList.map((note) => (
-                      <option key={note.id} value={note.id}>
+                      <option
+                        key={note.id}
+                        value={note.id}
+                        style={{
+                          backgroundColor: theme === 'dark' ? '#111C30' : '#FFFFFF',
+                          color: theme === 'dark' ? '#F8FAFC' : '#0B1220',
+                        }}
+                      >
                         {note.name} ({note.file_type || 'DOC'})
                       </option>
                     ))
@@ -1383,24 +1413,41 @@ export default function AssessmentTab({
                   <select
                     value={activeNoteId || ''}
                     onChange={(e) => handleSelectSourceNote(e.target.value)}
-                    className="input-text"
+                    className="input-select"
                     style={{
-                      height: 24,
+                      height: 26,
                       fontSize: '0.74rem',
                       width: '100%',
                       padding: '0 6px',
-                      background: 'transparent',
+                      background: 'var(--surface)',
                       color: 'var(--text)',
                       borderRadius: 4,
-                      border: 'none',
+                      border: '1px solid var(--border-subtle)',
                       outline: 'none',
+                      colorScheme: theme === 'dark' ? 'dark' : 'light',
+                      cursor: 'pointer',
                     }}
                   >
                     {lectureNotesList.length === 0 ? (
-                      <option value="">No materials uploaded</option>
+                      <option
+                        value=""
+                        style={{
+                          backgroundColor: theme === 'dark' ? '#111C30' : '#FFFFFF',
+                          color: theme === 'dark' ? '#F8FAFC' : '#0B1220',
+                        }}
+                      >
+                        No materials uploaded
+                      </option>
                     ) : (
                       lectureNotesList.map((note) => (
-                        <option key={note.id} value={note.id}>
+                        <option
+                          key={note.id}
+                          value={note.id}
+                          style={{
+                            backgroundColor: theme === 'dark' ? '#111C30' : '#FFFFFF',
+                            color: theme === 'dark' ? '#F8FAFC' : '#0B1220',
+                          }}
+                        >
                           {note.name}
                         </option>
                       ))

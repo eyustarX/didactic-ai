@@ -132,7 +132,7 @@ export default function GradingTab({
         section: sec === 'All' ? null : sec,
         academic_year: yr || academicYear,
         assessment_id: assessment?.id,
-        lecturerId: currentUser?.email,
+        lecturerId: currentUser?.id,
       });
       setMasterGradebookData(data);
     } catch (err) {
@@ -160,7 +160,7 @@ export default function GradingTab({
           assessment_category: assessmentCategory,
           weight_pct: parseFloat(weightPct) || 25.0,
         },
-        currentUser?.email
+        currentUser?.id
       );
       if (setAssessment) {
         setAssessment((prev) => ({ ...prev, ...updated }));
@@ -587,7 +587,7 @@ export default function GradingTab({
     setRegradeMsg(null);
 
     try {
-      const updated = await regradeSubmission(subId, assessment?.id, currentUser?.email);
+      const updated = await regradeSubmission(subId, assessment?.id, currentUser?.id);
       setGradingReport(updated);
       setIsConfirmed(false);
       setRegradeMsg('Paper successfully re-graded with fresh AI evaluation.');
@@ -611,7 +611,7 @@ export default function GradingTab({
     setRegradingQId(questionId);
     setGradingError(null);
     try {
-      const res = await regradeSubmissionQuestion(subId, questionId, assessment?.id, currentUser?.email);
+      const res = await regradeSubmissionQuestion(subId, questionId, assessment?.id, currentUser?.id);
       if (res.question_result) {
         setGradingReport((prev) => {
           if (!prev) return prev;
@@ -873,8 +873,8 @@ export default function GradingTab({
           <select
             value={assessment?.id || ''}
             onChange={handleSelectAssessment}
-            className="input-text"
-            style={{ height: 32, fontSize: '0.82rem', minWidth: 240, padding: '0 8px', background: 'var(--bg)', color: 'var(--text)' }}
+            className="input-select"
+            style={{ height: 32, fontSize: '0.82rem', minWidth: 240, padding: '0 8px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
           >
             {assessmentsList.length === 0 && (
               <option value="">
@@ -954,8 +954,8 @@ export default function GradingTab({
               <select
                 value={assessmentCategory}
                 onChange={(e) => setAssessmentCategory(e.target.value)}
-                className="input-text"
-                style={{ height: 28, fontSize: '0.8rem', width: 145, padding: '0 6px', background: 'var(--bg)', color: 'var(--text)' }}
+                className="input-select"
+                style={{ height: 28, fontSize: '0.8rem', width: 145, padding: '0 6px', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
               >
                 <option value="midterm">Midterm Exam</option>
                 <option value="final">Final Exam</option>
@@ -1325,8 +1325,8 @@ export default function GradingTab({
               <select
                 value={assessmentCategory}
                 onChange={(e) => setAssessmentCategory(e.target.value)}
-                className="input-text"
-                style={{ fontSize: '0.88rem', background: 'var(--bg)', color: 'var(--text)' }}
+                className="input-select"
+                style={{ fontSize: '0.88rem', background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border)' }}
               >
                 <option value="midterm">Midterm Exam</option>
                 <option value="final">Final Exam</option>

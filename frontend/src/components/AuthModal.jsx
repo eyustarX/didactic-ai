@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import { X, User, Lock, Mail, CheckCircle } from 'lucide-react';
+import { X, User, Lock, Mail, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import DidacticLogo from './DidacticLogo';
+import { registerUser, loginUser } from '../services/api';
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser, initialMode = 'signin' }) {
   const [isRegister, setIsRegister] = useState(initialMode === 'signup');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   React.useEffect(() => {
     if (isOpen) {
+      setAuthError(null);
+      setIsLoading(false);
       if (initialMode === 'signup') {
         setIsRegister(true);
         setName('');
@@ -25,36 +30,49 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser,
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setAuthError(null);
+    setIsLoading(true);
+
     const cleanEmail = email.trim().toLowerCase();
     const cleanName = name.trim();
 
-    // Deterministic user ID: map by email or name so logging in always accesses the exact same data
-    let userId;
-    if (cleanName.toLowerCase().includes('eyob') || cleanEmail.includes('eyob')) {
-      userId = 'usr_byz6ij';
-    } else {
-      const key = cleanEmail || cleanName.toLowerCase() || 'instructor';
-      let hash = 0;
-      for (let i = 0; i < key.length; i++) {
-        hash = (hash << 5) - hash + key.charCodeAt(i);
-        hash |= 0;
+    try {
+      let user;
+      if (isRegister) {
+        user = await registerUser({ name: cleanName, email: cleanEmail, password });
+      } else {
+        user = await loginUser({ email: cleanEmail, password });
       }
-      const hex = Math.abs(hash).toString(36).padStart(6, '0').slice(0, 6);
-      userId = `usr_${hex}`;
+
+      localStorage.setItem('didactic_user', JSON.stringify(user));
+      onAuthSuccess(user);
+      onClose();
+    } catch (err) {
+      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
+        // Fallback for offline mode: generate unique user per email
+        let hash = 0;
+        for (let i = 0; i < cleanEmail.length; i++) {
+          hash = (hash << 5) - hash + cleanEmail.charCodeAt(i);
+          hash |= 0;
+        }
+        const hex = Math.abs(hash).toString(36).padStart(6, '0').slice(0, 6);
+        const user = {
+          name: cleanName || cleanEmail.split('@')[0],
+          email: cleanEmail,
+          role: 'Instructor',
+          id: `usr_${hex}`,
+        };
+        localStorage.setItem('didactic_user', JSON.stringify(user));
+        onAuthSuccess(user);
+        onClose();
+      } else {
+        setAuthError(err.message || 'Authentication failed. Please check your credentials.');
+      }
+    } finally {
+      setIsLoading(false);
     }
-
-    const user = {
-      name: cleanName || (cleanEmail ? cleanEmail.split('@')[0] : 'Instructor'),
-      email: cleanEmail || 'instructor@didactic.ai',
-      role: 'Instructor',
-      id: userId,
-    };
-
-    localStorage.setItem('didactic_user', JSON.stringify(user));
-    onAuthSuccess(user);
-    onClose();
   };
 
   return (
@@ -151,6 +169,28 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser,
           </span>
         </div>
 
+        {/* Error Alert */}
+        {authError && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '10px 14px',
+              borderRadius: 8,
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              fontSize: '0.82rem',
+              color: 'var(--danger, #ef4444)',
+              lineHeight: 1.45,
+            }}
+          >
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
+            <span>{authError}</span>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {isRegister && (
@@ -205,11 +245,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, currentUser,
 
           <button
             type="submit"
+            disabled={isLoading}
             className="btn btn-primary"
             style={{ width: '100%', marginTop: 8, padding: '10px 0' }}
           >
-            <CheckCircle size={15} />
-            <span>{isRegister ? 'Create Free Account' : 'Sign In as Instructor'}</span>
+            {isLoading ? <Loader2 size={15} className="spin" /> : <CheckCircle size={15} />}
+            <span>{isLoading ? 'Processing...' : isRegister ? 'Create Free Account' : 'Sign In as Instructor'}</span>
           </button>
         </form>
 

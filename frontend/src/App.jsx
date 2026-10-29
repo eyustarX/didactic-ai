@@ -102,19 +102,8 @@ export default function App() {
       const saved = localStorage.getItem('didactic_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
-      if (parsed) {
-        if (parsed.department) {
-          delete parsed.department;
-        }
-        if (
-          (parsed.name && parsed.name.toLowerCase().includes('eyob')) ||
-          (parsed.email && parsed.email.toLowerCase().includes('eyob'))
-        ) {
-          if (parsed.id !== 'usr_byz6ij') {
-            parsed.id = 'usr_byz6ij';
-            localStorage.setItem('didactic_user', JSON.stringify(parsed));
-          }
-        }
+      if (parsed && parsed.department) {
+        delete parsed.department;
       }
       return parsed;
     } catch {
@@ -141,8 +130,8 @@ export default function App() {
 
   // Shared workflow state
   const [activeNoteId, setActiveNoteId] = useState(null);
-  const [lectureTitle, setLectureTitle] = useState(SAMPLE_LECTURE_TITLE);
-  const [lectureContent, setLectureContent] = useState(SAMPLE_LECTURE_CONTENT);
+  const [lectureTitle, setLectureTitle] = useState('');
+  const [lectureContent, setLectureContent] = useState('');
   const [assessment, setAssessment] = useState(null);
   const [rubric, setRubric] = useState(null);
 
@@ -200,25 +189,40 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchAnalytics().then((a) => setAnalyticsData(a)).catch(() => {});
+    if (!currentUser?.id) {
+      setAssessment(null);
+      setRubric(null);
+      setActiveNoteId(null);
+      setLectureTitle('');
+      setLectureContent('');
+      setAnalyticsData(null);
+      return;
+    }
+
+    fetchAnalytics(null, currentUser.id).then((a) => setAnalyticsData(a)).catch(() => {});
 
     // Clear previous instructor's assessment & active lecture note state
     setAssessment(null);
     setRubric(null);
     setActiveNoteId(null);
+    setLectureTitle('');
+    setLectureContent('');
 
     // Automatically load initial lecture note & assessment if available for this instructor
-    fetchLectureNotes(currentUser?.id)
+    fetchLectureNotes(currentUser.id)
       .then(async (notes) => {
         if (notes && notes.length > 0) {
           const firstNote = notes[0];
           setActiveNoteId(firstNote.id);
           if (firstNote.name) setLectureTitle(firstNote.name);
           try {
-            const detail = await fetchLectureNoteDetail(firstNote.id, currentUser?.id);
+            const detail = await fetchLectureNoteDetail(firstNote.id, currentUser.id);
+            if (detail?.extracted_text) {
+              setLectureContent(detail.extracted_text);
+            }
             if (detail?.assessments && detail.assessments.length > 0) {
               const firstAssId = detail.assessments[0].id;
-              const fullAss = await fetchAssessment(firstAssId, currentUser?.id);
+              const fullAss = await fetchAssessment(firstAssId, currentUser.id);
               if (fullAss) setAssessment(fullAss);
             } else {
               setAssessment(null);
@@ -230,11 +234,15 @@ export default function App() {
         } else {
           setAssessment(null);
           setActiveNoteId(null);
+          setLectureTitle('');
+          setLectureContent('');
         }
       })
       .catch(() => {
         setAssessment(null);
         setActiveNoteId(null);
+        setLectureTitle('');
+        setLectureContent('');
       });
 
     const handleResize = () => {
@@ -247,7 +255,9 @@ export default function App() {
   }, [currentUser?.id]);
 
   const handleGradingComplete = () => {
-    fetchAnalytics().then((a) => setAnalyticsData(a)).catch(() => {});
+    if (currentUser?.id) {
+      fetchAnalytics(null, currentUser.id).then((a) => setAnalyticsData(a)).catch(() => {});
+    }
   };
 
   const handleSignOut = () => {
@@ -256,8 +266,11 @@ export default function App() {
     setAssessment(null);
     setRubric(null);
     setActiveNoteId(null);
+    setLectureTitle('');
+    setLectureContent('');
     setChatSessions([]);
     setActiveChatSessionId(null);
+    setAnalyticsData(null);
     setView('landing');
   };
 
@@ -301,8 +314,11 @@ export default function App() {
             setAssessment(null);
             setRubric(null);
             setActiveNoteId(null);
+            setLectureTitle('');
+            setLectureContent('');
             setActiveChatSessionId(null);
             loadChatSessions(user.id);
+            fetchAnalytics(null, user.id).then((a) => setAnalyticsData(a)).catch(() => {});
             setView('app');
           }}
         />
@@ -428,6 +444,7 @@ export default function App() {
             <AnalyticsTab
               analyticsData={analyticsData}
               setAnalyticsData={setAnalyticsData}
+              currentUser={currentUser}
             />
           )}
         </main>
@@ -437,7 +454,17 @@ export default function App() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         currentUser={currentUser}
-        onAuthSuccess={(user) => setCurrentUser(user)}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          setAssessment(null);
+          setRubric(null);
+          setActiveNoteId(null);
+          setLectureTitle('');
+          setLectureContent('');
+          setActiveChatSessionId(null);
+          loadChatSessions(user.id);
+          fetchAnalytics(null, user.id).then((a) => setAnalyticsData(a)).catch(() => {});
+        }}
       />
 
       <InstructorProfileModal

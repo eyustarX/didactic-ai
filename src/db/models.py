@@ -4,6 +4,8 @@ Implements data schemas for lecture notes, key parts, assessments, questions,
 rubrics, rubric criteria, students, submissions, and question scores.
 """
 
+import hashlib
+import secrets
 import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
@@ -26,6 +28,35 @@ Base = declarative_base()
 
 def generate_uuid() -> str:
     return str(uuid.uuid4())
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
+    return f"{salt}:{key.hex()}"
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    try:
+        if not hashed or ":" not in hashed:
+            return False
+        salt, key_hex = hashed.split(":", 1)
+        check_key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000)
+        return secrets.compare_digest(check_key.hex(), key_hex)
+    except Exception:
+        return False
+
+
+class User(Base):
+    """Registered instructor/user account."""
+    __tablename__ = "users"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False)
+    role = Column(String(50), default="Instructor")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 # Association table between Question and LectureNoteKeyPoint

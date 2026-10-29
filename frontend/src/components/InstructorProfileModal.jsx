@@ -150,12 +150,6 @@ export default function InstructorProfileModal({
       email: finalEmail,
     };
     delete updatedUser.department;
-    if (
-      (updatedUser.name && updatedUser.name.toLowerCase().includes('eyob')) ||
-      (updatedUser.email && updatedUser.email.toLowerCase().includes('eyob'))
-    ) {
-      updatedUser.id = 'usr_byz6ij';
-    }
 
     if (onSave) {
       onSave(updatedUser);

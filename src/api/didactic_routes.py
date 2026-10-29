@@ -37,6 +37,7 @@ from src.ai import (
     extract_document_text,
     extract_text_from_pdf,
 )
+from sqlalchemy import func
 from src.ai.engine import synthesize_assessment_title
 from src.db.models import (
     Assessment,
@@ -50,6 +51,9 @@ from src.db.models import (
     SubmissionQuestionScore,
     ChatSession,
     ChatMessage,
+    User,
+    hash_password,
+    verify_password,
 )
 from src.db.session import get_session
 from src.services.storage_service import get_storage
@@ -67,6 +71,85 @@ def get_current_lecturer(
 ) -> str:
     """Returns the authenticated lecturer ID from headers, query params, or default."""
     return x_lecturer_id or lecturer_id or "default_lecturer"
+
+
+# ---------------------------------------------------------------------------
+# Authentication Endpoints
+# ---------------------------------------------------------------------------
+
+class RegisterReq(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
+class LoginReq(BaseModel):
+    email: str
+    password: str
+
+
+@router.post("/auth/register")
+def register_user(req: RegisterReq, session: Session = Depends(get_session)):
+    clean_email = req.email.strip().lower()
+    clean_name = req.name.strip()
+    if not clean_email or "@" not in clean_email:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Please provide a valid email address.")
+    if not req.password or len(req.password) < 4:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Password must be at least 4 characters.")
+
+    existing = session.query(User).filter(func.lower(User.email) == clean_email).first()
+    if existing:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "An account with this email already exists. Please sign in.")
+
+    user_id = f"usr_{uuid.uuid4().hex[:8]}"
+    user = User(
+        id=user_id,
+        email=clean_email,
+        name=clean_name or clean_email.split("@")[0].title(),
+        password_hash=hash_password(req.password),
+        role="Instructor",
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+    }
+
+
+@router.post("/auth/login")
+def login_user(req: LoginReq, session: Session = Depends(get_session)):
+    clean_email = req.email.strip().lower()
+    user = session.query(User).filter(func.lower(User.email) == clean_email).first()
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password.")
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+    }
+
+
+@router.get("/auth/me")
+def get_current_user_profile(
+    lecturer_id: str = Depends(get_current_lecturer),
+    session: Session = Depends(get_session),
+):
+    user = session.query(User).filter(User.id == lecturer_id).first()
+    if not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User profile not found.")
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -307,30 +390,18 @@ def list_previous_uploads(
     lecturer_id: str = Depends(get_current_lecturer),
     session: Session = Depends(get_session),
 ):
-    if lecturer_id in ("usr_byz6ij", "default_lecturer"):
-        notes = (
-            session.query(LectureNote)
-            .filter(
-                (LectureNote.lecturer_id == "usr_byz6ij")
-                | (LectureNote.lecturer_id == "default_lecturer")
-                | (LectureNote.lecturer_id == None)
-            )
-            .order_by(LectureNote.created_at.desc())
-            .all()
-        )
-    else:
-        notes = (
-            session.query(LectureNote)
-            .filter(LectureNote.lecturer_id == lecturer_id)
-            .order_by(LectureNote.created_at.desc())
-            .all()
-        )
+    notes = (
+        session.query(LectureNote)
+        .filter(LectureNote.lecturer_id == lecturer_id)
+        .order_by(LectureNote.created_at.desc())
+        .all()
+    )
 
     results = []
     for n in notes:
         lecturer_assessments = [
             a for a in n.assessments
-            if a.lecturer_id == lecturer_id or (lecturer_id == "usr_byz6ij" and a.lecturer_id == "default_lecturer")
+            if a.lecturer_id == lecturer_id
         ]
         results.append({
             "id": n.id,
@@ -352,16 +423,9 @@ def get_lecture_note_detail(
 ):
     note = (
         session.query(LectureNote)
-        .filter(LectureNote.id == note_id)
-        .filter(
-            (LectureNote.lecturer_id == lecturer_id)
-            | (LectureNote.lecturer_id == "default_lecturer")
-            | (LectureNote.lecturer_id == None)
-        )
+        .filter(LectureNote.id == note_id, LectureNote.lecturer_id == lecturer_id)
         .first()
     )
-    if not note:
-        note = session.query(LectureNote).filter(LectureNote.id == note_id).first()
     if not note:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lecture note not found.")
 
@@ -561,24 +625,18 @@ def generate_assessment_endpoint(
             .filter(LectureNote.id == req.lecture_note_id, LectureNote.lecturer_id == lecturer_id)
             .first()
         )
-        if not note:
-            note = session.query(LectureNote).filter(LectureNote.id == req.lecture_note_id).first()
-        if not note:
-            note = session.query(LectureNote).filter(LectureNote.id == req.lecture_note_id).first()
 
     if not note:
-        # Fallback to the latest note for this lecturer or any available note
+        # Fallback to the latest note strictly for this lecturer
         note = (
             session.query(LectureNote)
             .filter(LectureNote.lecturer_id == lecturer_id)
             .order_by(LectureNote.created_at.desc())
             .first()
         )
-        if not note:
-            note = session.query(LectureNote).order_by(LectureNote.created_at.desc()).first()
 
     if not note:
-        # Create an auto-ingested lecture note so assessment generation never fails
+        # Create an auto-ingested lecture note for this lecturer so assessment generation never fails
         note = LectureNote(
             lecturer_id=lecturer_id,
             name=req.title or "Course Assessment Material",
@@ -804,25 +862,12 @@ def list_chat_sessions(
     lecturer_id: str = Depends(get_current_lecturer),
     session: Session = Depends(get_session),
 ):
-    if lecturer_id in ("usr_byz6ij", "default_lecturer"):
-        sessions = (
-            session.query(ChatSession)
-            .filter(
-                (ChatSession.lecturer_id == "usr_byz6ij")
-                | (ChatSession.lecturer_id == "default_lecturer")
-                | (ChatSession.lecturer_id == "usr_wtpiub")
-                | (ChatSession.lecturer_id == None)
-            )
-            .order_by(ChatSession.updated_at.desc())
-            .all()
-        )
-    else:
-        sessions = (
-            session.query(ChatSession)
-            .filter(ChatSession.lecturer_id == lecturer_id)
-            .order_by(ChatSession.updated_at.desc())
-            .all()
-        )
+    sessions = (
+        session.query(ChatSession)
+        .filter(ChatSession.lecturer_id == lecturer_id)
+        .order_by(ChatSession.updated_at.desc())
+        .all()
+    )
     return [
         {
             "id": s.id,
@@ -877,8 +922,6 @@ def get_chat_session(
         .first()
     )
     if not chat_sess:
-        chat_sess = session.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not chat_sess:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Chat session not found.")
 
     return {
@@ -913,7 +956,7 @@ def add_chat_message(
 ):
     chat_sess = (
         session.query(ChatSession)
-        .filter(ChatSession.id == session_id)
+        .filter(ChatSession.id == session_id, ChatSession.lecturer_id == lecturer_id)
         .first()
     )
     if not chat_sess:
@@ -964,7 +1007,7 @@ def delete_chat_session(
 ):
     chat_sess = (
         session.query(ChatSession)
-        .filter(ChatSession.id == session_id)
+        .filter(ChatSession.id == session_id, ChatSession.lecturer_id == lecturer_id)
         .first()
     )
     if chat_sess:
@@ -979,14 +1022,7 @@ def list_assessments(
     lecturer_id: str = Depends(get_current_lecturer),
     session: Session = Depends(get_session),
 ):
-    if lecturer_id in ("usr_byz6ij", "default_lecturer"):
-        query = session.query(Assessment).filter(
-            (Assessment.lecturer_id == "usr_byz6ij")
-            | (Assessment.lecturer_id == "default_lecturer")
-            | (Assessment.lecturer_id == None)
-        )
-    else:
-        query = session.query(Assessment).filter(Assessment.lecturer_id == lecturer_id)
+    query = session.query(Assessment).filter(Assessment.lecturer_id == lecturer_id)
     if lecture_note_id:
         query = query.filter(Assessment.lecture_note_id == lecture_note_id)
     assessments = query.order_by(Assessment.created_at.desc()).all()
@@ -1040,16 +1076,9 @@ def get_assessment(
 ):
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id)
-        .filter(
-            (Assessment.lecturer_id == lecturer_id)
-            | (Assessment.lecturer_id == "default_lecturer")
-            | (Assessment.lecturer_id == None)
-        )
+        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
         .first()
     )
-    if not assessment:
-        assessment = session.query(Assessment).filter(Assessment.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
     return get_assessment_detail_response(assessment)
@@ -1202,7 +1231,7 @@ def regenerate_single_question_rubric(
     session: Session = Depends(get_session),
 ):
     q = session.query(Question).filter(Question.id == question_id).first()
-    if not q:
+    if not q or (q.assessment and q.assessment.lecturer_id != lecturer_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not found.")
 
     if q.assessment.status == "locked":
@@ -1284,7 +1313,7 @@ def update_question_rubric(
     session: Session = Depends(get_session),
 ):
     q = session.query(Question).filter(Question.id == question_id).first()
-    if not q:
+    if not q or (q.assessment and q.assessment.lecturer_id != lecturer_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not found.")
 
     if q.assessment.status == "locked":
@@ -1693,6 +1722,8 @@ def get_submission_file(
     submission = session.query(Submission).filter(Submission.id == sub_id_int).first()
     if not submission or not submission.pdf_path:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission file not found.")
+    if submission.assessment and submission.assessment.lecturer_id != lecturer_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission file not found.")
 
     storage = get_storage()
     try:
@@ -1738,11 +1769,11 @@ def regrade_submission(
     """
     sub_id_int = int(submission_id) if str(submission_id).isdigit() else submission_id
     submission = session.query(Submission).filter(Submission.id == sub_id_int).first()
-    if not submission:
+    if not submission or (submission.assessment and submission.assessment.lecturer_id != lecturer_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found.")
 
     assessment = submission.assessment
-    if not assessment:
+    if not assessment or assessment.lecturer_id != lecturer_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
 
     extracted_text = submission.extracted_text or ""
@@ -1837,10 +1868,13 @@ def regrade_submission_question(
     """
     sub_id_int = int(submission_id) if str(submission_id).isdigit() else submission_id
     submission = session.query(Submission).filter(Submission.id == sub_id_int).first()
-    if not submission:
+    if not submission or (submission.assessment and submission.assessment.lecturer_id != lecturer_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found.")
 
     assessment = submission.assessment
+    if not assessment or assessment.lecturer_id != lecturer_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
+
     target_q = session.query(Question).filter(Question.id == req.question_id).first()
     if not target_q:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not found.")
@@ -1909,7 +1943,7 @@ def confirm_submission_score(
 ):
     sub_id_int = int(submission_id) if str(submission_id).isdigit() else submission_id
     submission = session.query(Submission).filter(Submission.id == sub_id_int).first()
-    if not submission:
+    if not submission or (submission.assessment and submission.assessment.lecturer_id != lecturer_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Submission not found.")
 
     submission.total_score = float(req.total_score)
@@ -2148,7 +2182,7 @@ def get_master_course_gradebook(
     """
     active_assessment = None
     if assessment_id:
-        active_assessment = session.query(Assessment).filter(Assessment.id == assessment_id).first()
+        active_assessment = session.query(Assessment).filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id).first()
 
     resolved_course = course_name
     if not resolved_course or not resolved_course.strip():
@@ -2343,16 +2377,9 @@ def list_assessment_submissions(
 ):
     assessment = (
         session.query(Assessment)
-        .filter(Assessment.id == assessment_id)
-        .filter(
-            (Assessment.lecturer_id == lecturer_id)
-            | (Assessment.lecturer_id == "default_lecturer")
-            | (Assessment.lecturer_id == None)
-        )
+        .filter(Assessment.id == assessment_id, Assessment.lecturer_id == lecturer_id)
         .first()
     )
-    if not assessment:
-        assessment = session.query(Assessment).filter(Assessment.id == assessment_id).first()
     if not assessment:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Assessment not found.")
 

@@ -11,13 +11,7 @@ function resolveLecturerId(lecturerId) {
     const stored = localStorage.getItem('didactic_user');
     if (stored) {
       const u = JSON.parse(stored);
-      if (
-        (u.name && u.name.toLowerCase().includes('eyob')) ||
-        (u.email && u.email.toLowerCase().includes('eyob'))
-      ) {
-        return 'usr_byz6ij';
-      }
-      if (u.id) return u.id;
+      if (u && u.id) return u.id;
     }
   } catch (e) {}
   return null;
@@ -30,6 +24,45 @@ function getAuthHeaders(lecturerId) {
     headers['X-Lecturer-Id'] = id;
   }
   return headers;
+}
+
+/* -------------------------------------------------------------
+ * Authentication API
+ * ------------------------------------------------------------- */
+
+export async function registerUser({ name, email, password }) {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Registration failed' }));
+    throw new Error(err.detail || 'Registration failed');
+  }
+  return await res.json();
+}
+
+export async function loginUser({ email, password }) {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Login failed' }));
+    throw new Error(err.detail || 'Invalid email or password');
+  }
+  return await res.json();
+}
+
+export async function fetchCurrentUser(lecturerId) {
+  const id = resolveLecturerId(lecturerId);
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    headers: getAuthHeaders(id),
+  });
+  if (!res.ok) throw new Error('Failed to fetch user profile');
+  return await res.json();
 }
 
 export async function fetchHealth() {
@@ -714,9 +747,15 @@ export async function gradeExamSubmission(data) {
   return await res.json();
 }
 
-export async function fetchAnalytics(courseId = null) {
-  const url = courseId ? `${API_BASE}/analytics?course_id=${encodeURIComponent(courseId)}` : `${API_BASE}/analytics`;
-  const res = await fetch(url);
+export async function fetchAnalytics(courseId = null, lecturerId = null) {
+  const id = resolveLecturerId(lecturerId);
+  const params = new URLSearchParams();
+  if (courseId) params.append('course_id', courseId);
+  if (id) params.append('lecturer_id', id);
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(`${API_BASE}/analytics${query}`, {
+    headers: getAuthHeaders(id),
+  });
   if (!res.ok) throw new Error('Failed to fetch analytics');
   return await res.json();
 }

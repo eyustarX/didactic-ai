@@ -15,10 +15,10 @@ export default function OverviewTab({
   analyticsData,
   setActiveTab,
 }) {
-  const totalSubmissions = analyticsData?.total_submissions ?? 7;
-  const avgScore = analyticsData?.average_score
+  const totalSubmissions = analyticsData?.total_submissions ?? 0;
+  const avgScore = analyticsData?.average_score != null
     ? Number(analyticsData.average_score).toFixed(1)
-    : '5.4';
+    : '0.0';
 
   return (
     <div>

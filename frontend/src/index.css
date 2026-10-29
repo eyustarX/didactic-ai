@@ -704,7 +704,7 @@ body {
   color: var(--text);
 }
 
-.input-text, .input-textarea, .input-select {
+.input-text, .input-textarea, .input-select, select {
   width: 100%;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -717,9 +717,67 @@ body {
   outline: none;
 }
 
-.input-text:focus, .input-textarea:focus, .input-select:focus {
+.input-text:focus, .input-textarea:focus, .input-select:focus, select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Select, Option, and Optgroup Dark/Light theme readability */
+select,
+.input-select {
+  cursor: pointer;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] select,
+[data-theme="dark"] select,
+[data-theme="dark"] .input-select,
+body.dark-theme select,
+body.dark-theme .input-select {
+  color-scheme: dark;
+  background-color: #111C30;
+  color: #F8FAFC;
+  border-color: #1E2D4A;
+}
+
+:root[data-theme="light"] select,
+[data-theme="light"] select,
+[data-theme="light"] .input-select {
+  color-scheme: light;
+  background-color: #FFFFFF;
+  color: #0B1220;
+  border-color: #E2E8F0;
+}
+
+option,
+optgroup {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] option,
+:root[data-theme="dark"] optgroup,
+[data-theme="dark"] option,
+[data-theme="dark"] optgroup,
+body.dark-theme option,
+body.dark-theme optgroup {
+  background-color: #111C30 !important;
+  color: #F8FAFC !important;
+}
+
+:root[data-theme="light"] option,
+:root[data-theme="light"] optgroup,
+[data-theme="light"] option,
+[data-theme="light"] optgroup {
+  background-color: #FFFFFF !important;
+  color: #0B1220 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  option, optgroup {
+    background-color: #111C30;
+    color: #F8FAFC;
+  }
 }
 
 .input-textarea {
